@@ -1,0 +1,101 @@
+@startuml k9x_studio_activity_flow_v2
+
+skinparam backgroundColor #FFFFFF
+skinparam ActivityBackgroundColor #FAFAFA
+skinparam ActivityBorderColor #AAAAAA
+skinparam ArrowColor #555555
+skinparam NoteBackgroundColor #FFFBE6
+skinparam NoteBorderColor #E0C060
+skinparam defaultFontSize 12
+
+title K9X StudioX — Spec Import Activity Flow v2.0\n(running on the published k9-aif package — studio_core / studio_agents own the SBB/ABB layer)
+
+|User / Browser|
+start
+
+:Upload spec doc (.docx/.pdf/.md)\nPOST /spec/import;
+
+|FastAPI (thin layer)|
+:backend/api/routes.py\nreceive HTTP request;
+:from studio_core.router.router_factory\n  import route_event;
+:route_event("spec_import", payload);
+
+|studio_core.router.K9EventRouter|
+:route(event_type = "spec_import");
+note right
+  K9EventRouter --|> k9_aif_abb.k9_core
+                    .router.BaseRouter
+  Deterministic dispatch — event_type
+  resolved to its registered orchestrator,
+  called in-process (no Kafka in Phase 2)
+end note
+:Dispatch → SpecImportOrchestrator;
+
+|SpecImportOrchestrator|
+:_load_squad("SpecImportSquad")\n(AgentRegistry + SquadLoader, both\nimported live from k9_aif_abb);
+:squad.execute_flow(payload);
+
+|SpecImportSquad  (flow defined in squads/yaml/spec_import_squad.yaml)|
+
+:**GovernanceAgent**\nscreens doc for safety/PII\n→ result_key: governance;
+if (governance.passed == true?) then (yes)
+else (no — every later step's\n`when:` evaluates false)
+  :Squad returns with governance.passed = false;
+  |SpecImportOrchestrator|
+  :publish_status("FlowBlocked");
+  :Return blocked response\n(never reaches parser/LLM/canvas);
+  |FastAPI (thin layer)|
+  :Return error to UI;
+  stop
+endif
+
+:**SpecParserAgent**\n(extends studio_agents.parallel\n.K9SubAgentSpawner)\n→ result_key: parsed;
+note right
+  spawn_parallel([
+    IntakeExtractorAgent,
+    AgentExtractorAgent,
+    ZoneMappingAgent
+  ])
+  ThreadPoolExecutor — concurrent,
+  merged back into shared context.
+  K9SubAgentSpawner supplies the
+  mechanics only; SpecParserAgent
+  owns which children + how to merge.
+end note
+fork
+  :[sub] IntakeExtractorAgent\nproject name, domain, description;
+fork again
+  :[sub] AgentExtractorAgent\nagent table from spec §3.1.8;
+fork again
+  :[sub] ZoneMappingAgent\nzone → component mapping\n(GREEN/AMBER/RED);
+end fork
+:Merge sub-agent results\ninto `parsed` context;
+
+:**LLMGroupingAgent**  (AMBER — LLM call)\nproposes a squad grouping\n→ result_key: llm_grouping;
+:**ScoringAgent**  (GREEN)\nscores LLM grouping vs.\nrule-based zone grouping,\npicks the winner\n→ result_key: scored;
+:**CanvasBuilderAgent**  (GREEN)\nbuilds canvas-suggestion JSON\n(nodes + edges for React Flow)\n→ result_key: canvas;
+
+|SpecImportOrchestrator|
+:Collect squad result;
+:publish_status("FlowCompleted");
+
+|FastAPI (thin layer)|
+:Return canvas suggestion JSON;
+
+|User / Browser|
+:Canvas auto-populates with\nsuggested architecture;
+:User reviews / edits\nvia Inspector;
+note right
+  v2.0 change vs. Phase-2 draft: studiox now
+  depends on the published k9-aif package
+  (pip install k9-aif, requirements.txt) for
+  BaseRouter / BaseOrchestrator / BaseAgent /
+  BaseSquad / SquadLoader / AgentRegistry.
+  studiox's own SBB/ABB extensions live in
+  studio_core/ and studio_agents/ — renamed
+  from k9_core/ and k9_agents/, which collided
+  with the framework's internal package names.
+end note
+stop
+
+@enduml

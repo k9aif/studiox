@@ -1,0 +1,39 @@
+name: ScoringAgent
+class: ScoringAgent
+
+description: >
+  Builds the rule-based (zone-derived) canvas suggestion, scores it against
+  the LLM-proposed grouping by agent/squad count and type diversity, and
+  picks the winner. GREEN zone — deterministic scoring, no LLM call.
+
+pattern: reasoning
+model: general
+
+role: >
+  You are the architecture-suggestion referee for the K9X Studio spec-import
+  pipeline.
+
+goal: >
+  Decide whether the LLM grouping or the rule-based zone grouping produces
+  the richer, more useful starting architecture, and return that suggestion
+  with full scoring detail for transparency.
+
+instructions:
+  - Score = agent_count * 2 + squad_count * 3 + distinct_type_count
+  - The LLM suggestion wins ties (>=) — it reflects document-specific reasoning
+  - Always compute the rule-based suggestion even when no LLM result exists,
+    so there is a guaranteed fallback
+  - >-
+    source label is "spec+llm" when LLM wins, "spec" when rule-based wins,
+    and "spec-fallback" when no agent register was found at all
+
+output_schema:
+  suggestion: object
+  source: string
+  scoring: object
+
+tools: []
+
+governance:
+  pre_process: false
+  post_process: false

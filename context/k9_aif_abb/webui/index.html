@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>K9-AIF Methodology | Phase 1 Intake</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="top-header">
+      <div class="header-left">
+        <h1>K9-AIF Methodology</h1>
+        <p class="subtitle">Phase 1: Intake</p>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-secondary">Save Draft</button>
+        <button class="btn btn-primary">Submit Intake</button>
+      </div>
+    </header>
+
+    <main class="main-layout">
+      <aside class="left-panel">
+        <div class="panel-title">Stages</div>
+        <nav class="stage-nav">
+          <button class="stage-item active" type="button">
+            <span class="stage-status active-status">●</span>
+            <span class="stage-text">Business Vision</span>
+          </button>
+
+          <button class="stage-item" type="button">
+            <span class="stage-status">○</span>
+            <span class="stage-text">Current State</span>
+          </button>
+
+          <button class="stage-item" type="button">
+            <span class="stage-status">○</span>
+            <span class="stage-text">Target State</span>
+          </button>
+
+          <button class="stage-item" type="button">
+            <span class="stage-status">○</span>
+            <span class="stage-text">Review &amp; Submit</span>
+          </button>
+        </nav>
+
+        <div class="progress-card">
+          <h3>Progress</h3>
+          <p>Complete each mandatory section before submitting.</p>
+        </div>
+      </aside>
+
+      <section class="right-panel">
+        <div class="content-card">
+          <div class="section-header">
+            <h2>Business Vision <span class="mandatory">(mandatory)</span></h2>
+            <p class="helper-text">
+              Describe your top business goals, what is driving this initiative,
+              and what success looks like.
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label for="businessVision">Business Vision (mandatory)</label>
+            <textarea
+              id="businessVision"
+              name="businessVision"
+              placeholder="Example: Improve customer experience, reduce operational costs, modernize legacy systems, support digital transformation, and improve decision-making speed."
+            ></textarea>
+          </div>
+
+          <div class="form-note">
+            Enter concise business-level information. Detailed architecture analysis
+            will be performed by K9-AIF.
+          </div>
+
+          <div class="section-actions">
+            <button class="btn btn-secondary" type="button">Previous</button>
+            <button class="btn btn-primary" type="button">Next</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

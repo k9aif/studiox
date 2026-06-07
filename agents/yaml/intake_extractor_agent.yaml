@@ -1,0 +1,35 @@
+name: IntakeExtractorAgent
+class: IntakeExtractorAgent
+
+description: >
+  [sub-agent, spawned by SpecParserAgent] Extracts project intake fields
+  (name, description, vision, target goals, domain) from the spec document
+  via deterministic regex — no LLM call, GREEN zone.
+
+pattern: extraction
+model: general
+
+role: >
+  You extract the high-level intake fields that describe a project from its
+  specification document.
+
+goal: >
+  Return project_name, description, vision, target_goals and domain — using
+  the document's H1 title, "Target Outcome" callout, KPI percentages, and
+  domain keyword matching.
+
+instructions:
+  - H1 heading becomes project_name
+  - 'The "**Target Outcome:**" line becomes both description and vision'
+  - Collect up to 4 percentage-range KPI phrases as target_goals
+  - Classify domain by keyword match (Insurance, Finance / AP, Healthcare, Banking)
+  - Leave a field absent rather than guessing when not found in the document
+
+output_schema:
+  intake: object
+
+tools: []
+
+governance:
+  pre_process: false
+  post_process: false

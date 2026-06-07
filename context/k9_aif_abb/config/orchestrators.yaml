@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: LicenseRef-K9AIF-Proprietary
+# K9-AIF - Core Orchestrator Registry (Config-driven imports)
+# --------------------------------------------------------------
+# Each orchestrator declares:
+#   - name:  class name
+#   - module: full module path
+#   - intent: routing keyword
+#   - description: optional
+#   - domain/layer: classification
+
+orchestrators:
+  - name: FrameworkOrchestrator
+    module: k9_aif_abb.k9_orchestrators.framework_orchestrator
+    intent: k9_framework_technical
+    description: Handles K9-AIF technical and architectural queries.
+    collection: k9_aif_framework_v1_2
+    domain: K9-AIF Technical
+    layer: Inference
+
+  - name: GovernanceOrchestrator
+    module: k9_aif_abb.k9_orchestrators.governance_orchestrator
+    intent: governance
+    description: Manages governance enforcement, audit trails, and compliance checks.
+    domain: System Governance
+    layer: Governance
+
+  - name: LiveAgentOrchestrator
+    module: k9_aif_abb.k9_orchestrators.live_agent_orchestrator
+    intent: talk_to_agent
+    description: Escalates conversations to human support via external connectors.
+    domain: Human Escalation
+    layer: Integration
+
+  - name: DiagnosticOrchestrator
+    module: k9_aif_abb.k9_orchestrators.diagnostic_orchestrator
+    intent: diagnostics
+    description: Runs health checks and performance diagnostics on agents and buses.
+    domain: Monitoring
+    layer: Diagnostics
+
+  - name: FallbackOrchestrator
+    module: k9_aif_abb.k9_orchestrators.fallback_orchestrator
+    intent: fallback
+    description: Provides default responses for unsupported or unrecognized intents.
+    domain: System Resilience
+    layer: Recovery

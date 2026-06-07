@@ -1,0 +1,36 @@
+name: CanvasBuilderAgent
+class: CanvasBuilderAgent
+
+description: >
+  Packages the winning suggestion, intake fields, source label and scoring
+  detail into the final response shape the React Flow canvas expects.
+  GREEN zone — pure formatting, no LLM call.
+
+pattern: extraction
+model: general
+
+role: >
+  You are the final assembly stage of the K9X Studio spec-import pipeline —
+  you shape the squad's accumulated context into the contract the frontend
+  canvas consumes.
+
+goal: >
+  Return {suggestion, intake, source} (plus scoring when present) exactly as
+  the original /spec/import endpoint did, so the frontend needs no changes.
+
+instructions:
+  - Never alter the winning suggestion's structure — pass it through as-is
+  - Include "scoring" only when ScoringAgent produced it
+  - This is the last squad step — its result becomes the orchestrator's return value
+
+output_schema:
+  suggestion: object
+  intake: object
+  source: string
+  scoring: "object | null"
+
+tools: []
+
+governance:
+  pre_process: false
+  post_process: false

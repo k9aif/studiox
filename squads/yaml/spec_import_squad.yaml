@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+# k9x_studio — SpecImportSquad flow definition
+#
+# Loaded by SquadLoader.load_one() — no `orchestrator:` field (decoupling
+# rule: the squad must not reference its caller; SpecImportOrchestrator
+# owns that association via _load_squad()).
+#
+# Governance gates the flow: when it fails, every later step's `when:`
+# condition evaluates false and is skipped — the orchestrator inspects
+# context["governance"] and returns a blocked response without ever
+# reaching the parser, LLM, or canvas-builder stages.
+
+squads:
+  SpecImportSquad:
+    description: >
+      Parses an uploaded project specification document, screens it for
+      safety, extracts its structure via parallel sub-agents, optionally
+      asks the configured LLM to propose a squad grouping, scores that
+      against a deterministic zone-based grouping, and returns a canvas
+      suggestion for the React Flow frontend.
+    agents:
+      - GovernanceAgent
+      - SpecParserAgent
+      - LLMGroupingAgent
+      - ScoringAgent
+      - CanvasBuilderAgent
+    flow:
+      - agent: GovernanceAgent
+        result_key: governance
+
+      - agent: SpecParserAgent
+        result_key: parsed
+        when:
+          key: governance.passed
+          eq: true
+
+      - agent: LLMGroupingAgent
+        result_key: llm_grouping
+        when:
+          key: governance.passed
+          eq: true
+
+      - agent: ScoringAgent
+        result_key: scored
+        when:
+          key: governance.passed
+          eq: true
+
+      - agent: CanvasBuilderAgent
+        result_key: canvas
+        when:
+          key: governance.passed
+          eq: true

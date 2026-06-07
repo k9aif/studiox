@@ -1,0 +1,132 @@
+@startuml K9-AIF Sub-Agent Pattern
+
+title K9-AIF Sub-Agent Pattern
+
+' ── Existing K9-AIF Classes ────────────────────────────────
+
+class BaseAgent {
+  + execute(payload: dict) : dict
+  + publish_event(event: dict)
+  + enforce_governance()
+  # config: dict
+  # monitor: Monitor
+}
+
+class K9ValidationLoopAgent {
+  + generate_hypothesis(ctx)
+  + run_validation(hyp, ctx)
+  + should_continue(obs, ctx) : Disposition
+  + finalize(ctx) : LoopResult
+}
+
+class K9CriticActorAgent {
+  + generate(ctx) : str
+  + critique(draft, ctx) : str
+  + refine(draft, critique, ctx) : str
+}
+
+' ── Sub-Agent Pattern ──────────────────────────────────────
+
+class ChildAgent {
+  + execute(payload: dict) : dict
+  # prepare(payload: dict) : Vote
+  # rollback(payload: dict)
+  {method} spawn() <<raises NotImplementedError>>
+}
+
+note right of ChildAgent
+  Leaf node. Cannot spawn.
+  Designed to be spawned.
+end note
+
+class K9AgentSpawner {
+  - _registry: ChildRegistry
+  + spawn_parallel(children, payloads, timeout) : List[dict]
+  + spawn_sequential(children, payload) : dict
+  # merge_results(results, failures) : dict
+}
+
+note right of K9AgentSpawner
+  Parent agent. Spawns ChildAgents.
+  SBB overrides merge_results()
+  to define result policy.
+end note
+
+class K9TransactionAgent {
+  - _coordinator: TwoPhaseCoordinator
+  + prepare_all(children, payloads) : List[Vote]
+  + commit_all(children) : List[dict]
+  + rollback_all(children)
+}
+
+note right of K9TransactionAgent
+  2-Phase Commit.
+  Phase 1: PREPARE (vote YES/NO)
+  Phase 2: COMMIT or ROLLBACK ALL
+end note
+
+' ── Monitoring ─────────────────────────────────────────────
+
+class K9HeartBeat {
+  + publish_heartbeat(component_id, status)
+  # heartbeat_interval: int = 5
+  # topic: str = "k9.heartbeat"
+}
+
+class K9Remediation {
+  + on_failure(component_id, failure_type)
+  + detect_anomaly(heartbeat_stream)
+}
+
+class K9Newfoundland {
+  + on_failure(component_id, failure_type)
+  + detect_anomaly(heartbeat_stream)
+}
+
+note bottom of K9Newfoundland
+  "Never leaves a child behind."
+  Monitors all spawned ChildAgents.
+  Detects silence. Raises alerts. Remediates.
+end note
+
+' ── Supporting Classes ─────────────────────────────────────
+
+class ChildRegistry {
+  + register(id, child)
+  + cancel_all()
+  + clear()
+  + is_alive(id) : bool
+}
+
+class TwoPhaseCoordinator {
+  + collect_votes(children, payloads) : bool
+  + commit(children) : List[dict]
+  + rollback(children)
+}
+
+enum Vote {
+  YES
+  NO
+  TIMEOUT
+}
+
+' ── Inheritance ────────────────────────────────────────────
+
+BaseAgent          <|-- K9ValidationLoopAgent
+BaseAgent          <|-- K9CriticActorAgent
+BaseAgent          <|-- ChildAgent
+BaseAgent          <|-- K9AgentSpawner
+K9AgentSpawner     <|-- K9TransactionAgent
+K9HeartBeat        <|-- K9Newfoundland
+K9Remediation      <|-- K9Newfoundland
+
+' ── Composition & Dependencies ────────────────────────────
+
+K9AgentSpawner      *-- ChildRegistry         : owns
+K9AgentSpawner      ..> ChildAgent            : spawns
+K9TransactionAgent  *-- TwoPhaseCoordinator   : owns
+TwoPhaseCoordinator ..> Vote                  : collects
+K9Newfoundland      ..> ChildAgent            : monitors
+K9Newfoundland      ..> K9AgentSpawner        : reports to
+
+@enduml

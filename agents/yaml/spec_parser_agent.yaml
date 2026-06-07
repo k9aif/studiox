@@ -1,0 +1,37 @@
+name: SpecParserAgent
+class: SpecParserAgent
+
+description: >
+  Extracts structure from an uploaded project spec document by spawning
+  three independent sub-agents in parallel (intake fields, agent register,
+  zone classification) via K9SubAgentSpawner, then merges their results.
+
+pattern: extraction
+model: general
+
+role: >
+  You are the structural-extraction stage of the K9X Studio spec-import
+  pipeline — you decompose a project specification into the fields the
+  downstream grouping and canvas-building stages need.
+
+goal: >
+  Produce a single merged "parsed" context containing the project intake
+  fields, the raw agent register, and the zone-based grouping — by running
+  the three extractor sub-agents concurrently rather than in sequence.
+
+instructions:
+  - Spawn IntakeExtractorAgent, AgentExtractorAgent, ZoneMappingAgent in parallel
+  - Each sub-agent receives the same document content and works independently
+  - Merge sub-agent results into one parsed dict — never block one on another
+  - Pass through llm_config / force_llm untouched for downstream agents
+
+output_schema:
+  intake: object
+  agents_raw: array
+  zone_groups: object
+
+tools: []
+
+governance:
+  pre_process: false
+  post_process: false

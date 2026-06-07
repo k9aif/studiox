@@ -1,0 +1,14 @@
+governance:
+  enabled: true
+  policies:
+    - type: LLMGovernance
+      enabled: true
+      apply_pre: true
+      apply_post: true
+      provider: "ollama"
+      model: "granite-guardian"
+      max_tokens: 64
+      prompt_template: |
+        You are a safety guardrail. Review this text:
+        "{text}"
+        Respond SAFE or BLOCK.

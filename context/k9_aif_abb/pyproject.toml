@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "k9_aif_framework"
+version = "0.1.0.dev1"
+description = "K9-AIF - Governed, Modular Framework for Agentic AI Applications"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Ravi Natarajan", email = "ravi@k9x.ai" }
+]
+license = { text = "Apache-2.0" }
+dependencies = [
+  "pydantic>=2.0",
+  "requests",
+  "pyyaml>=6.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/k9aif/k9-aif-framework"
+Source = "https://github.com/k9aif/k9-aif-framework"
+Documentation = "https://k9x.ai"
+
+[tool.setuptools]
+include-package-data = true
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests", "logs", "examples", "Publications"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml"]

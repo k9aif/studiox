@@ -1,0 +1,17 @@
+cities:
+  - name: Boston
+    country: US
+    avg_temp_c: 12
+    conditions: ["snow", "rain", "cloudy"]
+  - name: Miami
+    country: US
+    avg_temp_c: 25
+    conditions: ["sunny", "rain", "hurricane"]
+  - name: Munich
+    country: DE
+    avg_temp_c: 10
+    conditions: ["snow", "rain", "fog"]
+  - name: Tokyo
+    country: JP
+    avg_temp_c: 16
+    conditions: ["rain", "typhoon", "sunny"]

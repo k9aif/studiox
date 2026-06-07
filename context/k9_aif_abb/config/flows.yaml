@@ -1,0 +1,83 @@
+# k9_aif_abb/config/flows.yaml
+# ============================================================
+# NOTE:
+# This flows.yaml is part of the ABB (framework) repository.
+# It exists ONLY for ABB testing, validation, and reference.
+#
+# - Default flows (default_support, default_echo, default_pipeline)
+#   are used to exercise ABB agents and factories.
+# - Agent-specific configs (retrieval, processor, llm, etc.)
+#   demonstrate ABB-level behavior.
+# - Application-specific flows (Acme, Medical, etc.)
+#   must be defined in their respective SBB repositories
+#   under acme_demo/config/flows.yaml or equivalent.
+# ============================================================
+
+default_support:
+  steps:
+    - k9_aif_abb.k9_agents.security.auth_agent.AuthAgent
+    - k9_aif_abb.k9_agents.governance.governance_agent.GovernanceAgent
+    - k9_aif_abb.k9_agents.supporting.logging_agent.LoggingAgent
+
+default_echo:
+  steps:
+    - k9_aif_abb.k9_agents.security.auth_agent.AuthAgent
+    - k9_aif_abb.k9_agents.governance.governance_agent.GovernanceAgent
+    - k9_aif_abb.k9_agents.supporting.processor_agent.ProcessorAgent
+
+default_pipeline:
+  steps:
+    - k9_aif_abb.k9_agents.security.auth_agent.AuthAgent
+    - k9_aif_abb.k9_agents.governance.governance_agent.GovernanceAgent
+    - k9_aif_abb.k9_agents.supporting.retrieval_agent.RetrievalAgent
+    - k9_aif_abb.k9_agents.supporting.processor_agent.ProcessorAgent
+    - k9_aif_abb.k9_agents.supporting.logging_agent.LoggingAgent
+
+# === Agent-specific configs ===
+retrieval:
+  llm_rewriter:
+    provider: ollama
+    model: llama3
+    params:
+      temperature: 0.0
+
+processor:
+  llm:
+    provider: ollama
+    model: llama3
+    params:
+      temperature: 0.2
+      max_tokens: 512
+
+# === Global configuration ===
+llm:
+  provider: ollama
+  model: llama3
+  params:
+    temperature: 0.2
+
+integration:
+  mcp:
+    enabled: true
+    server_url: http://localhost:8000
+    api_key: ${MCP_API_KEY}
+
+logging:
+  level: INFO
+  sink: console
+
+monitoring:
+  enabled: true
+  sink: console
+
+security:
+  mode: passthrough
+
+# Example SBB flow:
+acme_support:
+  steps:
+    - k9_aif_abb.k9_factories.security_factory.SecurityFactory:create_auth_agent
+    - k9_aif_abb.k9_factories.governance_factory.GovernanceFactory:create_governance_agent
+    - k9_aif_demo.acme_demo.factories.retrieval_factory.RetrievalFactory:create_acme_retrieval_agent
+    - k9_aif_demo.acme_demo.factories.enrichment_factory.EnrichmentFactory:create_acme_enrichment_agent
+    - k9_aif_demo.acme_demo.factories.summarizer_factory.SummarizerFactory:create_acme_summarizer_agent

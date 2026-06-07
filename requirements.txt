@@ -1,0 +1,9 @@
+k9-aif>=1.2.6
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.0
+jinja2>=3.1.0
+python-multipart>=0.0.9
+requests>=2.31.0
+pyyaml>=6.0
+python-dotenv>=1.0

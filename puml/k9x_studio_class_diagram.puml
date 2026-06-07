@@ -1,0 +1,292 @@
+@startuml k9x_studio_class_diagram
+
+skinparam classBackgroundColor #FAFAFA
+skinparam classBorderColor #AAAAAA
+skinparam ArrowColor #555555
+skinparam PackageBorderColor #CCCCCC
+skinparam PackageBackgroundColor #F5F7FF
+skinparam NoteBackgroundColor #FFFBE6
+skinparam NoteBorderColor #E0C060
+skinparam defaultFontSize 12
+
+title K9X StudioX — Agentized Architecture (Phase 2)\n"The studio that generates K9-AIF apps is itself a K9-AIF app"
+
+' ─────────────────────────────────────────
+' HTTP layer (thin)
+' ─────────────────────────────────────────
+package "backend  [FastAPI — thin layer]" {
+    class FastAPIRoutes {
+        ' translates HTTP → event → router.route()
+        POST /suggest
+        POST /spec/import
+        POST /bpmn/import
+        POST /generate
+        POST /scaffold/download
+        ...
+    }
+}
+
+' ─────────────────────────────────────────
+' Router (single entry point — ABB)
+' ─────────────────────────────────────────
+package "k9_core/router  [ABB — existing]" {
+    abstract class BaseRouter {
+        {abstract} route(event_type) : Orchestrator
+    }
+}
+
+class K9EventRouter {
+    ' resolves event_type → orchestrator, deterministic
+}
+K9EventRouter --|> BaseRouter
+FastAPIRoutes ..> K9EventRouter : emits event
+
+' ─────────────────────────────────────────
+' Orchestrators (each: Python class + YAML config)
+' k9x_studiox/orchestrators/<name>.py
+' ─────────────────────────────────────────
+package "orchestrators/  [SBB — one .py per orchestrator]" {
+    abstract class BaseOrchestrator {
+        {abstract} run(event)
+        --
+        _load_squad()
+    }
+
+    class SpecImportOrchestrator {
+        spec_import_orchestrator.py
+        --
+        loads: SpecImportSquad
+    }
+    class ScaffoldOrchestrator {
+        scaffold_orchestrator.py
+        --
+        loads: ScaffoldSquad
+    }
+    class BPMNImportOrchestrator {
+        bpmn_import_orchestrator.py
+        --
+        loads: BPMNImportSquad
+    }
+    class LLMOrchestrator {
+        llm_orchestrator.py
+        --
+        loads: LLMSquad
+    }
+}
+SpecImportOrchestrator  --|> BaseOrchestrator
+ScaffoldOrchestrator    --|> BaseOrchestrator
+BPMNImportOrchestrator  --|> BaseOrchestrator
+LLMOrchestrator         --|> BaseOrchestrator
+K9EventRouter ..> SpecImportOrchestrator
+K9EventRouter ..> ScaffoldOrchestrator
+K9EventRouter ..> BPMNImportOrchestrator
+K9EventRouter ..> LLMOrchestrator
+
+' ─────────────────────────────────────────
+' Squads — YAML-defined, loaded by SquadLoader
+' squads/yaml/<name>.yaml  (NOT Python classes)
+' ─────────────────────────────────────────
+package "squads/yaml/  [config-driven — no Python class per squad]" {
+    artifact "spec_import_squad.yaml" as SpecImportSquadYaml
+    artifact "scaffold_squad.yaml"    as ScaffoldSquadYaml
+    artifact "bpmn_import_squad.yaml" as BPMNImportSquadYaml
+    artifact "llm_squad.yaml"         as LLMSquadYaml
+
+    note bottom of SpecImportSquadYaml
+      squads:
+        SpecImportSquad:
+          agents: [Governance, SpecParser, LLMGrouping, Scoring, CanvasBuilder]
+          flow:
+            - agent: GovernanceAgent
+              result_key: governance
+            - agent: SpecParserAgent
+              result_key: parsed
+            ...
+      Loaded via SquadLoader.load_one() — no orchestrator: field
+    end note
+}
+
+class SquadLoader {
+    load_one(yaml_path, squad_id) : BaseSquad
+}
+SquadLoader ..> SpecImportSquadYaml   : reads
+SquadLoader ..> ScaffoldSquadYaml     : reads
+SquadLoader ..> BPMNImportSquadYaml   : reads
+SquadLoader ..> LLMSquadYaml          : reads
+SpecImportOrchestrator  ..> SquadLoader : _load_squad()
+ScaffoldOrchestrator    ..> SquadLoader : _load_squad()
+BPMNImportOrchestrator  ..> SquadLoader : _load_squad()
+LLMOrchestrator         ..> SquadLoader : _load_squad()
+
+abstract class BaseSquad {
+    {abstract} run(context)
+}
+SquadLoader ..> BaseSquad : assembles & returns
+
+' ─────────────────────────────────────────
+' Agents — each is YAML (behavior) + Python class (src/)
+' agents/yaml/<name>.yaml  +  agents/src/<name>_agent.py
+' ─────────────────────────────────────────
+package "agents/  [SBB — yaml/ behavior + src/ implementation]" {
+
+    abstract class BaseAgent {
+        {abstract} execute(payload) : dict
+    }
+
+    class K9SubAgentSpawner {
+        k9_agents/parallel/k9_sub_agent_spawner.py  [NEW ABB]
+        --
+        spawn_parallel(agent_classes, payloads) : list
+        spawn_sequential(agent_classes, payload) : dict
+    }
+    K9SubAgentSpawner --|> BaseAgent
+
+    class GovernanceAgent {
+        governance_agent.{yaml,py}   GREEN
+    }
+    class SpecParserAgent {
+        spec_parser_agent.{yaml,py}  GREEN
+    }
+    class IntakeExtractorAgent {
+        [sub] intake_extractor_agent.py
+    }
+    class AgentExtractorAgent {
+        [sub] agent_extractor_agent.py
+    }
+    class ZoneMappingAgent {
+        [sub] zone_mapping_agent.py
+    }
+    class LLMGroupingAgent {
+        llm_grouping_agent.{yaml,py} AMBER (LLM)
+    }
+    class ScoringAgent {
+        scoring_agent.{yaml,py}      GREEN
+    }
+    class CanvasBuilderAgent {
+        canvas_builder_agent.{yaml,py} GREEN
+    }
+    class TemplateRendererAgent {
+        template_renderer_agent.{yaml,py} GREEN
+    }
+    class AgentFileAgent {
+        [sub] agent_file_agent.py  (parallel, one per agent)
+    }
+    class SquadFileAgent {
+        [sub] squad_file_agent.py  (parallel, one per squad)
+    }
+    class OrchestratorFileAgent {
+        [sub] orchestrator_file_agent.py
+    }
+    class ConfigFileAgent {
+        [sub] config_file_agent.py
+    }
+    class ZipPackagerAgent {
+        zip_packager_agent.{yaml,py} GREEN
+    }
+    class BPMNParserAgent {
+        bpmn_parser_agent.{yaml,py}  GREEN
+    }
+    class LLMVerifyAgent {
+        llm_verify_agent.{yaml,py}   GREEN
+    }
+    class LLMModelsAgent {
+        llm_models_agent.{yaml,py}   GREEN
+    }
+    class LLMSuggestAgent {
+        llm_suggest_agent.{yaml,py}  AMBER (LLM)
+    }
+
+    GovernanceAgent       --|> BaseAgent
+    ScoringAgent          --|> BaseAgent
+    CanvasBuilderAgent    --|> BaseAgent
+    ZipPackagerAgent      --|> BaseAgent
+    BPMNParserAgent       --|> BaseAgent
+    LLMVerifyAgent        --|> BaseAgent
+    LLMModelsAgent        --|> BaseAgent
+    LLMGroupingAgent      --|> BaseAgent
+    LLMSuggestAgent       --|> BaseAgent
+    IntakeExtractorAgent  --|> BaseAgent
+    AgentExtractorAgent   --|> BaseAgent
+    ZoneMappingAgent      --|> BaseAgent
+    AgentFileAgent        --|> BaseAgent
+    SquadFileAgent        --|> BaseAgent
+    OrchestratorFileAgent --|> BaseAgent
+    ConfigFileAgent       --|> BaseAgent
+
+    SpecParserAgent       --|> K9SubAgentSpawner
+    TemplateRendererAgent --|> K9SubAgentSpawner
+}
+
+' Sub-agent spawning relationships
+SpecParserAgent       ..> IntakeExtractorAgent : spawns (parallel)
+SpecParserAgent       ..> AgentExtractorAgent  : spawns (parallel)
+SpecParserAgent       ..> ZoneMappingAgent     : spawns (parallel)
+TemplateRendererAgent ..> AgentFileAgent       : spawns (parallel, N)
+TemplateRendererAgent ..> SquadFileAgent       : spawns (parallel, N)
+TemplateRendererAgent ..> OrchestratorFileAgent: spawns
+TemplateRendererAgent ..> ConfigFileAgent      : spawns
+
+' Agents wired into squads (via YAML — shown as dependency, not class link)
+SpecImportSquadYaml ..> GovernanceAgent
+SpecImportSquadYaml ..> SpecParserAgent
+SpecImportSquadYaml ..> LLMGroupingAgent
+SpecImportSquadYaml ..> ScoringAgent
+SpecImportSquadYaml ..> CanvasBuilderAgent
+
+ScaffoldSquadYaml ..> TemplateRendererAgent
+ScaffoldSquadYaml ..> ZipPackagerAgent
+
+BPMNImportSquadYaml ..> BPMNParserAgent
+BPMNImportSquadYaml ..> LLMGroupingAgent
+BPMNImportSquadYaml ..> CanvasBuilderAgent
+
+LLMSquadYaml ..> LLMVerifyAgent
+LLMSquadYaml ..> LLMModelsAgent
+LLMSquadYaml ..> LLMSuggestAgent
+
+' ─────────────────────────────────────────
+' Existing services → become agent-internal helpers (not standalone)
+' ─────────────────────────────────────────
+package "backend/services/  [existing — becomes private helpers]" {
+    class scaffold_service {
+        called by TemplateRendererAgent, sub-file agents
+    }
+    class bpmn_service {
+        called by BPMNParserAgent
+    }
+    class context_service {
+        called by SpecParserAgent sub-agents
+    }
+}
+TemplateRendererAgent ..> scaffold_service : uses (helper, not Kafka)
+AgentFileAgent        ..> scaffold_service : uses
+SquadFileAgent        ..> scaffold_service : uses
+BPMNParserAgent       ..> bpmn_service     : uses
+SpecParserAgent       ..> context_service  : uses
+
+' ─────────────────────────────────────────
+' Notes
+' ─────────────────────────────────────────
+note top of FastAPIRoutes
+  Phase 2 — routes become thin:
+  receive HTTP → emit event
+  → router.route(event_type)
+  → orchestrator.run(event)
+  → return result
+  No business logic in routes.py
+end note
+
+note right of K9SubAgentSpawner
+  NEW ABB — parent agent that spawns
+  child agents via ThreadPoolExecutor
+  (sync in Phase 2, async in Phase 3)
+end note
+
+note bottom of GovernanceAgent
+  Folder convention (framework culture):
+  agents/yaml/<name>.yaml   — role, goal, instructions, model
+  agents/src/<name>_agent.py — execute(payload), extends BaseAgent
+  Agents are squad-agnostic and reusable
+end note
+
+@enduml

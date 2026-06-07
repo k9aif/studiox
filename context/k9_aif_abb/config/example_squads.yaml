@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# K9-AIF Example Squad Definitions
+#
+# This file illustrates how squads (teams of agents) can be defined using
+# K9-AIF configuration. These examples demonstrate the architectural pattern
+# for assembling agents under an orchestrator using the Squad abstraction.
+#
+# Applications using K9-AIF will typically define their own squad
+# configurations appropriate to their domain.
+# ---------------------------------------------------------------------------
+
+squads:
+  claims_intake:
+    description: Example insurance claims intake squad
+    orchestrator: framework
+    agents:
+      - IntakeAgent
+      - ExtractionAgent
+      - ValidationAgent
+
+  medical_review:
+    description: Example medical review squad
+    orchestrator: governance
+    agents:
+      - PolicyAgent
+      - TreatmentAgent
+      - DecisionAgent

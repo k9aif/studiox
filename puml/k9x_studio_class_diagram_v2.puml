@@ -1,0 +1,249 @@
+@startuml k9x_studio_class_diagram_v2
+
+skinparam classBackgroundColor #FAFAFA
+skinparam classBorderColor #AAAAAA
+skinparam ArrowColor #555555
+skinparam PackageBorderColor #CCCCCC
+skinparam PackageBackgroundColor #F5F7FF
+skinparam NoteBackgroundColor #FFFBE6
+skinparam NoteBorderColor #E0C060
+skinparam defaultFontSize 12
+
+title K9X StudioX — Agentized Architecture v2.0\n"The studio that generates K9-AIF apps is itself a K9-AIF app — now built ON the published k9-aif package"
+
+' ─────────────────────────────────────────
+' HTTP layer (thin)
+' ─────────────────────────────────────────
+package "backend  [FastAPI — thin layer]" {
+    class FastAPIRoutes {
+        backend/api/routes.py
+        --
+        POST /spec/import
+        ...
+        --
+        from studio_core.router.router_factory\n  import route_event
+    }
+}
+
+' ─────────────────────────────────────────
+' k9-aif — published dependency (pip install k9-aif)
+' ─────────────────────────────────────────
+package "k9_aif_abb  [pip dependency — site-packages, NOT studiox source]" #E8F5E9 {
+    abstract class BaseRouter {
+        {abstract} route(event_type) : Orchestrator
+    }
+    abstract class BaseOrchestrator {
+        {abstract} run(event)
+        --
+        _load_squad()
+    }
+    abstract class BaseAgent {
+        {abstract} execute(payload) : dict
+    }
+    abstract class BaseSquad {
+        {abstract} run(context)
+    }
+    class SquadLoader {
+        load_one(yaml_path, squad_id) : BaseSquad
+    }
+    class AgentRegistry {
+        register(name, factory)
+    }
+}
+note bottom of BaseRouter
+  v2.0 fix: studiox now declares
+  k9-aif>=1.2.6 in requirements.txt
+  and imports k9_aif_abb classes
+  from the installed package —
+  no more local stand-ins shadowing
+  framework internals.
+end note
+
+' ─────────────────────────────────────────
+' studio_core — studiox's OWN SBB router layer
+' (renamed from k9_core → studio_core: v1 name
+'  collided with the framework's internal
+'  k9_aif_abb.k9_core package)
+' ─────────────────────────────────────────
+package "studio_core/router  [SBB — studiox-owned, extends k9_aif_abb]" #FFF3E0 {
+    class K9EventRouter {
+        studio_core/router/k9_event_router.py
+        --
+        route(event_type, payload) : dict
+        ' resolves event_type → registered
+        ' orchestrator, in-process (no Kafka
+        ' in Phase 2 — DESIGN.md)
+    }
+    class router_factory {
+        studio_core/router/router_factory.py
+        --
+        get_router() : K9EventRouter   (lru_cache)
+        route_event(event_type, payload)
+        --
+        _ROUTES = { "spec_import": SpecImportOrchestrator }
+    }
+}
+K9EventRouter --|> BaseRouter
+router_factory ..> K9EventRouter : builds & registers
+FastAPIRoutes ..> router_factory : route_event()
+
+' ─────────────────────────────────────────
+' studio_agents — studiox's OWN ABB extensions
+' (renamed from k9_agents → studio_agents)
+' ─────────────────────────────────────────
+package "studio_agents/parallel  [new ABB — studiox-owned, extends k9_aif_abb]" #FFF3E0 {
+    abstract class K9SubAgentSpawner {
+        studio_agents/parallel/k9_sub_agent_spawner.py
+        --
+        spawn_parallel(specs) : list   (ThreadPoolExecutor)
+        spawn_sequential(specs) : dict (threaded context)
+        {abstract} execute(payload) : dict
+        --
+        Stays abstract — no execute().
+        Provides spawning *mechanics* only;
+        subclasses own the domain logic and merge.
+    }
+}
+K9SubAgentSpawner --|> BaseAgent
+
+note right of K9SubAgentSpawner
+  Mirrors the OOB-extension pattern used
+  elsewhere in K9-AIF (K9ModelRouter,
+  K9ValidationLoopAgent): provides
+  mechanics only, never domain logic.
+end note
+
+' ─────────────────────────────────────────
+' Orchestrators — implemented (v2.0: one vertical live)
+' ─────────────────────────────────────────
+package "orchestrators/  [SBB — k9x_studiox-owned]" {
+    class SpecImportOrchestrator {
+        orchestrators/spec_import_orchestrator.py
+        --
+        _load_squad() : BaseSquad
+        execute_flow(payload) : dict
+        --
+        knows only its squad ID — never
+        the router or other orchestrators
+        (three-level decoupling)
+    }
+}
+SpecImportOrchestrator --|> BaseOrchestrator
+router_factory ..> SpecImportOrchestrator : registers for "spec_import"
+SpecImportOrchestrator ..> AgentRegistry : registers agent factories
+SpecImportOrchestrator ..> SquadLoader   : load_one(yaml, "SpecImportSquad")
+
+' ─────────────────────────────────────────
+' Squad — YAML-defined, loaded by SquadLoader
+' ─────────────────────────────────────────
+package "squads/yaml/  [config-driven — no Python class per squad]" {
+    class "spec_import_squad.yaml" as SpecImportSquadYaml <<YAML>>
+    note bottom of SpecImportSquadYaml
+      squads:
+        SpecImportSquad:
+          agents: [Governance, SpecParser,
+                   LLMGrouping, Scoring, CanvasBuilder]
+          flow:
+            - agent: GovernanceAgent      result_key: governance
+            - agent: SpecParserAgent      result_key: parsed       when: governance.passed is true
+            - agent: LLMGroupingAgent     result_key: llm_grouping when: governance.passed is true
+            - agent: ScoringAgent         result_key: scored       when: governance.passed is true
+            - agent: CanvasBuilderAgent   result_key: canvas       when: governance.passed is true
+      No `orchestrator:` field — decoupling rule
+    end note
+}
+SquadLoader ..> SpecImportSquadYaml : reads
+SquadLoader ..> BaseSquad : assembles & returns
+
+' ─────────────────────────────────────────
+' Agents — implemented (SpecImportSquad vertical)
+' agents/yaml/<name>.yaml + agents/src/<name>_agent.py
+' ─────────────────────────────────────────
+package "agents/  [SBB — yaml/ behavior + src/ implementation]" {
+    class GovernanceAgent {
+        governance_agent.{yaml,py}    GREEN
+    }
+    class SpecParserAgent {
+        spec_parser_agent.{yaml,py}   GREEN
+    }
+    class IntakeExtractorAgent {
+        [sub] intake_extractor_agent.{yaml,py}
+    }
+    class AgentExtractorAgent {
+        [sub] agent_extractor_agent.{yaml,py}
+    }
+    class ZoneMappingAgent {
+        [sub] zone_mapping_agent.{yaml,py}
+    }
+    class LLMGroupingAgent {
+        llm_grouping_agent.{yaml,py}  AMBER (LLM)
+    }
+    class ScoringAgent {
+        scoring_agent.{yaml,py}       GREEN
+    }
+    class CanvasBuilderAgent {
+        canvas_builder_agent.{yaml,py} GREEN
+    }
+
+    GovernanceAgent      --|> BaseAgent
+    LLMGroupingAgent     --|> BaseAgent
+    ScoringAgent         --|> BaseAgent
+    CanvasBuilderAgent   --|> BaseAgent
+    IntakeExtractorAgent --|> BaseAgent
+    AgentExtractorAgent  --|> BaseAgent
+    ZoneMappingAgent     --|> BaseAgent
+
+    SpecParserAgent      --|> K9SubAgentSpawner
+}
+
+SpecParserAgent ..> IntakeExtractorAgent : spawn_parallel()
+SpecParserAgent ..> AgentExtractorAgent  : spawn_parallel()
+SpecParserAgent ..> ZoneMappingAgent     : spawn_parallel()
+
+SpecImportSquadYaml ..> GovernanceAgent
+SpecImportSquadYaml ..> SpecParserAgent
+SpecImportSquadYaml ..> LLMGroupingAgent
+SpecImportSquadYaml ..> ScoringAgent
+SpecImportSquadYaml ..> CanvasBuilderAgent
+
+' ─────────────────────────────────────────
+' Helper services (existing — agent-internal)
+' ─────────────────────────────────────────
+package "backend/services/  [existing — used as private helpers, not standalone]" {
+    class context_service {
+        get_abb_source(rel_path)
+        list_abb_files(pattern)
+    }
+    class spec_parsing_service {
+        zone_to_agent_type(zone)
+        build_suggestion_from_zones(...)
+    }
+}
+SpecParserAgent ..> context_service       : uses
+CanvasBuilderAgent ..> spec_parsing_service : uses
+
+' ─────────────────────────────────────────
+' Notes
+' ─────────────────────────────────────────
+note top of FastAPIRoutes
+  Thin by design: receive HTTP → emit event
+  → router.route(event_type)
+  → orchestrator.execute_flow(event)
+  → return result.  No business logic here.
+end note
+
+note bottom of GovernanceAgent
+  Folder convention (framework culture):
+  agents/yaml/<name>.yaml    — role, goal, instructions, model
+  agents/src/<name>_agent.py — execute(payload), extends BaseAgent
+  Agents are squad-agnostic and reusable.
+end note
+
+legend right
+  |= Color |= Meaning |
+  | <back:#E8F5E9>      | k9_aif_abb — pip-installed framework package (k9-aif>=1.2.6) |
+  | <back:#FFF3E0>      | studio_core / studio_agents — studiox's OWN SBB/ABB extensions |
+  | <back:#FAFAFA>      | studiox application code (orchestrators, agents, squads) |
+endlegend
+
+@enduml

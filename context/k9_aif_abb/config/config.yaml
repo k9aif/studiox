@@ -1,0 +1,167 @@
+# SPDX-License-Identifier: LicenseRef-K9AIF-Proprietary
+# ABB-level configuration: defines reusable inference backends
+# k9_aif_abb/config/config.yaml
+# ============================================================
+# NOTE:
+# This config.yaml is part of the ABB (framework) repository.
+# It provides default configuration for ABB testing and validation.
+#
+# - Factories (LLM, Connector, Persistence, Router, Security, Monitor)
+#   use this config to demonstrate ABB behavior.
+# - Values (Ollama, MCP, SQLite, etc.) are example defaults.
+# - Solution-specific configurations (Acme, Medical, etc.)
+#   MUST define their own config.yaml in their SBB repositories.
+# ============================================================
+
+demo:
+  # Default intent and query for sample/demo runs
+  default_intent: "support"
+  query: "What is K9-AIF and how do I try it?"
+
+
+llms:
+  - name: ollama
+    class: k9_aif_abb.k9_core.inference.ollama_llm.OllamaLLM
+    kwargs:
+      host: "http://192.168.1.98:11434" 
+      model: "llama3.1:latest"
+      options: {}
+
+# ABB-level connector registry
+connectors:
+  - name: mcp_http
+    class: k9_aif_abb.k9_core.integration.mcp_http_connector.MCPHttpConnector
+  - name: mcp_stdio
+    class: k9_aif_abb.k9_core.integration.mcp_stdio_connector.MCPStdioConnector
+
+persistence:
+  - name: sqlite
+    class: k9_aif_abb.k9_core.persistence.base_persistence.SQLitePersistence
+    kwargs:
+      db_path: "./runtime/k9_aif_state.db"
+  - name: memory
+    class: k9_aif_abb.k9_core.persistence.base_persistence.MemoryPersistence
+    kwargs: {}
+
+routers:
+  - name: default_support
+    entrypoint: k9_aif_abb.k9_agents.supporting.logging_agent:LoggingAgent
+
+monitors:
+  - name: logger
+    class: k9_aif_abb.k9_core.monitoring.logger_monitor.LoggerMonitor
+    kwargs: {}
+
+security:
+  - name: mock
+    class: k9_aif_abb.k9_core.security.mock_auth.MockAuth
+    kwargs: {}
+
+governance:
+  enabled: true
+  policy_path: "k9_aif_abb/policies/governance.yaml"
+
+vectordb:
+  provider: chromadb
+  path: "./data/chroma"
+  db: k9-aif-chroma.db
+
+retrieval:
+  default_retriever: k9
+
+  sources:
+    default_docs:
+      type: vectordb
+      provider: chromadb
+      path: "./data/chroma"
+      collection: "k9_default_docs"
+      top_k: 5
+
+  routing:
+    general_lookup:
+      sources: [default_docs]
+
+storage:
+  backend: "file"
+  file:
+    root: "data/files"
+  object:
+    root: "data/objects"
+  database:
+    type: "memory"
+
+logging:
+  level: INFO
+  
+measurements:
+  enabled: true
+
+external_services:
+  docling:
+    endpoint: "http://192.168.1.98:5001/v1/parse"
+
+messaging:
+  backend: redpanda
+  broker_url: 192.168.1.98:9092
+  topic: k9aif-events
+  group_id: k9aif-core       # [INFO] one canonical group for all orchestration logs
+  client_id: k9aif-console   # optional metadata only
+  security_protocol: PLAINTEXT
+  auto_create: true
+
+postgres:
+  host: "192.168.1.98"
+  port: 5432
+  user: "postgres"
+  password: "postgres"
+  database: "k9aif"
+  schema: "k9aif"
+
+# ------------------------------------------------------------
+# K9 Inference Router
+# ------------------------------------------------------------
+
+inference:
+
+  router:
+    type: k9_model_router
+    default_model: general
+
+    persistence:
+      enabled: true
+      provider: sqlite  # sqlite | postgres | memory
+
+      sqlite:
+        db_path: "./runtime/k9_model_router.db"
+
+      postgres:
+        host: "192.168.1.98"
+        port: 5432
+        user: "postgres"
+        password: "postgres"
+        database: "k9aif"
+        schema: "k9aif"
+        schema_file: "k9_aif_abb/db/k9_db_schema.sql"
+
+  llm_factory:
+    base_url: "http://192.168.1.98:11434"
+    models:
+      general: "llama3.2:1b"
+      fast_local: "llama3.2:1b"
+      enterprise: "llama3.2:1b"
+
+  models:
+    general:
+      provider: ollama
+      llm_ref: general
+      capabilities: [general, reasoning]
+
+    fast_local:
+      provider: ollama
+      llm_ref: fast_local
+      capabilities: [summarization, chat]
+
+    enterprise:
+      provider: ollama
+      llm_ref: enterprise
+      capabilities: [enterprise, confidential]

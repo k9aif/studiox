@@ -1,0 +1,23 @@
+# ========================================================
+# ABB Governance Policy (Global Baseline)
+# ========================================================
+
+blocked_keywords:
+  - "confidential"
+  - "password"
+  - "internal use only"
+
+allowed_domains:
+  - "warranty"
+  - "support"
+  - "general info"
+
+response_redaction:
+  - pattern: '\b\d{3}-\d{2}-\d{4}\b'     # Social Security Number
+    replace: '[REDACTED-SSN]'
+  - pattern: '\b\d{16}\b'                # Credit card number
+    replace: '[REDACTED-CC]'
+
+llm_policy_model:
+  provider: ollama
+  model: llama-guard-3

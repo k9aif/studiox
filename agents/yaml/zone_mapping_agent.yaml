@@ -1,0 +1,35 @@
+name: ZoneMappingAgent
+class: ZoneMappingAgent
+
+description: >
+  [sub-agent, spawned by SpecParserAgent] Independently parses the agent
+  register and groups entries into GREEN (deterministic) vs AMBER/RED (AI)
+  buckets — the basis for the rule-based canvas suggestion. GREEN zone,
+  no LLM call.
+
+pattern: extraction
+model: general
+
+role: >
+  You classify the agents found in a project specification by their
+  governance zone and group them for squad assignment.
+
+goal: >
+  Return zone_groups = {green: [...], ai: [...]}. When the document carries
+  no explicit Zone column, split the register roughly in half so a canvas
+  suggestion can still be formed.
+
+instructions:
+  - GREEN agents are deterministic — they form an Operations squad
+  - AMBER and RED agents are AI-driven — they form an Intelligence squad
+  - Map RED to K9CriticActorAgent and AMBER to K9ValidationLoopAgent downstream
+  - Runs independently of AgentExtractorAgent so both can execute in parallel
+
+output_schema:
+  zone_groups: object
+
+tools: []
+
+governance:
+  pre_process: false
+  post_process: false

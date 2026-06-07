@@ -1,0 +1,21 @@
+cars:
+  - make: Porsche
+    model: 911 Turbo S
+    year: 2021
+    base_premium: 2500
+    risk_factor: 0.25   # 25% surcharge for sports cars
+  - make: Porsche
+    model: Cayman GTS
+    year: 2020
+    base_premium: 2000
+    risk_factor: 0.20
+  - make: Audi
+    model: R8 V10
+    year: 2019
+    base_premium: 2200
+    risk_factor: 0.22
+  - make: Ferrari
+    model: 488 GTB
+    year: 2021
+    base_premium: 3000
+    risk_factor: 0.30

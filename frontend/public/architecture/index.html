@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How K9X Studio Is Built — Architecture v2.0</title>
+<style>
+  :root {
+    --bg: #0a0a12;
+    --surface: #13131e;
+    --border: #1f1f30;
+    --text: #c8c8e0;
+    --muted: #94a3b8;
+    --accent: #6366f1;
+    --accent-light: #a5b4fc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.7;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 4px;
+  }
+  .tagline {
+    font-size: 15px;
+    color: var(--accent);
+    font-style: italic;
+    margin-bottom: 20px;
+  }
+  p {
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 760px;
+  }
+  code {
+    color: var(--accent-light);
+    background: rgba(99,102,241,0.12);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .legend {
+    margin: 20px 0 28px;
+    padding: 14px 18px;
+    background: rgba(99,102,241,0.06);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .legend strong { color: var(--accent); }
+  .swatch {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    margin: 0 5px -1px 14px;
+  }
+  .swatch.green  { background: #2e7d32; }
+  .swatch.amber  { background: #e0a030; }
+  .swatch.grey   { background: #777789; }
+  .frame {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .frame a { display: block; line-height: 0; }
+  .frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+    cursor: zoom-in;
+  }
+  .hint {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 10px;
+    text-align: center;
+  }
+  .back {
+    display: inline-block;
+    margin-bottom: 28px;
+    font-size: 13px;
+    color: var(--accent-light);
+    text-decoration: none;
+  }
+  .back:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">&larr; Back to K9X Studio</a>
+
+    <h1>How K9X Studio Is Built</h1>
+    <div class="tagline">The studio that generates K9-AIF apps is itself a K9-AIF app.</div>
+
+    <p>
+      K9X Studio doesn't just help you design K9-AIF architectures — it is one.
+      The studio runs <code>pip install k9-aif</code> to pull in the published
+      <code>k9_aif_abb</code> framework package, and builds directly on its base
+      classes — <code>BaseRouter</code>, <code>BaseOrchestrator</code>,
+      <code>BaseAgent</code>, <code>BaseSquad</code> — rather than reimplementing them.
+    </p>
+    <p>
+      The studio's own router and agent layers, <code>studio_core</code> and
+      <code>studio_agents</code>, extend that framework with the studio-specific
+      mechanics it needs — event routing and parallel sub-agent spawning.
+    </p>
+    <p>
+      The spec-import flow you use to upload a doc and get a canvas is a real K9-AIF
+      squad, not ad-hoc service code: <code>GovernanceAgent</code> screens the
+      document, then <code>SpecParserAgent</code> spawns three sub-agents in parallel —
+      project info, agent table, zone mapping — via <code>K9SubAgentSpawner</code>
+      (mechanics-only ABB, <code>ThreadPoolExecutor</code>-based), and
+      <code>LLMGroupingAgent</code> &rarr; <code>ScoringAgent</code> &rarr;
+      <code>CanvasBuilderAgent</code> turn the merged results into the canvas
+      suggestion — all defined declaratively in
+      <code>squads/yaml/spec_import_squad.yaml</code>.
+    </p>
+
+    <div class="legend">
+      <strong>Reading the diagram:</strong>
+      <span class="swatch green"></span> <code>k9_aif_abb</code> — pip-installed framework package (k9-aif&gt;=1.2.6)
+      <span class="swatch amber"></span> <code>studio_core</code> / <code>studio_agents</code> — the studio's own SBB/ABB extensions
+      <span class="swatch grey"></span> application code — orchestrators, agents, squads
+    </div>
+
+    <div class="frame">
+      <a href="./k9x_studio_class_diagram_v2.png" target="_blank" rel="noopener">
+        <img src="./k9x_studio_class_diagram_v2.png"
+             alt="K9X Studio v2.0 class diagram — built on the published k9-aif framework">
+      </a>
+    </div>
+    <div class="hint">K9X Studio — Agentized Architecture v2.0 &nbsp;·&nbsp; click the diagram to open it full-size in a new tab</div>
+  </div>
+</body>
+</html>

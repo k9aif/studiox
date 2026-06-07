@@ -1,0 +1,39 @@
+# K9-AIF ABB LLM-enabled pipeline configuration
+
+default_pipeline:
+  chain:
+    - k9_aif_abb.k9_agents.security.auth_agent.AuthAgent
+    - k9_aif_abb.k9_agents.governance.governance_agent.GovernanceAgent
+    - k9_aif_abb.k9_agents.supporting.retrieval_agent.RetrievalAgent
+    - k9_aif_abb.k9_agents.supporting.processor_agent.ProcessorAgent
+    - k9_aif_abb.k9_agents.supporting.logging_agent.LoggingAgent
+
+# Retrieval agent config
+retrieval:
+  llm_rewriter:
+    provider: ollama
+    model: llama3
+    params:
+      temperature: 0.1
+      top_p: 0.9
+
+# Processor agent config
+processor:
+  llm:
+    provider: ollama
+    model: llama3
+    params:
+      temperature: 0.2
+      max_tokens: 512
+
+# Logging config
+logging:
+  level: INFO
+  sink: console
+
+monitoring:
+  enabled: true
+  sink: console
+
+security:
+  mode: passthrough

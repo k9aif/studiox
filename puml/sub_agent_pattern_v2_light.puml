@@ -1,0 +1,75 @@
+@startuml sub_agent_pattern_v2_light
+
+title K9X StudioX v2.0 — Sub-Agent Spawning, as actually implemented\n(narrower than the K9-AIF Sub-Agent Pattern blog concept — no transactions, heartbeat, or registry yet)
+
+' ── Orchestrator (loads & runs the squad) ─────────────────
+class SpecImportOrchestrator {
+  + execute_flow(payload: dict) : dict
+  # _load_squad() : BaseSquad
+}
+
+note right of SpecImportOrchestrator
+  Knows only its squad ID — never the
+  router or the agents inside it
+  (three-level decoupling).
+end note
+
+' ── Framework base (k9_aif_abb — pip dependency) ──────────
+abstract class BaseAgent {
+  + {abstract} execute(payload: dict) : dict
+}
+
+' ── studiox's own ABB extension ───────────────────────────
+abstract class K9SubAgentSpawner {
+  + spawn_parallel(specs) : list
+  + spawn_sequential(specs) : dict
+  + {abstract} execute(payload: dict) : dict
+}
+BaseAgent <|-- K9SubAgentSpawner
+
+note right of K9SubAgentSpawner
+  studio_agents/parallel/k9_sub_agent_spawner.py
+  Stays abstract — no execute().
+  Mechanics only (ThreadPoolExecutor);
+  subclass owns which children + how to merge.
+end note
+
+' ── The squad — agents grouped by squads/yaml/spec_import_squad.yaml ──
+package "SpecImportSquad" {
+
+  class SpecParserAgent {
+    + execute(payload: dict) : dict
+    # merge results into "parsed"
+  }
+
+  class IntakeExtractorAgent
+  class AgentExtractorAgent
+  class ZoneMappingAgent
+
+  note bottom of IntakeExtractorAgent
+    Leaf agents — spawned, never spawn.
+    Each extracts one independent slice
+    of the uploaded spec document.
+  end note
+}
+
+note top of SpecImportSquad
+  Defined in squads/yaml/spec_import_squad.yaml.
+  Also runs GovernanceAgent, LLMGroupingAgent,
+  ScoringAgent, CanvasBuilderAgent (omitted here —
+  this diagram isolates the spawn pattern only).
+end note
+
+' ── Relationships ─────────────────────────────────────────
+SpecImportOrchestrator ..> SpecParserAgent : runs (via squad flow)
+
+K9SubAgentSpawner  <|-- SpecParserAgent
+BaseAgent          <|-- IntakeExtractorAgent
+BaseAgent          <|-- AgentExtractorAgent
+BaseAgent          <|-- ZoneMappingAgent
+
+SpecParserAgent ..> IntakeExtractorAgent : spawn_parallel()
+SpecParserAgent ..> AgentExtractorAgent  : spawn_parallel()
+SpecParserAgent ..> ZoneMappingAgent     : spawn_parallel()
+
+@enduml

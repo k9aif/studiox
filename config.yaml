@@ -1,0 +1,17 @@
+# k9x_studio configuration
+# ─────────────────────────────────────────────────────────────
+# Non-sensitive settings only.
+# All secrets (API keys, passwords, tokens) belong in .env — never here.
+#
+# LLM config priority:
+#   1. Browser UI  (session-only, transient)
+#   2. .env        (recommended for self-hosted — secrets stay here)
+#   3. This file   (non-sensitive overrides)
+# ─────────────────────────────────────────────────────────────
+
+llm:
+  enabled: false
+  provider: ollama          # ollama | openai | anthropic | custom
+  endpoint: ""              # e.g. http://192.168.1.10:11434  — use .env for production
+  model: granite3-dense:2b  # llama3.1:8b | gpt-4o-mini | claude-haiku-4-5-20251001
+  # api_key: goes in .env as LLM_API_KEY — never stored in this file

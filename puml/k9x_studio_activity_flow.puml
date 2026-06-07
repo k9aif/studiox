@@ -1,0 +1,94 @@
+@startuml k9x_studio_activity_flow
+
+skinparam backgroundColor #FFFFFF
+skinparam ActivityBackgroundColor #FAFAFA
+skinparam ActivityBorderColor #AAAAAA
+skinparam ArrowColor #555555
+skinparam NoteBackgroundColor #FFFBE6
+skinparam NoteBorderColor #E0C060
+skinparam defaultFontSize 12
+
+title K9X StudioX — User Activity Flows (Phase 2, agentized backend)
+
+|User / Browser|
+start
+
+if (What does the user do?) then ([Picks a template])
+
+  :Click template in palette\n(React Flow canvas);
+  note right
+    Pure frontend action —
+    no backend round-trip.
+    Canvas pre-populates nodes
+    from a local template JSON.
+  end note
+  :Canvas renders nodes\n(Router/Orchestrator/Squad/Agent);
+  :User edits via Inspector\n(rename, configure);
+  -> Same UI, same speed —\nno agent chain involved here;
+  stop
+
+else ([Uploads a project spec doc])
+
+  :Upload spec doc (.docx/.pdf/.md)\nPOST /spec/import;
+
+  |FastAPI (thin layer)|
+  :Receive HTTP request;
+  :Emit event\n{event_type: "spec.import", file, llm_config};
+
+  |K9EventRouter|
+  :route(event_type = "spec.import");
+  :Dispatch → SpecImportOrchestrator;
+
+  |SpecImportOrchestrator|
+  :_load_squad("SpecImportSquad")\n(via SquadLoader + YAML);
+  :squad.run(context);
+
+  |SpecImportSquad  (flow defined in YAML)|
+
+  :**GovernanceAgent**\nscreens doc for safety/PII;
+  if (governance OK?) then (yes)
+  else (no — BLOCK)
+    :Return "[BLOCKED] document failed governance screen";
+    |FastAPI (thin layer)|
+    :Return error to UI;
+    stop
+  endif
+
+  :**SpecParserAgent**\n(K9SubAgentSpawner)\nextracts structure from doc;
+  note right
+    spawn_parallel([
+      IntakeExtractorAgent,
+      AgentExtractorAgent,
+      ZoneMappingAgent
+    ])
+    — runs concurrently via
+    ThreadPoolExecutor, merges results
+  end note
+  fork
+    :[sub] IntakeExtractorAgent\nproject name, domain, description;
+  fork again
+    :[sub] AgentExtractorAgent\nagent table from §3.1.8;
+  fork again
+    :[sub] ZoneMappingAgent\nzone → component mapping;
+  end fork
+  :Merge sub-agent results\ninto parsed context;
+
+  :**LLMGroupingAgent**\ngroups extracted agents into Squads\n(LLM call — AMBER);
+  :**ScoringAgent**\nscores LLM-grouping vs rule-based,\npicks the winner;
+  :**CanvasBuilderAgent**\nbuilds canvas-suggestion JSON\n(nodes + edges for React Flow);
+
+  |SpecImportOrchestrator|
+  :Collect squad result;
+  :publish_event("FlowCompleted");
+
+  |FastAPI (thin layer)|
+  :Return canvas suggestion JSON;
+
+  |User / Browser|
+  :Canvas auto-populates with\nsuggested architecture;
+  :User reviews / edits\nvia Inspector;
+  stop
+
+endif
+
+@enduml
