@@ -1,2 +1,2 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scp "$SCRIPT_DIR/k9x_studio.tar.gz" ravinata@192.168.1.98:/home/ravinata/ai/studio/
+scp "$SCRIPT_DIR/k9x_studio.tar.gz" ravinata@192.168.1.98:/home/ravinata/ai/k9x-ecosystem/studio/

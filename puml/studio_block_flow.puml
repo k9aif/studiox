@@ -1,0 +1,38 @@
+@startuml studio_block_flow
+
+skinparam backgroundColor #FFFFFF
+skinparam ActivityBackgroundColor #FAFAFA
+skinparam ActivityBorderColor #6366F1
+skinparam ActivityBorderThickness 1
+skinparam ActivityFontColor #333333
+skinparam ActivityFontSize 11
+skinparam ArrowColor #6366F1
+skinparam ArrowFontColor #777777
+skinparam ArrowThickness 1
+skinparam TitleFontSize 13
+skinparam defaultFontSize 11
+skinparam ActivityStartColor #6366F1
+skinparam ActivityEndColor #6366F1
+skinparam shadowing false
+skinparam Padding 2
+skinparam roundCorner 10
+
+title K9X Studio — Spec Import, Top to Bottom
+
+start
+
+:**Browser**\nIntake panel → upload spec doc\n(one of several intake paths);
+
+:**FastAPI**\nroute_event("spec_import");
+
+:**K9EventRouter**\ndispatch to orchestrator;
+
+:**SpecImportOrchestrator**\nload & run squad;
+
+:**SpecImportSquad**\nGovernance → SpecParser (spawns\nsub-agents) → LLM Grouping →\nScoring → Canvas Building;
+
+:**Browser**\nCanvas auto-populates;
+
+stop
+
+@enduml

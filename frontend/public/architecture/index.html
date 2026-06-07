@@ -131,6 +131,33 @@
       <code>squads/yaml/spec_import_squad.yaml</code>.
     </p>
 
+    <h2 style="font-size: 16px; font-weight: 600; color: var(--text); margin: 36px 0 4px;">
+      The Flow, Top to Bottom
+    </h2>
+    <p style="margin-bottom: 16px;">
+      The <strong style="color: var(--text);">Intake</strong> tab is where a project
+      starts — you can upload a spec doc, upload a BPMN export, or just describe the
+      project and let the studio suggest an architecture. All three land at FastAPI;
+      the diagram below follows the spec-doc path, since that's the one rebuilt as a
+      real K9-AIF squad — from the browser, through the router and orchestrator,
+      into the squad, and back to the canvas:
+    </p>
+    <div class="frame" style="max-width: 340px; margin: 0 auto;">
+      <a href="./studio_block_flow.png" target="_blank" rel="noopener">
+        <img src="./studio_block_flow.png"
+             alt="K9X Studio spec-import flow — top to bottom block diagram">
+      </a>
+    </div>
+    <div class="hint">click to open full-size in a new tab</div>
+
+    <h2 style="font-size: 16px; font-weight: 600; color: var(--text); margin: 40px 0 4px;">
+      The Class Architecture
+    </h2>
+    <p style="margin-bottom: 8px;">
+      The same flow, broken down by class — what extends what, and which
+      pieces come from the framework versus the studio's own code:
+    </p>
+
     <div class="legend">
       <strong>Reading the diagram:</strong>
       <span class="swatch green"></span> <code>k9_aif_abb</code> — pip-installed framework package (k9-aif&gt;=1.2.6)
