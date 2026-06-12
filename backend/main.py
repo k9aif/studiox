@@ -51,6 +51,13 @@ if _DIST.exists():
     if _ARCH_DIR.exists():
         app.mount("/architecture", StaticFiles(directory=str(_ARCH_DIR), html=True), name="architecture")
 
+    # Pre-generated template class diagrams (vite copies frontend/public/class-diagrams/
+    # into dist/class-diagrams/ verbatim) — mount before the SPA catch-all so .svg/.puml
+    # requests get the real files instead of index.html.
+    _CLASS_DIAGRAMS_DIR = _DIST / "class-diagrams"
+    if _CLASS_DIAGRAMS_DIR.exists():
+        app.mount("/class-diagrams", StaticFiles(directory=str(_CLASS_DIAGRAMS_DIR)), name="class-diagrams")
+
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str):
         return HTMLResponse((_DIST / "index.html").read_text())
