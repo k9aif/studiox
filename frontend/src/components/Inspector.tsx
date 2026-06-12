@@ -1,5 +1,6 @@
 import { useStore } from '../store';
 import type { AgentClassType } from '../types';
+import { toPascal } from '../classDiagram';
 
 const MODEL_OPTIONS = ['general', 'reasoning', 'chat', 'extraction'];
 const PATTERN_OPTIONS = ['reasoning', 'extraction', 'chat', 'guardrails'];
@@ -82,6 +83,11 @@ export function Inspector() {
             className="inspector-input"
             value={data.label}
             onChange={(e) => set('label', e.target.value)}
+            onBlur={(e) => {
+              const pascal = toPascal(e.target.value);
+              if (pascal && pascal !== e.target.value) set('label', pascal);
+            }}
+            title="Used as the generated Python class name and PlantUML identifier — normalized to PascalCase (no spaces/punctuation) when you click away."
           />
         </div>
 

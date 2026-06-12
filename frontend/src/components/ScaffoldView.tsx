@@ -13,7 +13,7 @@ interface TreeNode {
   content?: string;
 }
 
-function buildTree(files: { path: string; content: string }[]): TreeNode[] {
+function buildTree(files: { path: string; content: string; binary?: boolean }[]): TreeNode[] {
   const root: TreeNode[] = [];
   const map: Record<string, TreeNode> = {};
 
@@ -173,14 +173,21 @@ export function ScaffoldView() {
             }}>
               <span>{selectedFile.path}</span>
               <button onClick={() => {
-                const blob = new Blob([selectedFile.content], { type: 'text/plain' });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = selectedFile.binary
+                  ? `data:application/octet-stream;base64,${selectedFile.content}`
+                  : URL.createObjectURL(new Blob([selectedFile.content], { type: 'text/plain' }));
                 a.download = selectedFile.path.split('/').pop() ?? 'file'; a.click();
               }} style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: 11 }}>
                 ⬇ download
               </button>
             </div>
-            {selectedFile.path.endsWith('.md') ? (
+            {selectedFile.binary ? (
+              <div style={{ padding: '24px 32px', overflow: 'auto', display: 'flex', justifyContent: 'center' }}>
+                <img src={`data:image/png;base64,${selectedFile.content}`} alt={selectedFile.path}
+                  style={{ maxWidth: '100%', background: '#ffffff', borderRadius: 6, boxShadow: '0 2px 12px rgba(0,0,0,0.35)' }} />
+              </div>
+            ) : selectedFile.path.endsWith('.md') ? (
               <div style={{ padding: '24px 32px', overflow: 'auto', color: '#c8d0de', lineHeight: 1.7, fontSize: 13 }}
                 dangerouslySetInnerHTML={{ __html: marked.parse(selectedFile.content) as string }} />
             ) : (

@@ -415,20 +415,23 @@ class ProjectDef(BaseModel):
     generation_scoring: Optional[dict] = None
 
 
+_BINARY_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif")
+
+
 @router.post("/scaffold-preview")
 def scaffold_preview(project: ProjectDef):
     """Return scaffold file tree as JSON without downloading a zip."""
-    import io as _io
     zip_buf = generate_scaffold(project.model_dump())
     files = []
     with zipfile.ZipFile(zip_buf, "r") as zf:
         for name in sorted(zf.namelist()):
             if not name.endswith("/"):
-                try:
-                    content = zf.read(name).decode("utf-8", errors="replace")
-                except Exception:
-                    content = "[binary file]"
-                files.append({"path": name, "content": content})
+                raw = zf.read(name)
+                if name.lower().endswith(_BINARY_EXTENSIONS):
+                    import base64 as _base64
+                    files.append({"path": name, "content": _base64.b64encode(raw).decode("ascii"), "binary": True})
+                else:
+                    files.append({"path": name, "content": raw.decode("utf-8", errors="replace"), "binary": False})
     return {"files": files}
 
 

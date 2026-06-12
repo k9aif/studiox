@@ -19,7 +19,7 @@ function Section({ title, defaultOpen = false, children }: { title: string; defa
 }
 
 export function IntakePanel({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) {
-  const { project, setProject, nodes, generating, setGenerating, llmConfig, addLog, setLlmActive, addGeneratedDoc, setPendingCanvasSuggestion, specImported, setSpecImported, clearCanvas, setLastSpecFile, setGenResult } = useStore();
+  const { project, setProject, nodes, generating, setGenerating, llmConfig, addLog, setLlmActive, addGeneratedDoc, setPendingCanvasSuggestion, specImported, setSpecImported, clearCanvas, setLastSpecFile, setGenResult, setLastTemplateId } = useStore();
   const [wifBusy, setWifBusy] = useState(false);
   const [specBusy, setSpecBusy] = useState(false);
   const [specError, setSpecError] = useState('');
@@ -94,6 +94,7 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
           onClick={() => {
             setProject({ project_name: '', app_name: '', author: '', domain: '', description: '', project_folder: '', framework_path: '', platforms: [] });
             setSpecImported(false);
+            setLastTemplateId(null);
             clearCanvas();
             addLog('Intake cleared — ready for new project');
           }}
@@ -136,6 +137,7 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
                     setProject({ ...project, ...data.intake });
                   }
                   if (data.suggestion) {
+                    setLastTemplateId(null);
                     setPendingCanvasSuggestion(data.suggestion);
                     onSwitchTab?.('canvas');
                   }
@@ -176,6 +178,7 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
                 e.target.value = '';
                 if (!file) return;
                 setPendingCanvasSuggestion(null);
+                setLastTemplateId(null);
                 clearCanvas();
                 setGenerating(true);
                 onSwitchTab?.('canvas');
@@ -347,6 +350,7 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
                   });
                   const data = await res.json();
                   if (data.suggestion) {
+                    setLastTemplateId(null);
                     setPendingCanvasSuggestion(data.suggestion);
                     onSwitchTab?.('canvas');
                     addLog(`Flow generated · source: ${data.source ?? 'default'}`);

@@ -7,6 +7,7 @@ from k9_aif_abb.k9_core.agent.base_agent import BaseAgent
 from backend.services.spec_parsing_service import (
     build_suggestion_from_zones,
     default_suggestion,
+    sanitize_suggestion,
     score_suggestion,
 )
 
@@ -33,12 +34,12 @@ class ScoringAgent(BaseAgent):
         if not agents_raw:
             return {
                 "agent": "ScoringAgent",
-                "suggestion": default_suggestion(project_name, intake.get("domain", "")),
+                "suggestion": sanitize_suggestion(default_suggestion(project_name, intake.get("domain", ""))),
                 "source": "spec-fallback",
                 "scoring": None,
             }
 
-        rule_suggestion = build_suggestion_from_zones(project_name, zone_groups)
+        rule_suggestion = sanitize_suggestion(build_suggestion_from_zones(project_name, zone_groups))
 
         if llm_suggestion is None:
             return {
@@ -48,6 +49,7 @@ class ScoringAgent(BaseAgent):
                 "scoring": None,
             }
 
+        llm_suggestion = sanitize_suggestion(llm_suggestion)
         llm_scores = score_suggestion(llm_suggestion)
         rule_scores = score_suggestion(rule_suggestion) if rule_suggestion.get("agents") else dict(_EMPTY_SCORE)
 

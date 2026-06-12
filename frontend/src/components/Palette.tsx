@@ -47,7 +47,7 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
   const isFirstRender = useRef(true);
   const { project, setProject, clearCanvas, addNode, onConnect,
           nodes, selectedNodeId, setGenerating, layoutCanvas, collapseAllSquads,
-          addLog, setLastTemplateSuggestion,
+          addLog, setLastTemplateSuggestion, setLastTemplateId,
           reapplyTemplate, pendingCanvasSuggestion, setPendingCanvasSuggestion,
           setLastSpecFile, setSpecImported } = useStore();
 
@@ -284,6 +284,7 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
                   : PROJECT_TEMPLATES.find((x) => x.id === val);
                 if (!t) return;
                 setLastTemplate(t);
+                setLastTemplateId(t.id);
                 if (t.suggestion) setLastTemplateSuggestion(t.suggestion);
                 // Reset spec state when picking a template
                 setLastSpecFile(null);

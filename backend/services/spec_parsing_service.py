@@ -196,6 +196,30 @@ def default_suggestion(project_name: str, domain: str) -> dict:
     }
 
 
+def sanitize_suggestion(suggestion: dict) -> dict:
+    """
+    PascalCase every agent/squad/orchestrator name via to_pascal().
+
+    Spec documents (agent register tables) and LLM groupings can return
+    names with spaces or punctuation, e.g. "FNOL Intake Engine". Those
+    break the generated Python class names (agent_base.py.j2 etc.) and
+    the PlantUML class diagram, which both use these names as identifiers.
+    """
+    for a in suggestion.get('agents', []):
+        a['name'] = to_pascal(a['name'])
+
+    for sq in suggestion.get('squads', []):
+        sq['name'] = to_pascal(sq['name'])
+        sq['agents'] = [to_pascal(n) for n in sq.get('agents', [])]
+
+    for o in suggestion.get('orchestrators', []):
+        o['name'] = to_pascal(o['name'])
+        if o.get('squad'):
+            o['squad'] = to_pascal(o['squad'])
+
+    return suggestion
+
+
 def score_suggestion(suggestion: dict) -> dict:
     """Score a suggestion by agent count, squad count, and agent type diversity."""
     agents = suggestion.get('agents', [])

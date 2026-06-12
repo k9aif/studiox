@@ -44,7 +44,7 @@ interface StudioStore {
   setGenResult: (r: any) => void;
   genSource: string;
   setGenSource: (s: string) => void;
-  scaffoldFiles: { path: string; content: string }[];
+  scaffoldFiles: { path: string; content: string; binary?: boolean }[];
   setScaffoldFiles: (f: { path: string; content: string }[]) => void;
   genScoring: any;
   setGenScoring: (s: any) => void;
@@ -61,6 +61,8 @@ interface StudioStore {
   addLog: (msg: string, level?: 'info' | 'warn' | 'error') => void;
   lastTemplateSuggestion: any;
   setLastTemplateSuggestion: (s: any) => void;
+  lastTemplateId: string | null;
+  setLastTemplateId: (id: string | null) => void;
   reapplyTemplate: boolean;
   triggerReapply: () => void;
   pendingCanvasSuggestion: any;
@@ -129,6 +131,8 @@ export const useStore = create<StudioStore>((set) => ({
 
   lastTemplateSuggestion: null as any,
   setLastTemplateSuggestion: (s: any) => set({ lastTemplateSuggestion: s }),
+  lastTemplateId: null as string | null,
+  setLastTemplateId: (id: string | null) => set({ lastTemplateId: id }),
   reapplyTemplate: false,
   triggerReapply: () => set((s) => ({ reapplyTemplate: !s.reapplyTemplate })),
   pendingCanvasSuggestion: null as any,
@@ -153,7 +157,7 @@ export const useStore = create<StudioStore>((set) => ({
     history: [], future: [],
     generatedDocs: [], logs: [],
     specImported: false, pendingCanvasSuggestion: null,
-    lastTemplateSuggestion: null,
+    lastTemplateSuggestion: null, lastTemplateId: null,
     project: { project_name: '', app_name: '', author: '', domain: '', description: '', project_folder: '', framework_path: '', platforms: [] },
   }),
 

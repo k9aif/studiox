@@ -12,11 +12,12 @@ import { AboutStudio } from './AboutStudio';
 import { SetupPanel } from './SetupPanel';
 import { Inspector } from './Inspector';
 import { ScaffoldView } from './ScaffoldView';
+import { ClassDiagramView } from './ClassDiagramView';
 import type { NodeData, ProjectMeta } from '../types';
 
-type CenterTab = 'about' | 'setup' | 'intake' | 'canvas' | 'flow' | 'docs' | 'scaffold';
+type CenterTab = 'about' | 'setup' | 'intake' | 'canvas' | 'classdiagram' | 'flow' | 'docs' | 'scaffold';
 
-function buildProjectPayload(
+export function buildProjectPayload(
   project: ProjectMeta,
   nodes: Node<NodeData>[],
   edges: Edge[],
@@ -199,6 +200,22 @@ export function Studio() {
   const [centerTab, setCenterTab] = useState<CenterTab>('about');
   const [draggedComponent, setDraggedComponent] = useState<any>(null);
 
+  // Class Diagram needs the full center pane height — auto-hide the bottom
+  // files panel while it's active, and restore whatever state it was in
+  // when switching to any other tab.
+  const prevShowBottomRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (centerTab === 'classdiagram') {
+      setShowBottom((current) => {
+        prevShowBottomRef.current = current;
+        return false;
+      });
+    } else if (prevShowBottomRef.current !== null) {
+      setShowBottom(prevShowBottomRef.current);
+      prevShowBottomRef.current = null;
+    }
+  }, [centerTab]);
+
   const onDragStart = useCallback((e: React.DragEvent, comp: any) => {
     e.dataTransfer.setData('application/k9node', JSON.stringify(comp));
     e.dataTransfer.effectAllowed = 'move';
@@ -326,6 +343,7 @@ export function Studio() {
                 { id: 'flow',     label: 'Graph' },
                 { id: 'docs',     label: 'Generated Docs' },
                 { id: 'scaffold', label: 'View Scaffold' },
+                { id: 'classdiagram', label: 'Class Diagram' },
               ] as { id: CenterTab; label: string }[]).map(({ id, label }) => (
                 <button
                   key={id}
@@ -450,6 +468,7 @@ export function Studio() {
 
             {centerTab === 'docs' && <DocsPanel />}
             {centerTab === 'scaffold' && <ScaffoldView />}
+            {centerTab === 'classdiagram' && <ClassDiagramView />}
 
           </div>
         </ReactFlowProvider>
