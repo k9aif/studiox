@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from k9_aif_abb.k9_agents.critic_actor import (
     K9CriticActorAgent,
     CriticActorContext,
+    CriticActorDisposition,
     CriticActorResult,
 )
 
@@ -33,9 +34,9 @@ class {{ class_name }}(K9CriticActorAgent):
         """Refine the output based on the critique."""
         return super().refine(output, critique, ctx)
 
-    def should_accept(self, output: Any, critique: Dict[str, Any], ctx: CriticActorContext) -> bool:
-        """Return True when output quality is acceptable."""
-        return super().should_accept(output, critique, ctx)
+    def should_accept(self, feedback: Dict[str, Any], ctx: CriticActorContext) -> CriticActorDisposition:
+        """Decide ACCEPTED / REJECTED / ESCALATE / FAIL based on the critic's feedback."""
+        return super().should_accept(feedback, ctx)
 
     def finalize(self, ctx: CriticActorContext) -> CriticActorResult:
         """Return the final accepted output."""

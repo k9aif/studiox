@@ -1193,6 +1193,9 @@ html, body, #root {
 .scaffold-done-hint code {
   color: #7070b0; font-family: var(--font-mono);
 }
+.scaffold-done-body code {
+  color: #a5b4fc; font-family: var(--font-mono);
+}
 .scaffold-done-actions {
   display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;
 }

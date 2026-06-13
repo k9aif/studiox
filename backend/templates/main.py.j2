@@ -10,16 +10,10 @@ import textwrap
 import logging
 from pathlib import Path
 
-# Bootstrap sys.path so k9_projects imports resolve
-PROJECT_ROOT = Path(__file__).resolve().parent
-K9_FRAMEWORK = PROJECT_ROOT.parent.parent  # adjust if not using k9_projects layout
-if str(K9_FRAMEWORK) not in sys.path:
-    sys.path.insert(0, str(K9_FRAMEWORK))
-
 from k9_aif_abb.k9_factories.llm_factory import LLMFactory
 from k9_aif_abb.k9_factories.model_router_factory import ModelRouterFactory
 {% for orch in orchestrators %}
-from k9_projects.{{ app_folder }}.orchestrators.{{ orch.name | to_snake }} import {{ orch.name }}
+from orchestrators.{{ orch.name | to_snake }} import {{ orch.name }}
 {% endfor %}
 
 logging.basicConfig(level=logging.INFO)

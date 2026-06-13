@@ -77,7 +77,7 @@ inference:
     default_model: general
     persistence:
       enabled: true
-      provider: sqlite
+      provider: sqlite  # switch to "postgres" + uncomment the postgres: block below to use Postgres
 
   model_catalog:
     default_model: general
@@ -104,3 +104,31 @@ monitoring:
 
 logging:
   level: DEBUG
+
+# ── Advanced / optional infrastructure ────────────────────────────────────
+# Not wired into this scaffold. Uncomment and set the matching variables in
+# .env (see .env.example) if you extend this project with Kafka messaging,
+# Postgres-backed persistence, or Neo4j graph sync — modeled on the EOC
+# example in k9-aif-framework/examples/.
+#
+# messaging:
+#   backend: kafka
+#   brokers:
+#     - "${KAFKA_BROKER:-localhost:9092}"
+#   bootstrap_servers: "${KAFKA_BROKER:-localhost:9092}"
+#   topic: {{ app_folder }}-events
+#   client_id: {{ app_folder }}
+#   security_protocol: PLAINTEXT
+#
+# postgres:
+#   host: "${POSTGRES_HOST:-localhost}"
+#   port: 5432
+#   user: "${POSTGRES_USER:-postgres}"
+#   database: "${POSTGRES_DB:-{{ app_folder }}}"
+#   schema: "{{ app_folder }}"
+#   echo: false
+#
+# neo4j:
+#   uri: "${NEO4J_URI:-bolt://localhost:7687}"
+#   user: "${NEO4J_USER:-neo4j}"
+#   database: neo4j

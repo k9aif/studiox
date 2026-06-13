@@ -12,6 +12,7 @@ import { AboutStudio } from './AboutStudio';
 import { SetupPanel } from './SetupPanel';
 import { Inspector } from './Inspector';
 import { ScaffoldView } from './ScaffoldView';
+import { ScaffoldDoneOverlay } from './ScaffoldDoneOverlay';
 import { ClassDiagramView } from './ClassDiagramView';
 import type { NodeData, ProjectMeta } from '../types';
 
@@ -152,6 +153,8 @@ export function Studio() {
   const [exporting, setExporting] = useState(false);
   const exportingRef = useRef(false);
   const [exportMsg, setExportMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [showScaffoldDone, setShowScaffoldDone] = useState(false);
+  const [lastZipName, setLastZipName] = useState('');
 
   const handleExport = async () => {
     if (exportingRef.current) return;
@@ -173,6 +176,8 @@ export function Studio() {
       a.download = zipName;
       a.click();
       addGeneratedDoc(zipName, url);
+      setLastZipName(zipName);
+      setShowScaffoldDone(true);
       // Also fetch file tree for View Scaffold tab
       try {
         const previewRes = await fetch('/api/scaffold-preview', {
@@ -486,6 +491,13 @@ export function Studio() {
       </div>
 
       {showBottom && <BottomPanel />}
+
+      <ScaffoldDoneOverlay
+        visible={showScaffoldDone}
+        zipName={lastZipName}
+        onClose={() => setShowScaffoldDone(false)}
+        onViewScaffold={() => { setCenterTab('scaffold'); setShowScaffoldDone(false); }}
+      />
 
     </div>
   );
