@@ -74,7 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="k9x",
         description=(
-            f"K9-AIF Studio v{_version()} — visual architecture builder for K9-AIF projects.\n"
+            f"K9-AIF Studio v{_version()} — visual architecture builder for K9-AIF projects.  "
             "https://k9x.ai"
         ),
         epilog=(
