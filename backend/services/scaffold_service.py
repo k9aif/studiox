@@ -2,6 +2,7 @@
 # k9x_studio scaffold generator service
 
 import io
+import json
 import re
 import zipfile
 import zlib
@@ -435,6 +436,13 @@ class {squad['name']}(BaseSquad):
             "ollama_base_url": ollama_base_url,
         })
         add(f"{app_folder}/config/config.yaml", config_yaml)
+
+        # ── config/scenario.json — "best case" demo scenario ───────────
+        # main.py prints title + narrative, then sends `payload` to the
+        # squad as its input. Empty dict if the project has none — main.py
+        # falls back to its generic placeholder payload in that case.
+        scenario = project.get("scenario") or {}
+        add(f"{app_folder}/config/scenario.json", json.dumps(scenario, indent=2) + "\n")
 
         # ── main.py ───────────────────────────────────────────────────
         main_py = _render("main.py.j2", {

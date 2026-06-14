@@ -397,6 +397,13 @@ class OrchestratorDef(BaseModel):
     name: str
     squad: str
 
+class ScenarioDef(BaseModel):
+    """A single 'best case' use-case scenario embedded in the generated scaffold.
+    main.py prints title + narrative, then sends payload to the squad as input."""
+    title: str = ""
+    narrative: str = ""
+    payload: dict = Field(default_factory=dict)
+
 class ProjectDef(BaseModel):
     project_name: str
     author: str = ""
@@ -413,6 +420,7 @@ class ProjectDef(BaseModel):
     llm_model: str = ""
     generation_source: str = ""
     generation_scoring: Optional[dict] = None
+    scenario: Optional[ScenarioDef] = None
 
 
 _BINARY_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif")

@@ -19,8 +19,9 @@ from orchestrators.{{ orch.name | to_snake }} import {{ orch.name }}
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-CONFIG_PATH  = Path(__file__).parent / "config" / "config.yaml"
-SQUADS_PATH  = Path(__file__).parent / "config" / "squads.yaml"
+CONFIG_PATH   = Path(__file__).parent / "config" / "config.yaml"
+SQUADS_PATH   = Path(__file__).parent / "config" / "squads.yaml"
+SCENARIO_PATH = Path(__file__).parent / "config" / "scenario.json"
 
 _W = 66  # console width
 
@@ -28,6 +29,34 @@ _W = 66  # console width
 def load_config(path: Path) -> dict:
     with open(path) as f:
         return yaml.safe_load(f)
+
+
+def load_scenario(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f) or {}
+
+
+def render_scenario_banner(scenario: dict, payload: dict) -> str:
+    lines = []
+    lines.append("=" * _W)
+    lines.append("  Use Case Scenario")
+    lines.append("=" * _W)
+    if scenario.get("title"):
+        lines.append(f"  {scenario['title']}")
+        lines.append("─" * _W)
+    if scenario.get("narrative"):
+        for line in textwrap.wrap(scenario["narrative"], width=_W - 2):
+            lines.append(f"  {line}")
+        lines.append("")
+    lines.append("  Input")
+    lines.append("")
+    for line in json.dumps(payload, indent=2, default=str).splitlines():
+        lines.append(f"  {line}")
+    lines.append("")
+    lines.append("=" * _W)
+    return "\n".join(lines)
 
 
 def render_result_summary(result: dict, app_name: str, orch_name: str, elapsed_s: float, correlation_id: str) -> str:
@@ -71,6 +100,11 @@ def render_result_summary(result: dict, app_name: str, orch_name: str, elapsed_s
                 conf = f"{val.get('final_confidence', 0.0):.2f}"
                 itr = str(val.get("iterations", "—"))
                 model = "—"
+            elif "rounds" in val:
+                status_cell = val.get("disposition", "—")
+                conf = f"{val.get('final_score', 0.0):.2f}"
+                itr = str(val.get("rounds", "—"))
+                model = "—"
             else:
                 status_cell = "done"
                 conf = "—"
@@ -101,6 +135,29 @@ def render_result_summary(result: dict, app_name: str, orch_name: str, elapsed_s
             if conf < 0.8:
                 warnings.append(f"{agent_name}: confidence {conf:.2f} below threshold 0.80 — implement evaluate_observation() for real domain scoring.")
             lines.append(f"    Evidence: {len(evidence)} observation(s) recorded")
+            output = val.get("output", {}) if isinstance(val.get("output"), dict) else {}
+            conclusion = str(output.get("conclusion", "")).strip()
+            reasoning = str(output.get("reasoning", "")).strip()
+            if conclusion:
+                lines.append(f"    Conclusion: {textwrap.shorten(conclusion, width=120, placeholder='…')}")
+            if reasoning:
+                lines.append(f"    Reasoning:  {textwrap.shorten(reasoning, width=120, placeholder='…')}")
+        elif "rounds" in val:
+            disp = val.get("disposition", "—")
+            score = val.get("final_score", 0.0)
+            rounds = val.get("rounds", 0)
+            critique_log = val.get("critique_log", [])
+            lines.append(f"  [{label}]  Critic-Actor Loop · {rounds} round(s) · disposition={disp} · score={score:.2f}")
+            if score < 0.8:
+                warnings.append(f"{agent_name}: score {score:.2f} below threshold 0.80 — refine critique()/act() for real domain feedback.")
+            lines.append(f"    Critiques: {len(critique_log)} round(s) recorded")
+            output = val.get("output", {}) if isinstance(val.get("output"), dict) else {}
+            summary = str(output.get("summary", "")).strip()
+            draft = str(output.get("draft", "")).strip()
+            if summary:
+                lines.append(f"    Summary: {textwrap.shorten(summary, width=120, placeholder='…')}")
+            if draft:
+                lines.append(f"    Draft:   {textwrap.shorten(draft, width=120, placeholder='…')}")
         else:
             output = str(val.get("output", ""))
             snippet = textwrap.shorten(output, width=120, placeholder="…")
@@ -133,11 +190,17 @@ def main():
     orch_{{ loop.index }}.start(str(SQUADS_PATH))
 {% endfor %}
 
-    payload = {
+    scenario = load_scenario(SCENARIO_PATH)
+
+    payload = scenario.get("payload") or {
         "event_type": "{{ domain | lower | replace(' ', '_') }}",
         "query": "Sample request for {{ app_name }}",
-        "correlation_id": "test-001",
     }
+    payload.setdefault("event_type", "{{ domain | lower | replace(' ', '_') }}")
+    payload.setdefault("correlation_id", "test-001")
+
+    if not raw_json and (scenario.get("title") or scenario.get("narrative")):
+        print(render_scenario_banner(scenario, payload))
 
     log.info("Sending payload: %s", payload)
 

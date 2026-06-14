@@ -62,6 +62,14 @@ export interface ProjectMeta {
   compliance_requirements?: string;
   hitl_decisions?: string;
   volume_sla?: string;
+  // Demo scenario — shown by run.sh and sent as the squad's input payload
+  scenario?: ProjectScenario;
+}
+
+export interface ProjectScenario {
+  title: string;
+  narrative: string;
+  payload: Record<string, unknown>;
 }
 
 export type AppScreen = 'splash' | 'setup' | 'studio';

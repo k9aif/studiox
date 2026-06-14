@@ -293,6 +293,7 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
                   ...(t.vision       ? { vision:       t.vision }       : {}),
                   ...(t.current_state ? { current_state: t.current_state } : {}),
                   ...(t.target_goals  ? { target_goals:  t.target_goals }  : {}),
+                  ...(t.scenario     ? { scenario:     t.scenario }     : {}),
                 };
                 setProject(updated);
                 setTab('components');

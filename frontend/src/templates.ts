@@ -12,6 +12,16 @@ export interface ProjectTemplate {
     squads: { name: string; agents: string[] }[];
     agents: { name: string; type: string; model: string; description: string }[];
   };
+  /**
+   * A single concrete "best case" use-case scenario for this template.
+   * Generated scaffolds display this (title + narrative + payload) when
+   * run.sh runs, then send `payload` to the squad as its input.
+   */
+  scenario: {
+    title: string;
+    narrative: string;
+    payload: Record<string, unknown>;
+  };
 }
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -44,6 +54,32 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         { name: 'PriceValidationAgent',  type: 'BaseAgent',             model: 'general',   description: 'Validates final price against OEM guidelines and margin floors' },
       ],
     },
+    scenario: {
+      title: 'Aging Vehicle Review — 2023 BMW X5 (75 days on lot)',
+      narrative:
+        'A 2023 BMW X5 xDrive40i has been on the lot for 75 days — past the dealership\'s ' +
+        '45-day aging threshold. The squad assesses aging risk, recommends a showroom ' +
+        'placement, and drafts — then critiques and validates — a price adjustment.',
+      payload: {
+        event_type: 'inventory_aging_check',
+        query: 'Assess this vehicle for aging risk, recommend a showroom placement, and propose a validated price adjustment.',
+        vehicle: {
+          vin: '5UXCR6C0XP9N12345',
+          make: 'BMW',
+          model: 'X5 xDrive40i',
+          year: 2023,
+          trim: 'Premium Package',
+          days_on_lot: 75,
+          list_price: 68500,
+          msrp: 71200,
+          mileage: 4200,
+          comparable_avg_price: 66800,
+          lot_location: 'Indoor Showroom Bay 3',
+          recent_views: 12,
+          recent_test_drives: 1,
+        },
+      },
+    },
   },
   {
     id: 'document-intelligence',
@@ -73,6 +109,31 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         { name: 'BusinessRuleAgent',       type: 'K9ValidationLoopAgent', model: 'reasoning', description: 'Validates extracted data against configurable business rules' },
         { name: 'ComplianceCheckerAgent',  type: 'K9CriticActorAgent',    model: 'reasoning', description: 'Critiques and refines compliance flags before escalation' },
       ],
+    },
+    scenario: {
+      title: 'Inbound Invoice — Acme Industrial Supplies (INV-20458)',
+      narrative:
+        'A scanned invoice arrives from a vendor. The squad classifies the document type, ' +
+        'extracts structured fields (vendor, line items, totals, PO reference), checks it ' +
+        'against business rules, and runs a compliance check before routing to AP.',
+      payload: {
+        event_type: 'document_received',
+        query: 'Classify this document, extract structured fields, validate against business rules, and check compliance before routing to AP.',
+        document_text:
+          'INVOICE #INV-20458\n' +
+          'Vendor: Acme Industrial Supplies Ltd.\n' +
+          'Bill To: Northwind Manufacturing\n' +
+          'Date: 2026-05-30   Due: 2026-06-29\n' +
+          'Line Items:\n' +
+          '  1. Stainless Steel Brackets (x500) ... $4,250.00\n' +
+          '  2. Hex Bolts M8 (x2000) ............... $1,180.00\n' +
+          '  3. Freight & Handling .................. $310.00\n' +
+          'Subtotal: $5,740.00\n' +
+          'Tax (8.25%): $473.55\n' +
+          'Total Due: $6,213.55\n' +
+          'Payment Terms: Net 30\n' +
+          'PO Reference: PO-88291',
+      },
     },
   },
   {
@@ -104,6 +165,23 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         { name: 'ResponseQualityAgent',  type: 'K9CriticActorAgent', model: 'reasoning', description: 'Generates response, critiques tone and accuracy, refines before sending' },
       ],
     },
+    scenario: {
+      title: 'Inbound Support Email — Duplicate Billing Charge',
+      narrative:
+        'A premium customer emails support reporting they were charged twice for their ' +
+        'monthly subscription. The squad classifies intent and sentiment, retrieves the ' +
+        'refund policy, then drafts — critiques — and refines a reply before it is sent.',
+      payload: {
+        event_type: 'customer_message',
+        query:
+          "I've been charged twice for my subscription this month — $49.99 showed up on " +
+          "my card on the 3rd AND the 5th. I've been a loyal customer for 3 years and this " +
+          'is really frustrating. Can someone fix this today?',
+        channel: 'email',
+        customer_id: 'CUST-88213',
+        account_tier: 'Premium',
+      },
+    },
   },
   {
     id: 'financial-analysis',
@@ -134,6 +212,27 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         { name: 'NarrativeAgent',        type: 'K9CriticActorAgent',    model: 'reasoning', description: 'Drafts investment narrative, critiques for bias, refines output' },
         { name: 'ComplianceReportAgent', type: 'K9ValidationLoopAgent', model: 'reasoning', description: 'Validates report against regulatory requirements iteratively' },
       ],
+    },
+    scenario: {
+      title: 'Overnight Risk Run — Portfolio PF-10231',
+      narrative:
+        'Overnight market data shows NVDA dropped 6.8% and now represents 18.4% of ' +
+        'portfolio PF-10231 — above the 15% single-name concentration limit. The squad ' +
+        'pulls market data, scores portfolio risk, flags the concentration anomaly, ' +
+        'drafts an investment narrative, and validates the compliance report.',
+      payload: {
+        event_type: 'portfolio_risk_check',
+        query: 'Assess overnight risk for this portfolio, flag anomalies, and produce a compliance-ready risk narrative.',
+        portfolio_id: 'PF-10231',
+        portfolio_value: 18750000,
+        var_95_1d: 312000,
+        concentration_limit_pct: 15,
+        positions: [
+          { ticker: 'NVDA', shares: 4200, weight_pct: 18.4, change_1d_pct: -6.8 },
+          { ticker: 'TLT', shares: 9000, weight_pct: 9.1, change_1d_pct: 1.2 },
+          { ticker: 'XOM', shares: 5400, weight_pct: 7.5, change_1d_pct: 0.4 },
+        ],
+      },
     },
   },
   {
@@ -179,6 +278,38 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         { name: 'MerchandiseAgent',       type: 'BaseAgent',             model: 'general',   description: 'Forecasts and manages merchandise inventory and revenue per show' },
         { name: 'ContractAuditAgent',     type: 'K9CriticActorAgent',    model: 'reasoning', description: 'Audits promoter and manager contracts for hidden deductions, swindles, and unfair terms — flags anomalies before signing' },
       ],
+    },
+    scenario: {
+      title: 'Tour Stop — The Roundhouse, London (2026-06-20)',
+      narrative:
+        "Tonight's show at The Roundhouse is nearly sold out (3,050 / 3,200). The squad " +
+        'coordinates logistics for the day and the ContractAuditAgent reviews the promoter ' +
+        "settlement — including a suspicious £9,750 'production miscellaneous' " +
+        'deduction — before it is signed off.',
+      payload: {
+        event_type: 'tour_day_ops',
+        query: "Coordinate logistics for tonight's show and review the promoter settlement for irregularities before sign-off.",
+        show: {
+          venue: 'The Roundhouse, London',
+          date: '2026-06-20',
+          load_in: '12:00',
+          soundcheck: '16:30',
+          doors: '19:00',
+          set_time: '21:00',
+          capacity: 3200,
+          tickets_sold: 3050,
+        },
+        promoter_settlement: {
+          gross_ticket_revenue_gbp: 137250,
+          promoter_fee_pct: 15,
+          merchandise_cut_pct: 20,
+          deductions: [
+            { label: 'Venue rental', amount_gbp: 18000 },
+            { label: 'Security', amount_gbp: 4200 },
+            { label: 'Production miscellaneous', amount_gbp: 9750 },
+          ],
+        },
+      },
     },
   },
   {
@@ -231,6 +362,35 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         { name: 'DivinePatienceAgent',         type: 'BaseAgent',             model: 'general',   description: 'Checks if sufficient time has elapsed since last answered request. Minimum wait: 7 years. No appeals.' },
       ],
     },
+    scenario: {
+      title: 'Incoming Prayer Batch — 3 Requests',
+      narrative:
+        'Three prayers arrive simultaneously: a world-peace request from a habitual ' +
+        "do-gooder, a 47th lottery request from a repeat offender who Instagrams their " +
+        "good deeds, and a first-time 'help me find my keys' request. The squad " +
+        'classifies, audits karma, checks humanitarian merit, and issues a final ruling.',
+      payload: {
+        event_type: 'prayer_request_batch',
+        query: 'Triage these incoming requests, audit requester karma, assess humanitarian merit, and rule on miracle allocation.',
+        requests: [
+          {
+            id: 'REQ-0001',
+            text: "Please let world peace happen, I'll do anything.",
+            requester_karma_history: '200 hrs community service, donates blood quarterly',
+          },
+          {
+            id: 'REQ-0002',
+            text: 'I need to win the lottery, I deserve it more than anyone.',
+            requester_karma_history: 'Submitted 47 times this week, posts good deeds to Instagram immediately after doing them',
+          },
+          {
+            id: 'REQ-0003',
+            text: "Can you help me find my car keys, I'm late for work.",
+            requester_karma_history: 'First request ever, generally kind person',
+          },
+        ],
+      },
+    },
   },
   {
     id: 'healthcare',
@@ -260,6 +420,26 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         { name: 'GuidelineCheckerAgent',  type: 'K9ValidationLoopAgent', model: 'reasoning', description: 'Cross-references symptoms against clinical guidelines iteratively' },
         { name: 'CarePlanAgent',          type: 'K9CriticActorAgent',    model: 'reasoning', description: 'Drafts care plan summary, critiques for clinical accuracy, refines' },
       ],
+    },
+    scenario: {
+      title: 'Patient Intake — 58F, Chest Tightness + Hypertension',
+      narrative:
+        'A 58-year-old patient with controlled hypertension and type 2 diabetes reports ' +
+        'two days of exertional chest tightness, including one episode radiating to the ' +
+        'left arm. The squad extracts structured symptom data, classifies urgency, ' +
+        'cross-references cardiac guidelines, and drafts a care plan summary for review.',
+      payload: {
+        event_type: 'patient_intake',
+        query: 'Extract symptoms, classify urgency, check against clinical guidelines, and draft a care plan summary for clinician review.',
+        patient_id: 'PT-44210',
+        intake_note:
+          'Patient: 58F. Presents with intermittent chest tightness over past 2 days, ' +
+          'worse on exertion, mild shortness of breath. History of hypertension ' +
+          '(controlled, lisinopril 10mg) and type 2 diabetes (metformin 500mg BID). ' +
+          'No prior cardiac events. BP 148/92, HR 88, SpO2 97%. Denies nausea, denies ' +
+          'radiating pain currently but reports one episode radiating to left arm ' +
+          'yesterday evening lasting ~10 minutes, resolved with rest.',
+      },
     },
   },
 ];
