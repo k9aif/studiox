@@ -1,0 +1,3 @@
+recursive-include frontend/dist *
+recursive-include backend/templates *.j2
+recursive-include k9x/_generator_templates *.j2

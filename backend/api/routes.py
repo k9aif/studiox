@@ -10,6 +10,11 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 _BLOCK_LOCAL = _os.environ.get("K9X_BLOCK_LOCAL", "false").lower() == "true"
 _LOCAL_ADDRS = ("localhost", "127.0.0.1", "::1", "0.0.0.0")
 
+# Splash-screen login. Defaults to demo/demo; set K9X_STUDIO_USER and
+# K9X_STUDIO_PASSWORD in .env to restrict access.
+_STUDIO_USER = _os.environ.get("K9X_STUDIO_USER", "demo")
+_STUDIO_PASSWORD = _os.environ.get("K9X_STUDIO_PASSWORD", "demo")
+
 
 def _is_local_blocked(endpoint: str) -> bool:
     return _BLOCK_LOCAL and any(loc in endpoint for loc in _LOCAL_ADDRS)
@@ -92,6 +97,20 @@ PALETTE = [
 @router.get("/components")
 def get_components():
     return {"components": PALETTE}
+
+
+# ── Splash-screen login ──────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/auth/login")
+def login(req: LoginRequest):
+    if req.username == _STUDIO_USER and req.password == _STUDIO_PASSWORD:
+        return {"ok": True}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
 # ── Architecture suggestion ────────────────────────────────────────────────────

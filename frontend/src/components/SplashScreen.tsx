@@ -2,9 +2,6 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import logo from '../assets/k9aif-logo.png';
 
-const DEMO_USER = 'demo';
-const DEMO_PASS = 'demo';
-
 export function SplashScreen() {
   const { setScreen } = useStore();
   const [username, setUsername] = useState('');
@@ -12,22 +9,30 @@ export function SplashScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
       setError('Enter username and password');
       return;
     }
     setLoading(true);
     setError('');
-    setTimeout(() => {
-      if (username.trim() === DEMO_USER && password.trim() === DEMO_PASS) {
+    try {
+      const resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password: password.trim() }),
+      });
+      if (resp.ok) {
         sessionStorage.setItem('k9x_authed', '1');
         setScreen('studio');
       } else {
         setError('Invalid credentials');
-        setLoading(false);
       }
-    }, 600);
+    } catch {
+      setError('Unable to reach server');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "k9x"
+version = "0.1.0"
+description = "K9-AIF Studio — visual, drag-and-drop architecture builder for K9-AIF projects"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+
+dependencies = [
+    "k9-aif>=1.2.6",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+k9x = "k9x.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["k9x*", "backend*", "frontend"]
+
+[tool.setuptools.package-data]
+backend = ["templates/*.j2"]
+frontend = ["dist/**/*"]
+k9x = ["_generator_templates/*.j2"]
