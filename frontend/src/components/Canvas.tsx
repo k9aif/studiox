@@ -130,6 +130,12 @@ export function Canvas({ generating }: CanvasProps) {
         if (intentSquad) {
           onConnect({ source: intentSquad.id, target: id, sourceHandle: 's-right', targetHandle: 't-left' });
         }
+        // Auto-wire to any Orchestrators already on the canvas
+        const orchestrators = nodes.filter((n) => (n.data as NodeData).componentType === 'orchestrator');
+        for (const orch of orchestrators) {
+          onConnect({ source: id, target: orch.id, sourceHandle: 's-right', targetHandle: 't-left' });
+          onConnect({ source: kafkaId, target: orch.id, sourceHandle: 's-right', targetHandle: 't-left' });
+        }
       }
 
       if (comp.type === 'intent_squad') {
@@ -169,7 +175,73 @@ export function Canvas({ generating }: CanvasProps) {
         }
       }
 
-      // Auto-connect to nearest valid parent node
+      // ── Ensure the K9-AIF hierarchy is complete: Router → Orchestrator → Squad ──
+      const ANCESTOR_GAP = 260;
+      const ANCESTOR_DEFS: Record<'router' | 'orchestrator' | 'squad', { label: string; abbClass: string; color: string; description: string }> = {
+        router:       { label: 'K9EventRouter', abbClass: 'K9EventRouter',    color: '#6366f1', description: 'Routes events by event_type' },
+        orchestrator: { label: 'Orchestrator',   abbClass: 'BaseOrchestrator', color: '#8b5cf6', description: 'Coordinates squad execution' },
+        squad:        { label: 'Squad',          abbClass: 'BaseSquad',        color: '#0ea5e9', description: 'Executes agent flow in sequence' },
+      };
+      const REQUIRED_PARENT: Record<'router' | 'orchestrator' | 'squad', 'router' | 'orchestrator' | undefined> = {
+        router: undefined,
+        orchestrator: 'router',
+        squad: 'orchestrator',
+      };
+
+      const nearestNode = (candidates: typeof nodes, pos: { x: number; y: number }) =>
+        candidates.reduce((best, n) => {
+          const dist = (m: typeof n) => Math.hypot(m.position.x - pos.x, m.position.y - pos.y);
+          return dist(n) < dist(best) ? n : best;
+        });
+
+      // Find the nearest existing node of `type`, or create it — recursively
+      // creating its own required ancestor first — so a Squad never exists
+      // without an Orchestrator, and an Orchestrator never exists without a Router.
+      const ensureAncestor = (type: 'router' | 'orchestrator' | 'squad', near: { x: number; y: number }): string => {
+        const existing = nodes.filter(
+          (n) => (n.data as NodeData).componentType === type && !(n.data as NodeData).system
+        );
+        if (existing.length > 0) return nearestNode(existing, near).id;
+
+        const newId = `${type}-${nodeCounter++}`;
+        const pos = { x: near.x - ANCESTOR_GAP, y: near.y };
+        addNode({
+          id: newId, type: 'k9node', position: pos,
+          data: { ...ANCESTOR_DEFS[type], componentType: type as any } as NodeData,
+        } as any);
+
+        if (type === 'router') {
+          const kafkaId = 'system-kafka';
+          if (!nodes.some((n) => n.id === kafkaId)) {
+            addNode({
+              id: kafkaId, type: 'k9node',
+              position: { x: pos.x + 230, y: pos.y - 160 },
+              data: {
+                label: 'Message Bus', componentType: 'system' as any,
+                color: '#334155', abbClass: 'Apache Kafka',
+                description: 'Event streaming backbone', system: true,
+              } as NodeData,
+            } as any);
+          }
+          onConnect({ source: newId, target: kafkaId, sourceHandle: 's-right', targetHandle: 't-left' });
+        }
+
+        const parentType = REQUIRED_PARENT[type];
+        if (parentType) {
+          const parentId = ensureAncestor(parentType, pos);
+          onConnect({ source: parentId, target: newId, sourceHandle: 's-right', targetHandle: 't-left' });
+          if (type === 'orchestrator') {
+            // Router (just ensured above) always comes with a Kafka node.
+            onConnect({ source: 'system-kafka', target: newId, sourceHandle: 's-right', targetHandle: 't-left' });
+          }
+        }
+
+        return newId;
+      };
+
+      // Auto-connect to nearest valid parent node — creating the Router →
+      // Orchestrator → Squad ancestor chain if it doesn't exist yet, so a
+      // dropped component never ends up orphaned on the canvas.
       const PARENT_TYPE: Partial<Record<string, string[]>> = {
         orchestrator:    ['router'],
         squad:           ['orchestrator'],
@@ -183,20 +255,15 @@ export function Canvas({ generating }: CanvasProps) {
         const candidates = nodes.filter(
           (n) => parentTypes.includes((n.data as NodeData).componentType) && !(n.data as NodeData).system
         );
-        if (candidates.length > 0) {
-          const nearest = candidates.reduce((best, n) => {
-            const dx = n.position.x - position.x;
-            const dy = n.position.y - position.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const bdx = best.position.x - position.x;
-            const bdy = best.position.y - position.y;
-            return dist < Math.sqrt(bdx * bdx + bdy * bdy) ? n : best;
-          });
-          onConnect({ source: nearest.id, target: id, sourceHandle: 's-right', targetHandle: 't-left' });
-          if (comp.type === 'orchestrator') {
-            const kafka = nodes.find((n) => n.id === 'system-kafka');
-            if (kafka) onConnect({ source: 'system-kafka', target: id, sourceHandle: 's-right', targetHandle: 't-left' });
-          }
+        const parentId = candidates.length > 0
+          ? nearestNode(candidates, position).id
+          : ensureAncestor(parentTypes[0] as 'router' | 'orchestrator' | 'squad', position);
+
+        onConnect({ source: parentId, target: id, sourceHandle: 's-right', targetHandle: 't-left' });
+        if (comp.type === 'orchestrator') {
+          // Either a pre-existing Router or ensureAncestor('router', ...) above
+          // guarantees a Kafka node exists alongside it.
+          onConnect({ source: 'system-kafka', target: id, sourceHandle: 's-right', targetHandle: 't-left' });
         }
       }
 
