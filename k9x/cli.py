@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -51,6 +52,13 @@ Set K9X_STUDIO_USER / K9X_STUDIO_PASSWORD in .env to restrict access
 """
 
 
+def _version() -> str:
+    try:
+        return _pkg_version("k9x")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 def _display_host(host: str) -> str:
     return "localhost" if host in ("0.0.0.0", "::") else host
 
@@ -65,7 +73,10 @@ def _port_in_use(host: str, port: int) -> bool:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="k9x",
-        description="K9-AIF Studio — visual architecture builder for K9-AIF projects.",
+        description=(
+            f"K9-AIF Studio v{_version()} — visual architecture builder for K9-AIF projects.\n"
+            "https://k9x.ai"
+        ),
         epilog=(
             "Examples:\n"
             "  k9x studio                 Start the studio (foreground, like 'ollama serve')\n"
@@ -75,12 +86,21 @@ def _build_parser() -> argparse.ArgumentParser:
             "  k9x config                 Write ./.env-example with LLM provider settings\n"
             "  k9x test-llm               Send a test prompt to the LLM configured in .env\n"
             "  k9x support                Show where to open a support ticket\n"
+            "  k9x --version              Show the installed k9x version\n"
+            "  k9x --upgrade              Upgrade to the latest k9x from PyPI\n"
             "  k9x help container         Show how to run the studio in a container\n"
             "\n"
             "'--bg' / '--background' may also be given before the subcommand:\n"
             "  k9x --bg studio\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"k9x {_version()}",
+    )
+    parser.add_argument(
+        "--upgrade", action="store_true",
+        help="Upgrade k9x to the latest version (pip install --upgrade k9x)",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -241,6 +261,18 @@ def _cmd_config(args) -> int:
     return 0
 
 
+def _cmd_upgrade() -> int:
+    print(f"[k9x] Current version: {_version()}")
+    print("[k9x] Upgrading k9x (pip install --upgrade k9x)...")
+    cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "k9x"]
+    result = subprocess.run(cmd)
+    if result.returncode == 0:
+        import importlib
+        importlib.invalidate_caches()
+        print(f"[k9x] Done. Now at: {_version()}")
+    return result.returncode
+
+
 def _cmd_support(args) -> int:
     print("[k9x] Found a bug or have a question? Open a ticket:")
     print(f"[k9x]   {SUPPORT_URL}")
@@ -303,6 +335,9 @@ def main(argv=None) -> int:
 
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.upgrade:
+        return _cmd_upgrade()
 
     if args.command in (None, "help"):
         if args.command == "help" and getattr(args, "topic", None) == "container":
