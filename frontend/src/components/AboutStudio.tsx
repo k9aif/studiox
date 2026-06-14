@@ -109,12 +109,13 @@ export function AboutStudio() {
         </div>
         {[
           ['studio.k9x.ai',    'This tool — visual K9-AIF designer', true],
+          ['pip install k9x',  'Run your own instance of this Studio — locally or in a container', '#ffd166'],
           ['k9x-modernize',    'Reverse-engineer legacy code → K9-AIF blueprint → feed into Studio', false],
           ['graph.k9x.ai',     'Neo4j graph explorer for K9-AIF architectures', false],
           ['k9-aif-framework', 'The K9-AIF ABB library — BaseAgent, K9ValidationLoopAgent, K9CriticActorAgent, BaseGovernance', false],
         ].map(([name, desc, highlight]) => (
           <div key={name as string} style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 12 }}>
-            <span style={{ color: highlight ? '#34d399' : '#6366f1', minWidth: 160, fontWeight: highlight ? 600 : 500 }}>{name as string}</span>
+            <span style={{ color: typeof highlight === 'string' ? highlight : highlight ? '#34d399' : '#6366f1', minWidth: 160, fontWeight: highlight ? 600 : 500 }}>{name as string}</span>
             <span style={{ color: '#94a3b8' }}>{desc as string}</span>
           </div>
         ))}

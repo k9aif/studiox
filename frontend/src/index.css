@@ -1517,6 +1517,14 @@ html, body, #root {
   margin-bottom: 2px;
 }
 
+.splash-local-hint {
+  font-size: 11px;
+  color: #ffd166;
+  letter-spacing: 0.05em;
+  text-align: center;
+  margin-top: 10px;
+}
+
 /* ── Center Tabs ─────────────────────────────────────────────── */
 
 .center-tabs {

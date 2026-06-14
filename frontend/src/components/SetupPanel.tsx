@@ -216,6 +216,9 @@ export function SetupPanel() {
       <div style={{ marginTop: 16, fontSize: 11, color: '#475569' }}>
         ⚠ LLM config is session-only — clears on page refresh
       </div>
+      <div style={{ marginTop: 6, fontSize: 11, color: '#ffd166' }}>
+        You could run your own instance of Studio: <code style={{ fontSize: 11 }}>pip install k9x</code>
+      </div>
     </div>
   );
 }

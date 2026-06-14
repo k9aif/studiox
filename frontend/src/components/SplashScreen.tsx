@@ -4,8 +4,8 @@ import logo from '../assets/k9aif-logo.png';
 
 export function SplashScreen() {
   const { setScreen } = useStore();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('demo');
+  const [password, setPassword] = useState('demo');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -73,6 +73,7 @@ export function SplashScreen() {
           <button className="splash-btn-register" disabled>
             Register
           </button>
+          <div className="splash-local-hint">Local studio instance: pip install k9x</div>
         </div>
 
         <div className="splash-footer">
