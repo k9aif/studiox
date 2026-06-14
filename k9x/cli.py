@@ -24,6 +24,8 @@ BUNDLED_GENERATOR_TEMPLATES = Path(__file__).resolve().parent / "_generator_temp
 
 DEFAULT_TEST_PROMPT = "Who is Elon Musk? Answer in one paragraph."
 
+SUPPORT_URL = "https://k9x.atlassian.net/jira/servicedesk/projects/K9X"
+
 CONTAINER_HELP = f"""\
 Running k9x studio in a container
 ==================================
@@ -72,6 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
             f"  k9x studio --port 9000     Use a different port (default port: {DEFAULT_PORT})\n"
             "  k9x config                 Write ./.env-example with LLM provider settings\n"
             "  k9x test-llm               Send a test prompt to the LLM configured in .env\n"
+            "  k9x support                Show where to open a support ticket\n"
             "  k9x help container         Show how to run the studio in a container\n"
             "\n"
             "'--bg' / '--background' may also be given before the subcommand:\n"
@@ -124,6 +127,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--prompt", default=DEFAULT_TEST_PROMPT,
         help="prompt to send (default: a short 'who is...' question, answered in one paragraph)",
     )
+
+    sub.add_parser("support", help="Show where to open a support ticket")
 
     return parser
 
@@ -236,6 +241,12 @@ def _cmd_config(args) -> int:
     return 0
 
 
+def _cmd_support(args) -> int:
+    print("[k9x] Found a bug or have a question? Open a ticket:")
+    print(f"[k9x]   {SUPPORT_URL}")
+    return 0
+
+
 def _cmd_test_llm(args) -> int:
     _prepare_env()
 
@@ -310,6 +321,9 @@ def main(argv=None) -> int:
 
     if args.command == "test-llm":
         return _cmd_test_llm(args)
+
+    if args.command == "support":
+        return _cmd_support(args)
 
     parser.print_help()
     return 1
