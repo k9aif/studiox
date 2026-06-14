@@ -69,7 +69,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  k9x studio                 Start the studio (foreground, like 'ollama serve')\n"
             "  k9x studio --bg            Start the studio in the background\n"
             "  k9x studio --stop          Stop a background studio\n"
-            "  k9x studio --port 9000     Use a different port\n"
+            f"  k9x studio --port 9000     Use a different port (default port: {DEFAULT_PORT})\n"
             "  k9x config                 Write ./.env-example with LLM provider settings\n"
             "  k9x test-llm               Send a test prompt to the LLM configured in .env\n"
             "  k9x help container         Show how to run the studio in a container\n"
