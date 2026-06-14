@@ -22,6 +22,8 @@ LOG_FILE = STATE_DIR / "studio.log"
 
 BUNDLED_GENERATOR_TEMPLATES = Path(__file__).resolve().parent / "_generator_templates"
 
+DEFAULT_TEST_PROMPT = "Who is Elon Musk? Answer in one paragraph."
+
 CONTAINER_HELP = f"""\
 Running k9x studio in a container
 ==================================
@@ -69,6 +71,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  k9x studio --stop          Stop a background studio\n"
             "  k9x studio --port 9000     Use a different port\n"
             "  k9x config                 Write ./.env-example with LLM provider settings\n"
+            "  k9x test-llm               Send a test prompt to the LLM configured in .env\n"
             "  k9x help container         Show how to run the studio in a container\n"
             "\n"
             "'--bg' / '--background' may also be given before the subcommand:\n"
@@ -114,6 +117,12 @@ def _build_parser() -> argparse.ArgumentParser:
     config.add_argument(
         "--force", action="store_true",
         help="overwrite the output file if it already exists",
+    )
+
+    test_llm = sub.add_parser("test-llm", help="Send a test prompt to the LLM configured in .env")
+    test_llm.add_argument(
+        "--prompt", default=DEFAULT_TEST_PROMPT,
+        help="prompt to send (default: a short 'who is...' question, answered in one paragraph)",
     )
 
     return parser
@@ -227,6 +236,42 @@ def _cmd_config(args) -> int:
     return 0
 
 
+def _cmd_test_llm(args) -> int:
+    _prepare_env()
+
+    provider = os.environ.get("LLM_PROVIDER", "ollama").strip()
+    endpoint = os.environ.get("LLM_ENDPOINT", "").strip().rstrip("/")
+    model    = os.environ.get("LLM_MODEL", "").strip() or "granite3-dense:2b"
+    api_key  = os.environ.get("LLM_API_KEY", "").strip()
+
+    if not endpoint:
+        print("[k9x] No LLM_ENDPOINT set.")
+        print("[k9x] Run 'k9x config' to write a starter .env, edit it, then re-run this command.")
+        return 1
+
+    if not endpoint.startswith(("http://", "https://")):
+        endpoint = "http://" + endpoint
+
+    print(f"[k9x] Provider: {provider}")
+    print(f"[k9x] Endpoint: {endpoint}")
+    print(f"[k9x] Model:    {model}")
+    print(f"[k9x] Prompt:   {args.prompt}")
+    print("[k9x] Sending test prompt...")
+
+    from backend.api.routes import _call_llm
+    try:
+        response = _call_llm(endpoint, provider, model, api_key, args.prompt)
+    except Exception as exc:
+        print(f"[k9x] ✕ LLM call failed: {exc}")
+        return 1
+
+    print()
+    print(response.strip())
+    print()
+    print("[k9x] ✓ LLM responded successfully.")
+    return 0
+
+
 def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else list(argv)
 
@@ -262,6 +307,9 @@ def main(argv=None) -> int:
 
     if args.command == "config":
         return _cmd_config(args)
+
+    if args.command == "test-llm":
+        return _cmd_test_llm(args)
 
     parser.print_help()
     return 1
