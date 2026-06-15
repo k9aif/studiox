@@ -92,7 +92,7 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
         <button
           className="intake-clear-btn"
           onClick={() => {
-            setProject({ project_name: '', app_name: '', author: '', domain: '', description: '', project_folder: '', framework_path: '', platforms: [] });
+            setProject({ project_name: '', app_name: '', author: '', domain: '', description: '', project_folder: '', framework_path: '', platforms: [], messaging_list: [], database_list: [], deployment_list: [] });
             setSpecImported(false);
             setLastTemplateId(null);
             clearCanvas();

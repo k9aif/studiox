@@ -380,12 +380,12 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
             {expandedSections['messaging'] && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, paddingLeft: 4 }}>
                 {(['Apache Kafka', 'IBM MQ', 'IBM Event Streams', 'AWS SQS', 'Azure Service Bus', 'Redpanda', 'None'] as const).map((item) => {
-                  const active = ((project as any).messaging_list ?? []).includes(item);
+                  const active = (project.messaging_list ?? []).includes(item);
                   return (
                     <label key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: active ? '#8892a4' : '#64748b' }}>
                       <input type="checkbox" checked={active} onChange={() => {
-                        const list: string[] = (project as any).messaging_list ?? [];
-                        setProject({ ...project, ...{ messaging_list: active ? list.filter((x) => x !== item) : [...list, item] } } as any);
+                        const list: string[] = project.messaging_list ?? [];
+                        setProject({ ...project, messaging_list: active ? list.filter((x) => x !== item) : [...list, item] });
                       }} style={{ accentColor: '#8b5cf6', cursor: 'pointer' }} />
                       {item}
                     </label>
@@ -402,12 +402,12 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
             {expandedSections['database'] && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, paddingLeft: 4 }}>
                 {(['PostgreSQL', 'SQLite', 'MongoDB', 'IBM Db2', 'Oracle', 'MS SQL Server', 'None'] as const).map((item) => {
-                  const active = ((project as any).database_list ?? []).includes(item);
+                  const active = (project.database_list ?? []).includes(item);
                   return (
                     <label key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: active ? '#8892a4' : '#64748b' }}>
                       <input type="checkbox" checked={active} onChange={() => {
-                        const list: string[] = (project as any).database_list ?? [];
-                        setProject({ ...project, ...{ database_list: active ? list.filter((x) => x !== item) : [...list, item] } } as any);
+                        const list: string[] = project.database_list ?? [];
+                        setProject({ ...project, database_list: active ? list.filter((x) => x !== item) : [...list, item] });
                       }} style={{ accentColor: '#f59e0b', cursor: 'pointer' }} />
                       {item}
                     </label>
@@ -424,12 +424,12 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
             {expandedSections['deployment'] && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, paddingLeft: 4 }}>
                 {(['On-Premises', 'IBM Cloud', 'AWS', 'Microsoft Azure', 'Google Cloud', 'Hybrid', 'Multi-Cloud'] as const).map((item) => {
-                  const active = ((project as any).deployment_list ?? []).includes(item);
+                  const active = (project.deployment_list ?? []).includes(item);
                   return (
                     <label key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: active ? '#8892a4' : '#64748b' }}>
                       <input type="checkbox" checked={active} onChange={() => {
-                        const list: string[] = (project as any).deployment_list ?? [];
-                        setProject({ ...project, ...{ deployment_list: active ? list.filter((x) => x !== item) : [...list, item] } } as any);
+                        const list: string[] = project.deployment_list ?? [];
+                        setProject({ ...project, deployment_list: active ? list.filter((x) => x !== item) : [...list, item] });
                       }} style={{ accentColor: '#10b981', cursor: 'pointer' }} />
                       {item}
                     </label>

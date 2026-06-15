@@ -49,6 +49,9 @@ export interface ProjectMeta {
   project_folder: string;
   framework_path: string;
   platforms: string[];
+  messaging_list?: string[];
+  database_list?: string[];
+  deployment_list?: string[];
   // Business context
   vision?: string;
   current_state?: string;

@@ -7,6 +7,18 @@ app:
   author: "{{ author }}"
   domain: "{{ domain }}"
 
+# ── Selected platforms & infrastructure ────────────────────────────────────
+# Mirrors the checkboxes selected in k9x_studio's left pane (Platforms &
+# Frameworks). This is declarative only — nothing here is wired up yet.
+# It is up to the SBB to extend the relevant K9-AIF base classes (see
+# context/k9_aif_abb) and implement these integrations as needed.
+platforms:
+  agent_frameworks: {{ agent_frameworks | tojson }}
+  ibm_watsonx: {{ ibm_watsonx | tojson }}
+  messaging: {{ messaging | tojson }}
+  databases: {{ databases | tojson }}
+  deployment_targets: {{ deployment_targets | tojson }}
+
 # ── Inference backend ────────────────────────────────────────────────────────
 # K9-AIF supports pluggable LLM providers via ProviderAdapterRegistry.
 # Switch provider by editing the llm_factory block below — no code changes needed.
@@ -106,10 +118,11 @@ logging:
   level: DEBUG
 
 # ── Advanced / optional infrastructure ────────────────────────────────────
-# Not wired into this scaffold. Uncomment and set the matching variables in
-# .env (see .env.example) if you extend this project with Kafka messaging,
-# Postgres-backed persistence, or Neo4j graph sync — modeled on the EOC
-# example in k9-aif-framework/examples/.
+# Not wired into this scaffold. See platforms.messaging / platforms.databases
+# above for what was selected in Studio. Uncomment and set the matching
+# variables in .env (see .env.example) if you extend this project with Kafka
+# messaging, Postgres-backed persistence, or Neo4j graph sync — modeled on
+# the EOC example in k9-aif-framework/examples/.
 #
 # messaging:
 #   backend: kafka

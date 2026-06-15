@@ -431,6 +431,9 @@ class ProjectDef(BaseModel):
     project_folder: str = ""
     framework_path: str = ""
     platforms: List[str] = Field(default_factory=list)
+    messaging_list: List[str] = Field(default_factory=list)
+    database_list: List[str] = Field(default_factory=list)
+    deployment_list: List[str] = Field(default_factory=list)
     output_path: str = ""
     orchestrators: List[OrchestratorDef] = Field(default_factory=list)
     squads: List[SquadDef] = Field(default_factory=list)

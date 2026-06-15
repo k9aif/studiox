@@ -427,6 +427,15 @@ class {squad['name']}(BaseSquad):
             project.get("ollama_base_url", "").strip()
             or _os2.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
         )
+        # Reflect Studio palette selections (Platforms & Frameworks) into
+        # config.yaml so the SBB knows what to wire up.
+        platforms = project.get("platforms", [])
+        agent_frameworks = [p for p in platforms if not p.startswith("watsonx-")]
+        ibm_watsonx = [p for p in platforms if p.startswith("watsonx-")]
+        messaging = [m for m in project.get("messaging_list", []) if m and m != "None"]
+        databases = [d for d in project.get("database_list", []) if d and d != "None"]
+        deployment_targets = [d for d in project.get("deployment_list", []) if d]
+
         config_yaml = _render("config.yaml.j2", {
             "app_name": app_name,
             "app_folder": app_folder,
@@ -434,6 +443,11 @@ class {squad['name']}(BaseSquad):
             "domain": domain,
             "timestamp": timestamp,
             "ollama_base_url": ollama_base_url,
+            "agent_frameworks": agent_frameworks,
+            "ibm_watsonx": ibm_watsonx,
+            "messaging": messaging,
+            "databases": databases,
+            "deployment_targets": deployment_targets,
         })
         add(f"{app_folder}/config/config.yaml", config_yaml)
 
@@ -495,7 +509,6 @@ class AgentLoader:
 
         # ── .env ─────────────────────────────────────────────────────
         framework_path = project.get("framework_path", "").strip()
-        platforms = project.get("platforms", [])
 
         env_lines = [
             f"# {app_name} — environment configuration",

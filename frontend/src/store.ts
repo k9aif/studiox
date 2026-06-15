@@ -98,7 +98,7 @@ const MAX_HISTORY = 50;
 
 export const useStore = create<StudioStore>((set) => ({
   screen: 'splash',
-  project: { project_name: '', app_name: '', author: '', domain: '', description: '', project_folder: '', framework_path: '', platforms: [] },
+  project: { project_name: '', app_name: '', author: '', domain: '', description: '', project_folder: '', framework_path: '', platforms: [], messaging_list: [], database_list: [], deployment_list: [] },
   nodes: [],
   edges: [],
   selectedNodeId: null,
@@ -158,7 +158,7 @@ export const useStore = create<StudioStore>((set) => ({
     generatedDocs: [], logs: [],
     specImported: false, pendingCanvasSuggestion: null,
     lastTemplateSuggestion: null, lastTemplateId: null,
-    project: { project_name: '', app_name: '', author: '', domain: '', description: '', project_folder: '', framework_path: '', platforms: [] },
+    project: { project_name: '', app_name: '', author: '', domain: '', description: '', project_folder: '', framework_path: '', platforms: [], messaging_list: [], database_list: [], deployment_list: [] },
   }),
 
   setScreen: (screen) => set({ screen }),
