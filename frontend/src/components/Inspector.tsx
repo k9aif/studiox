@@ -61,6 +61,7 @@ export function Inspector() {
   const isAgent = ['agent', 'validation_loop', 'critic_actor'].includes(data.componentType);
   const isRouter = data.componentType === 'router';
   const isOrchestrator = data.componentType === 'orchestrator';
+  const isHilOrchestrator = data.componentType === 'hil_orchestrator';
   const isIntentSquad = data.componentType === 'intent_squad';
 
   const set = (key: string, val: string) => updateNodeData(node.id, { [key]: val });
@@ -220,6 +221,53 @@ export function Inspector() {
         {isOrchestrator && (
           <>
             <div className="inspector-section-label">Orchestrator Configuration</div>
+            <div className="inspector-field">
+              <label className="inspector-label">Retry Policy</label>
+              <select
+                className="inspector-input"
+                value={data.retryPolicy ?? 'none'}
+                onChange={(e) => set('retryPolicy', e.target.value)}
+              >
+                {RETRY_POLICIES.map((o) => (
+                  <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
+        {/* HIL Orchestrator-specific fields */}
+        {isHilOrchestrator && (
+          <>
+            <div className="inspector-section-label">HIL Configuration</div>
+            <div style={{ fontSize: 10, color: '#14b8a6', lineHeight: 1.5, background: '#14b8a611', borderRadius: 4, padding: '8px' }}>
+              ◇ Event-driven orchestrator — subscribes to Kafka HIL topics.
+              No Router needed. Triggered when a human completes a task
+              in the HIL case management platform.
+            </div>
+
+            <div className="inspector-field">
+              <label className="inspector-label">Subscribe Topics</label>
+              <input
+                className="inspector-input"
+                value={(data as any).hilTopics ?? 'workflow.hil.*'}
+                onChange={(e) => set('hilTopics', e.target.value)}
+                placeholder="workflow.hil.eoc.claims.*"
+                title="Kafka topic pattern this HIL Orchestrator subscribes to"
+              />
+            </div>
+
+            <div className="inspector-field">
+              <label className="inspector-label">Reply Topic</label>
+              <input
+                className="inspector-input"
+                value={(data as any).hilReplyTopic ?? ''}
+                onChange={(e) => set('hilReplyTopic', e.target.value)}
+                placeholder="workflow.hil.response"
+                title="Topic where human decisions are published back"
+              />
+            </div>
+
             <div className="inspector-field">
               <label className="inspector-label">Retry Policy</label>
               <select

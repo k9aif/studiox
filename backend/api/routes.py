@@ -91,6 +91,14 @@ PALETTE = [
         "color": "#64748b",
         "description": "Governance / zero-trust guard.",
     },
+    {
+        "type": "hil_orchestrator",
+        "label": "HIL Orchestrator",
+        "abbClass": "BaseHILOrchestrator",
+        "color": "#14b8a6",
+        "description": "Human-in-the-loop orchestrator — event-driven, subscribes to Kafka HIL topics. No Router needed.",
+        "singleton": True,
+    },
 ]
 
 

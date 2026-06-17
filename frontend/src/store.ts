@@ -217,6 +217,14 @@ export const useStore = create<StudioStore>((set) => ({
       );
       if (duplicate) return s;
       const isSystem = conn.source === 'system-kafka' || conn.target === 'system-kafka';
+      const isHil = isSystem && s.nodes.some(
+        (n) => (n.id === conn.source || n.id === conn.target) &&
+               (n.data as NodeData).componentType === 'hil_orchestrator'
+      );
+      const edgeColor = isHil ? '#14b8a6' : isSystem ? '#475569' : '#6366f1';
+      const edgeStyle = isSystem || isHil
+        ? { stroke: edgeColor, strokeWidth: 1.5, strokeDasharray: '6 4' }
+        : { stroke: edgeColor, strokeWidth: 2 };
       return {
         history: [...s.history, { nodes: s.nodes, edges: s.edges }].slice(-MAX_HISTORY),
         future: [],
@@ -224,10 +232,8 @@ export const useStore = create<StudioStore>((set) => ({
           {
             ...conn,
             animated: false,
-            style: isSystem
-              ? { stroke: '#475569', strokeWidth: 1.5, strokeDasharray: '6 4' }
-              : { stroke: '#6366f1', strokeWidth: 2 },
-            markerEnd: { type: 'arrowclosed' as any, color: isSystem ? '#475569' : '#6366f1' },
+            style: edgeStyle,
+            markerEnd: { type: 'arrowclosed' as any, color: edgeColor },
           },
           s.edges
         ),

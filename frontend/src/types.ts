@@ -2,6 +2,7 @@ export type ComponentType =
   | 'intent_squad'
   | 'router'
   | 'orchestrator'
+  | 'hil_orchestrator'
   | 'squad'
   | 'agent'
   | 'validation_loop'

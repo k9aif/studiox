@@ -7,7 +7,7 @@ import type { ProjectTemplate } from '../templates';
 
 const COMPONENT_COLORS: Record<string, string> = {
   intent_squad: '#06b6d4',
-  router: '#6366f1', orchestrator: '#8b5cf6', squad: '#0ea5e9',
+  router: '#6366f1', orchestrator: '#8b5cf6', hil_orchestrator: '#14b8a6', squad: '#0ea5e9',
   agent: '#10b981', validation_loop: '#f59e0b', critic_actor: '#ef4444', guard: '#64748b',
 };
 const AGENT_TYPE_MAP: Record<string, string> = {
@@ -18,7 +18,7 @@ const ABB_MAP: Record<string, string> = {
 };
 const ICONS: Record<string, string> = {
   intent_squad: '⊕',
-  router: '⇄', orchestrator: '◈', squad: '◫', agent: '◉',
+  router: '⇄', orchestrator: '◈', hil_orchestrator: '◇', squad: '◫', agent: '◉',
   validation_loop: '↻', critic_actor: '⇌', guard: '⊛',
 };
 
@@ -119,6 +119,7 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
         { type: 'validation_loop', label: 'Validation Loop', abbClass: 'K9ValidationLoopAgent', color: '#f59e0b', description: 'Iterative reasoning loop' },
         { type: 'critic_actor',    label: 'Critic-Actor',    abbClass: 'K9CriticActorAgent',    color: '#ef4444', description: 'Generate-critique-refine' },
         { type: 'guard',           label: 'Guard',           abbClass: 'BaseGovernance',        color: '#64748b', description: 'Governance / zero-trust' },
+        { type: 'hil_orchestrator', label: 'HIL Orchestrator', abbClass: 'BaseHILOrchestrator', color: '#14b8a6', description: 'Event-driven HIL orchestrator', singleton: true },
       ]));
   }, []);
 
@@ -263,6 +264,24 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
             <div className="hier-line hier-indent" style={{ color: COMPONENT_COLORS.orchestrator }}>└ ◈ Orchestrator</div>
             <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ Squad  ▶</div>
             <div className="hier-line hier-indent-3" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ Agent</div>
+          </div>
+
+          <div className="palette-section-title" style={{ marginTop: 12 }}>
+            HIL — Human in the Loop
+            <span className="palette-hint-icon" tabIndex={-1}>
+              ⓘ
+              <span className="palette-hint-tooltip">
+                Event-driven orchestrator triggered by human actions via Kafka.<br />
+                No Router needed — subscribes to HIL topics directly.<br />
+                Drag to add a breakpoint where human judgment is required.
+              </span>
+            </span>
+          </div>
+          <div className="palette-hierarchy">
+            <div className="hier-line" style={{ color: '#475569' }}>┄┄ Kafka HIL topic ┄┄</div>
+            <div className="hier-line hier-indent" style={{ color: COMPONENT_COLORS.hil_orchestrator }}>◇ HIL Orchestrator <span style={{ color: '#4a4a6a', fontSize: 9 }}>event-driven</span></div>
+            <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ HILSquad</div>
+            <div className="hier-line hier-indent-3" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ HILAgent</div>
           </div>
         </>
       )}

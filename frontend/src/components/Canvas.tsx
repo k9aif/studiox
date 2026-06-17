@@ -138,12 +138,46 @@ export function Canvas({ generating }: CanvasProps) {
         }
       }
 
+      if (comp.type === 'hil_orchestrator') {
+        const HIL_COLOR = '#14b8a6';
+        const hilSquadId = `squad-${nodeCounter++}`;
+        addNode({
+          id: hilSquadId, type: 'k9node',
+          position: { x: position.x + 240, y: position.y },
+          data: {
+            label: 'HILSquad', componentType: 'squad' as any,
+            color: HIL_COLOR, abbClass: 'BaseSquad',
+            description: 'Squad for post-human-action processing',
+          } as NodeData,
+        } as any);
+        onConnect({ source: id, target: hilSquadId, sourceHandle: 's-right', targetHandle: 't-left' });
+
+        const hilAgentId = `agent-${nodeCounter++}`;
+        addNode({
+          id: hilAgentId, type: 'k9node',
+          position: { x: position.x + 480, y: position.y },
+          data: {
+            label: 'HILAgent', componentType: 'agent' as any,
+            color: HIL_COLOR, abbClass: 'BaseAgent',
+            agentType: 'BaseAgent', model: 'general', pattern: 'reasoning',
+            description: 'Processes the human decision and continues the workflow',
+            temperature: '0.3', maxTokens: '2048', llmProvider: 'ollama',
+          } as NodeData,
+        } as any);
+        onConnect({ source: hilSquadId, target: hilAgentId, sourceHandle: 's-right', targetHandle: 't-left' });
+
+        // Connect from Kafka bus with teal dotted line
+        const kafkaNode = nodes.find((n) => n.id === 'system-kafka');
+        if (kafkaNode) {
+          onConnect({ source: 'system-kafka', target: id, sourceHandle: 's-right', targetHandle: 't-left' });
+        }
+      }
+
       if (comp.type === 'intent_squad') {
-        // Auto-create IntentSquad → K9IntentAgent
         const squadId = `squad-${nodeCounter++}`;
         addNode({
           id: squadId, type: 'k9node',
-          position: { x: position.x, y: position.y + 160 },
+          position: { x: position.x + 240, y: position.y },
           data: {
             label: 'IntentSquad', componentType: 'squad' as any,
             color: '#0ea5e9', abbClass: 'IntentSquad',
@@ -152,12 +186,12 @@ export function Canvas({ generating }: CanvasProps) {
             temperature: '0.3', maxTokens: '2048', llmProvider: 'ollama',
           } as NodeData,
         } as any);
-        onConnect({ source: id, target: squadId, sourceHandle: 's-bottom', targetHandle: 't-top' });
+        onConnect({ source: id, target: squadId, sourceHandle: 's-right', targetHandle: 't-left' });
 
         const agentId = `agent-${nodeCounter++}`;
         addNode({
           id: agentId, type: 'k9node',
-          position: { x: position.x, y: position.y + 340 },
+          position: { x: position.x + 480, y: position.y },
           data: {
             label: 'K9IntentAgent', componentType: 'agent' as any,
             color: '#10b981', abbClass: 'K9IntentAgent',
@@ -166,7 +200,7 @@ export function Canvas({ generating }: CanvasProps) {
             temperature: '0.3', maxTokens: '2048', llmProvider: 'ollama',
           } as NodeData,
         } as any);
-        onConnect({ source: squadId, target: agentId, sourceHandle: 's-bottom', targetHandle: 't-top' });
+        onConnect({ source: squadId, target: agentId, sourceHandle: 's-right', targetHandle: 't-left' });
 
         // Auto-wire from Router → Intent Orchestrator (via intent.in)
         const router = nodes.find((n) => (n.data as NodeData).componentType === 'router');
