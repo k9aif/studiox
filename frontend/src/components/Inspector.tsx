@@ -2,7 +2,6 @@ import { useStore } from '../store';
 import type { AgentClassType } from '../types';
 import { toPascal } from '../classDiagram';
 
-const MODEL_OPTIONS = ['general', 'reasoning', 'chat', 'extraction'];
 const PATTERN_OPTIONS = ['reasoning', 'extraction', 'chat', 'guardrails'];
 const AGENT_TYPE_OPTIONS: AgentClassType[] = ['BaseAgent', 'K9ValidationLoopAgent', 'K9CriticActorAgent'];
 const ROUTING_STRATEGIES = ['event_type', 'intent'];
@@ -108,59 +107,6 @@ export function Inspector() {
               </select>
             </div>
 
-            <div className="inspector-section-label">LLM Configuration</div>
-
-            <div className="inspector-field">
-              <label className="inspector-label">Provider</label>
-              <select
-                className="inspector-input"
-                value={data.llmProvider ?? 'ollama'}
-                onChange={(e) => set('llmProvider', e.target.value)}
-              >
-                {['ollama', 'openai', 'anthropic', 'azure_openai'].map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="inspector-field">
-              <label className="inspector-label">Model</label>
-              <select
-                className="inspector-input"
-                value={data.model ?? 'general'}
-                onChange={(e) => set('model', e.target.value)}
-              >
-                {MODEL_OPTIONS.map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="inspector-row">
-              <div className="inspector-field">
-                <label className="inspector-label">Temperature</label>
-                <input
-                  type="number"
-                  className="inspector-input"
-                  value={data.temperature ?? '0.3'}
-                  min="0" max="1" step="0.1"
-                  onChange={(e) => set('temperature', e.target.value)}
-                />
-              </div>
-              <div className="inspector-field">
-                <label className="inspector-label">Max Tokens</label>
-                <input
-                  type="number"
-                  className="inspector-input"
-                  value={data.maxTokens ?? '2048'}
-                  min="256" max="8192" step="256"
-                  onChange={(e) => set('maxTokens', e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="inspector-section-label">Execution</div>
-
             <div className="inspector-field">
               <label className="inspector-label">Pattern</label>
               <select
@@ -172,6 +118,11 @@ export function Inspector() {
                   <option key={o} value={o}>{o}</option>
                 ))}
               </select>
+            </div>
+
+            <div style={{ fontSize: 10, color: '#4a4a6a', padding: '4px 0 8px 0', lineHeight: 1.5 }}>
+              LLM provider, model, temperature, and token limits are resolved at runtime
+              by the ModelRouter via config.yaml — not set per agent.
             </div>
           </>
         )}
