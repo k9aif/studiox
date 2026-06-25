@@ -189,7 +189,7 @@ export function Inspector() {
                 <input
                   type="checkbox"
                   checked={data.parallelSquads ?? false}
-                  onChange={(e) => set('parallelSquads', e.target.checked)}
+                  onChange={(e) => updateNodeData(node.id, { parallelSquads: e.target.checked })}
                   style={{ accentColor: '#3b82f6' }}
                 />
                 Parallel Squad Execution
