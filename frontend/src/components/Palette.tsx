@@ -435,6 +435,28 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
               </div>
             )}
 
+          {/* Object Storage */}
+            <button onClick={() => toggleSection('objectStorage')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', marginTop: 8 }}>
+              <span className="platform-group-label" style={{ color: '#8b5cf6', margin: 0 }}>Object Storage</span>
+              <span style={{ color: '#475569', fontSize: 10 }}>{expandedSections['objectStorage'] ? '▲' : '▼'}</span>
+            </button>
+            {expandedSections['objectStorage'] && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, paddingLeft: 4 }}>
+                {(['S3 / MinIO', 'IBM Cloud Object Storage', 'Local Filesystem', 'None'] as const).map((item) => {
+                  const active = (project.object_storage_list ?? []).includes(item);
+                  return (
+                    <label key={item} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: active ? '#8892a4' : '#64748b' }}>
+                      <input type="checkbox" checked={active} onChange={() => {
+                        const list: string[] = project.object_storage_list ?? [];
+                        setProject({ ...project, object_storage_list: active ? list.filter((x) => x !== item) : [...list, item] });
+                      }} style={{ accentColor: '#8b5cf6', cursor: 'pointer' }} />
+                      {item}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
           {/* Deployment Target */}
             <button onClick={() => toggleSection('deployment')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', marginTop: 8 }}>
               <span className="platform-group-label" style={{ color: '#10b981', margin: 0 }}>Deployment Target</span>

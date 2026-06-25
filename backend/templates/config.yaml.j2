@@ -117,6 +117,54 @@ monitoring:
 logging:
   level: DEBUG
 
+# ── Object Storage ────────────────────────────────────────────────────────
+# The Router stores inbound documents in the object store before publishing
+# the event to Kafka — only the URI appears in the message, never the bytes.
+# Downstream agents retrieve by URI via ObjectStorageFactory.
+#
+# Credentials belong in .env (or environment variables), NOT in this file.
+{% if object_storage and 'S3 / MinIO' in object_storage %}
+object_storage:
+  enabled: true
+  provider: s3
+  s3:
+    provider: "minio"                                          # minio | aws
+    bucket: "{{ app_folder }}-documents"
+    endpoint_url: "${S3_ENDPOINT_URL:-http://localhost:9000}"   # MinIO local
+    # endpoint_url: "http://host.docker.internal:9000"         # use from Docker
+    access_key: "${S3_ACCESS_KEY}"                             # set in .env
+    secret_key: "${S3_SECRET_KEY}"                             # set in .env
+    region: "${S3_REGION:-us-east-1}"
+    secure: false                                              # true for HTTPS
+{% elif object_storage and 'IBM Cloud Object Storage' in object_storage %}
+object_storage:
+  enabled: true
+  provider: ibm
+  ibm:
+    bucket: "{{ app_folder }}-documents"
+    endpoint_url: "${IBM_COS_ENDPOINT}"
+    region: "${IBM_COS_REGION:-us-south}"
+    api_key: "${IBM_COS_API_KEY}"                              # set in .env
+    instance_crn: "${IBM_COS_INSTANCE_CRN}"                    # set in .env
+{% elif object_storage and 'Local Filesystem' in object_storage %}
+object_storage:
+  enabled: true
+  provider: local
+  root: "./object_store"
+{% else %}
+# object_storage:
+#   enabled: true
+#   provider: s3                                               # local | s3 | ibm
+#   s3:
+#     provider: "minio"                                        # minio | aws
+#     bucket: "{{ app_folder }}-documents"
+#     endpoint_url: "${S3_ENDPOINT_URL:-http://localhost:9000}"
+#     access_key: "${S3_ACCESS_KEY}"                           # set in .env
+#     secret_key: "${S3_SECRET_KEY}"                           # set in .env
+#     region: "${S3_REGION:-us-east-1}"
+#     secure: false
+{% endif %}
+
 # ── Advanced / optional infrastructure ────────────────────────────────────
 # Not wired into this scaffold. See platforms.messaging / platforms.databases
 # above for what was selected in Studio. Uncomment and set the matching

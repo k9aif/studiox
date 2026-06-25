@@ -52,6 +52,7 @@ export interface ProjectMeta {
   platforms: string[];
   messaging_list?: string[];
   database_list?: string[];
+  object_storage_list?: string[];
   deployment_list?: string[];
   // Business context
   vision?: string;

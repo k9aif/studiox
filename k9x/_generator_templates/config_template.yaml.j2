@@ -43,6 +43,22 @@ inference:
         latency_tier: interactive
         cost_tier: standard
 
+# ── Object Storage ────────────────────────────────────────────────────────
+# The Router stores inbound documents in the object store before publishing
+# the event to Kafka — only the URI appears in the message, never the bytes.
+#
+# object_storage:
+#   enabled: true
+#   provider: s3                                               # local | s3 | ibm
+#   s3:
+#     provider: "minio"                                        # minio | aws
+#     bucket: "{{ app_folder }}-documents"
+#     endpoint_url: "${S3_ENDPOINT_URL:-http://localhost:9000}"
+#     access_key: "${S3_ACCESS_KEY}"                           # set in .env
+#     secret_key: "${S3_SECRET_KEY}"                           # set in .env
+#     region: "${S3_REGION:-us-east-1}"
+#     secure: false
+
 governance:
   enabled: false
 

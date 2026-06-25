@@ -434,6 +434,7 @@ class {squad['name']}(BaseSquad):
         ibm_watsonx = [p for p in platforms if p.startswith("watsonx-")]
         messaging = [m for m in project.get("messaging_list", []) if m and m != "None"]
         databases = [d for d in project.get("database_list", []) if d and d != "None"]
+        object_storage = [s for s in project.get("object_storage_list", []) if s and s != "None"]
         deployment_targets = [d for d in project.get("deployment_list", []) if d]
 
         config_yaml = _render("config.yaml.j2", {
@@ -447,6 +448,7 @@ class {squad['name']}(BaseSquad):
             "ibm_watsonx": ibm_watsonx,
             "messaging": messaging,
             "databases": databases,
+            "object_storage": object_storage,
             "deployment_targets": deployment_targets,
         })
         add(f"{app_folder}/config/config.yaml", config_yaml)
