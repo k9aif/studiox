@@ -1,4 +1,4 @@
-k9-aif>=1.2.6
+k9-aif[s3]>=1.4.0
 fastapi>=0.111.0
 uvicorn[standard]>=0.30.0
 pydantic>=2.0

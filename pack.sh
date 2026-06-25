@@ -1,9 +1,9 @@
 #!/bin/bash
-# Package k9x_studiox for deployment — includes Dockerfile + k9-aif-framework templates
+# Package k9x_studio for deployment — includes Dockerfile + k9-aif-framework templates
 #
 # studiox replaces studio in place (same pod/container/image names — see
 # deployment/k9x-ecosystem-pod.sh and rhel_r820_deploy_studio.sh), so the
-# archive renames k9x_studiox -> k9x_studio internally. That keeps the
+# archive renames k9x_studio -> k9x_studio internally. That keeps the
 # existing Dockerfile COPY paths and remote deploy script working unchanged.
 set -e
 
@@ -13,16 +13,16 @@ PARENT="$(dirname "$SCRIPT_DIR")"
 
 tar -czf "$SCRIPT_DIR/k9x_studio.tar.gz" \
   -C "$PARENT" \
-  --exclude="k9x_studiox/.venv" \
-  --exclude="k9x_studiox/frontend/node_modules" \
-  --exclude="k9x_studiox/**/__pycache__" \
-  --exclude="k9x_studiox/.git" \
-  --exclude="k9x_studiox/k9x_studio.tar.gz" \
+  --exclude="k9x_studio/.venv" \
+  --exclude="k9x_studio/frontend/node_modules" \
+  --exclude="k9x_studio/**/__pycache__" \
+  --exclude="k9x_studio/.git" \
+  --exclude="k9x_studio/k9x_studio.tar.gz" \
   --exclude="k9-aif-framework/.venv" \
   --exclude="k9-aif-framework/**/__pycache__" \
   --exclude="k9-aif-framework/.git" \
-  -s '/^k9x_studiox/k9x_studio/' \
-  k9x_studiox \
+  -s '/^k9x_studio/k9x_studio/' \
+  k9x_studio \
   deployment/Dockerfile \
   k9-aif-framework/generator/templates
 
