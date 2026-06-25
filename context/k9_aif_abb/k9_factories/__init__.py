@@ -36,6 +36,7 @@ decoupled design across the framework.
 - message_factory
 - model_router_factory
 - monitor_factory
+- object_storage_factory
 - orchestration_factory
 - persistence_factory
 - retriever_factory

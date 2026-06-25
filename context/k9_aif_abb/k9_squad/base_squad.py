@@ -70,8 +70,13 @@ class BaseSquad:
         """
         Drive the agent pipeline from flow config in squads.yaml.
 
-        Each step receives the full accumulated context (original payload +
-        all prior agent results) so agents have access to upstream outputs.
+        Context scoping:
+        - ``context_keys`` on a flow step limits which keys the agent sees.
+          The original payload keys are always included; ``context_keys``
+          controls which *upstream result keys* are passed through.
+        - When ``context_keys`` is absent the agent receives the full
+          accumulated context (backwards compatible).
+
         Steps with a ``when:`` field are skipped if the condition evaluates
         to False against the current context.
         """
@@ -118,7 +123,15 @@ class BaseSquad:
                     f"is not loaded"
                 )
 
-            step_context = {**context, **step.get("context", {})}
+            context_keys = step.get("context_keys")
+            if context_keys is not None:
+                step_context = {
+                    k: v for k, v in context.items()
+                    if k in context_keys or k in payload or k == "squad_id"
+                }
+            else:
+                step_context = {**context}
+            step_context.update(step.get("context", {}))
             log.info("[%s] step %d executing agent=%s", self.squad_id, step_idx + 1, agent_name)
             t0 = time.monotonic()
             try:

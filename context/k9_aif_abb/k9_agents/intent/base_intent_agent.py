@@ -47,10 +47,12 @@ log = logging.getLogger(__name__)
 
 class BaseIntentAgent(BaseAgent):
     """
-    ABB: Abstract skeleton for pre-router intent classification agents.
+    ABB: Abstract skeleton for intent classification agents.
 
-    Sits inside an IntentSquad, which is placed before the K9EventRouter
-    in the pipeline for non-deterministic routing scenarios.
+    Sits inside an IntentSquad, which is used by IntentOrchestrator —
+    a Kafka-decoupled consumer on the `intent.in` topic. The Router is
+    always the single entry point; IntentOrchestrator is never placed
+    in front of it.
 
     Minimal SBB implementation::
 

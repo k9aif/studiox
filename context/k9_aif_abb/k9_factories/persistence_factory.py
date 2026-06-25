@@ -11,15 +11,13 @@ from threading import Lock
 import logging
 
 from k9_aif_abb.k9_persistence.sqlite_persistence import SQLitePersistence
-from k9_aif_abb.k9_persistence.chromadb_persistence import ChromaDBPersistence
 
 
 class PersistenceFactory:
-    """Static Factory - provisions persistence backends (SQLite, ChromaDB, etc.)."""
+    """Static Factory - provisions persistence backends (SQLite, etc.). For vector stores use VectorDBFactory."""
 
     _registry: Dict[str, Type[Any]] = {
         "sqlite": SQLitePersistence,
-        "chromadb": ChromaDBPersistence,
     }
     _bootstrapped = False
     _lock = Lock()

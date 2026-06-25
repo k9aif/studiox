@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # K9-AIF Framework
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Any, Dict, Optional
 from k9_aif_abb.k9_core.agent.base_agent import BaseAgent
 
-class BaseMCPAgent(BaseAgent, ABC):
+class BaseMCPAgent(BaseAgent):
     """Abstract base class for Model Context Protocol (MCP) agents."""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):

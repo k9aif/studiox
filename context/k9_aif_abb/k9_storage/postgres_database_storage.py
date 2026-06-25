@@ -31,12 +31,13 @@ class PostgresDatabaseStorage(BaseDatabaseStorage):
     def __init__(self, config: Optional[Dict[str, Any]] = None, monitor=None):
         super().__init__(config=config, monitor=monitor)
 
+        import os
         pg = (self.config or {}).get("postgres", {})
 
         self.host = pg.get("host", "localhost")
         self.port = pg.get("port", 5432)
         self.user = pg.get("user", "postgres")
-        self.password = pg.get("password", "postgres")
+        self.password = os.environ.get("K9_PG_PASSWORD") or os.environ.get("POSTGRES_PASSWORD", "")
         self.database = pg.get("database", "postgres")
         self.schema = pg.get("schema", "public")
         self.echo = bool(pg.get("echo", False))

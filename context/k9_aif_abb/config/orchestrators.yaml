@@ -9,20 +9,16 @@
 #   - domain/layer: classification
 
 orchestrators:
-  - name: FrameworkOrchestrator
-    module: k9_aif_abb.k9_orchestrators.framework_orchestrator
-    intent: k9_framework_technical
-    description: Handles K9-AIF technical and architectural queries.
-    collection: k9_aif_framework_v1_2
-    domain: K9-AIF Technical
-    layer: Inference
-
-  - name: GovernanceOrchestrator
-    module: k9_aif_abb.k9_orchestrators.governance_orchestrator
-    intent: governance
-    description: Manages governance enforcement, audit trails, and compliance checks.
-    domain: System Governance
-    layer: Governance
+  - name: IntentOrchestrator
+    module: k9_aif_abb.k9_orchestrators.intent_orchestrator
+    intent: _intent_resolution
+    description: >
+      OOB intent resolution orchestrator. Consumes intent.in, runs IntentSquad +
+      K9IntentAgent to classify intent, then re-publishes to the correct domain
+      topic or sends a "please clarify" response. Never wired in front of the
+      Router — runs as a separate Kafka-decoupled process.
+    domain: Intent Resolution
+    layer: Routing
 
   - name: LiveAgentOrchestrator
     module: k9_aif_abb.k9_orchestrators.live_agent_orchestrator

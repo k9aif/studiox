@@ -203,6 +203,29 @@ class K9EventBus:
             )
 
     # ----------------------------------------------------------------------
+    # Publish to a specific topic (multi-topic routing)
+    # ----------------------------------------------------------------------
+    def publish_to(self, topic: str, event: Dict[str, Any]):
+        """Publish event to an explicit topic — used by Router and IntentOrchestrator."""
+        if not self._producer:
+            self.log.warning("[K9EventBus] no active producer; skipped publish_to(%s)", topic)
+            return
+        try:
+            payload = json.dumps(event, ensure_ascii=False)
+            size = len(payload.encode("utf-8"))
+            if size > self.max_event_bytes:
+                event = {
+                    "meta": event.get("meta", {}),
+                    "payload": {"truncated": True, "original_size": size},
+                }
+                payload = json.dumps(event, ensure_ascii=False)
+                size = len(payload.encode("utf-8"))
+            self._producer.send(topic, value=event)
+            self.log.debug("[K9EventBus] publish_to topic=%s size=%.1fKB", topic, size / 1024)
+        except Exception as e:
+            self.log.error("[K9EventBus] publish_to(%s) failed: %s", topic, e)
+
+    # ----------------------------------------------------------------------
     # Shutdown
     # ----------------------------------------------------------------------
     def close(self):

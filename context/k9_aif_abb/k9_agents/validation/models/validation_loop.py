@@ -34,10 +34,12 @@ class ValidationLoopStep:
 class ValidationLoopContext:
     """Mutable state carried across iterations — the agent's working memory."""
 
-    payload:   Dict[str, Any]
-    steps:     List[ValidationLoopStep] = field(default_factory=list)
-    iteration: int = 0
-    metadata:  Dict[str, Any] = field(default_factory=dict)
+    payload:         Dict[str, Any]
+    steps:           List[ValidationLoopStep] = field(default_factory=list)
+    iteration:       int = 0
+    metadata:        Dict[str, Any] = field(default_factory=dict)
+    remaining_steps: List[str] = field(default_factory=list)
+    notes:           Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -50,3 +52,5 @@ class ValidationLoopResult:
     iterations:       int
     final_confidence: float
     evidence:         List[str] = field(default_factory=list)
+    remaining_steps:  List[str] = field(default_factory=list)
+    notes:            Dict[str, Any] = field(default_factory=dict)

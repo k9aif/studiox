@@ -292,6 +292,8 @@ class BaseValidationLoopAgent(BaseAgent):
             "iterations":       result.iterations,
             "final_confidence": result.final_confidence,
             "evidence":         result.evidence,
+            "remaining_steps":  result.remaining_steps,
+            "notes":            result.notes,
             "steps": [
                 {
                     "iteration":   s.iteration,

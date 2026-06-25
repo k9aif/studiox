@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # K9-AIF Framework
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Dict, Any
 from k9_aif_abb.k9_core.agent.base_agent import BaseAgent
 
 
-class BaseRulesAgent(BaseAgent, ABC):
+class BaseRulesAgent(BaseAgent):
     """
     ABB: Abstract base class for rules engine agents.
     Subclasses implement evaluate_rules() to call a concrete engine (ODM, Drools, etc.).

@@ -2,15 +2,22 @@
 # K9-AIF Framework
 
 """
-IntentSquad — ABB pre-router squad for non-deterministic intent classification.
+IntentSquad — ABB squad for non-deterministic intent classification.
 
 Position in the execution hierarchy::
 
-    Event → IntentSquad → K9EventRouter → Orchestrator → Squad → Agents → LLM
+    Router ──► intent.in (Kafka)
+                    │
+        IntentOrchestrator (consumes intent.in)
+            → IntentSquad → IntentAgent(s)
+                ├── intent resolved ──► domain topic
+                └── intent unclear  ──► "please clarify" response
 
-IntentSquad runs one or more intent-classification agents, collects the intent
-result, merges it into the payload, and returns the enriched context.
-The K9EventRouter then reads ``payload["intent"]`` for deterministic dispatch.
+The Router is always the single entry point. IntentOrchestrator is a
+Kafka-decoupled consumer — never placed in front of the Router.
+IntentSquad runs inside IntentOrchestrator: one or more intent-classification
+agents classify the payload, the result is merged back, and IntentOrchestrator
+re-publishes to the correct domain topic (or generates a clarification response).
 
 Why a Squad and not just an Agent
 ----------------------------------

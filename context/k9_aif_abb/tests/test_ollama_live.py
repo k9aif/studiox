@@ -9,7 +9,6 @@
 #   python k9_aif_abb/tests/test_ollama_live.py
 
 import sys
-import yaml
 import logging
 from pathlib import Path
 
@@ -19,8 +18,8 @@ CONFIG_PATH = Path(__file__).resolve().parents[2] / "k9_aif_abb" / "config" / "c
 
 
 def load_config() -> dict:
-    with open(CONFIG_PATH) as f:
-        return yaml.safe_load(f)
+    from k9_aif_abb.k9_utils.config_loader import load_yaml
+    return load_yaml(CONFIG_PATH)
 
 
 def test_ollama_live():

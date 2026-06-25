@@ -26,11 +26,18 @@ used directly, extended, or replaced by downstream Solution Building Blocks
 
 ## Typical Components
 
-This package may include:
-
 - `database_storage` — database-oriented storage implementation
 - `file_storage` — file-based storage implementation
-- `object_storage` — object store implementation
+- `adapters/` — object storage adapters (local, S3/MinIO, IBM COS)
+
+
+## Object Storage Adapters
+
+    from k9_aif_abb.k9_factories.object_storage_factory import ObjectStorageFactory
+
+    store = ObjectStorageFactory.create(config)   # default: local adapter
+    uri   = store.upload("documents", "claim-001/form.pdf", file_bytes)
+    data  = store.download("documents", "claim-001/form.pdf")
 
 
 ## Example: Extending BaseStorage

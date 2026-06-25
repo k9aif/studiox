@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # K9-AIF Framework
 
+import os
+import re
 import yaml
 from pathlib import Path
 from typing import Any, Dict, List
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()   # load .env into os.environ before any config expansion runs
 
 from k9_aif_abb.k9_core.persistence.base_persistence import (
     MemoryPersistence
@@ -17,15 +22,39 @@ logger = logging.getLogger("ConfigLoader")
 
 
 # ---------------------------------------------------------------------
+# Env var expansion
+# ---------------------------------------------------------------------
+_ENV_PATTERN = re.compile(r'\$\{([^}]+)\}')
+
+
+def _expand(value: Any) -> Any:
+    """Recursively expand ${VAR:-default} patterns in string values."""
+    if isinstance(value, str):
+        def replace(match):
+            expr = match.group(1)
+            if ':-' in expr:
+                var, default = expr.split(':-', 1)
+                return os.environ.get(var.strip(), default.strip())
+            return os.environ.get(expr.strip(), match.group(0))
+        return _ENV_PATTERN.sub(replace, value)
+    if isinstance(value, dict):
+        return {k: _expand(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_expand(v) for v in value]
+    return value
+
+
+# ---------------------------------------------------------------------
 # YAML Loader
 # ---------------------------------------------------------------------
 def load_yaml(path: str | Path) -> Dict[str, Any]:
-    """Load YAML file into a dict."""
+    """Load YAML file into a dict, expanding ${ENV_VAR:-default} placeholders."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
     with open(path, "r") as f:
-        return yaml.safe_load(f) or {}
+        raw = yaml.safe_load(f) or {}
+    return _expand(raw)
 
 
 # ---------------------------------------------------------------------

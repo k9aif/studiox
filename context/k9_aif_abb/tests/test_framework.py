@@ -319,6 +319,64 @@ class TestBaseSquadRegression:
             squad.run({"input": "x"})
 
 
+class ContextCapturingAgent:
+    """Records whatever context it receives so tests can inspect it."""
+    def execute(self, context):
+        return {"received_keys": sorted(context.keys()), "received": dict(context)}
+
+
+class TestSquadContextKeys:
+
+    def test_no_context_keys_passes_everything(self):
+        a1 = DummySquadAgent()
+        a2 = ContextCapturingAgent()
+        squad = BaseSquad(squad_id="t", agents=[a1, a2])
+        squad.flow = [
+            {"agent": "DummySquadAgent", "result_key": "step1"},
+            {"agent": "ContextCapturingAgent", "result_key": "step2"},
+        ]
+        result = squad.run({"input": "x"})
+        assert "step1" in result["step2"]["received_keys"]
+
+    def test_context_keys_filters_upstream_results(self):
+        a1 = DummySquadAgent()
+        a2 = ContextCapturingAgent()
+        squad = BaseSquad(squad_id="t", agents=[a1, a2])
+        squad.flow = [
+            {"agent": "DummySquadAgent", "result_key": "step1"},
+            {"agent": "ContextCapturingAgent", "result_key": "step2", "context_keys": []},
+        ]
+        result = squad.run({"input": "x"})
+        assert "step1" not in result["step2"]["received_keys"]
+        assert "input" in result["step2"]["received_keys"]
+
+    def test_context_keys_includes_named_upstream_keys(self):
+        a1 = DummySquadAgent()
+        a2 = ContextCapturingAgent()
+        squad = BaseSquad(squad_id="t", agents=[a1, a2])
+        squad.flow = [
+            {"agent": "DummySquadAgent", "result_key": "step1"},
+            {"agent": "ContextCapturingAgent", "result_key": "step2", "context_keys": ["step1"]},
+        ]
+        result = squad.run({"input": "x"})
+        assert "step1" in result["step2"]["received_keys"]
+        assert "input" in result["step2"]["received_keys"]
+
+    def test_context_keys_always_includes_original_payload(self):
+        a1 = DummySquadAgent()
+        a2 = ContextCapturingAgent()
+        squad = BaseSquad(squad_id="t", agents=[a1, a2])
+        squad.flow = [
+            {"agent": "DummySquadAgent", "result_key": "step1"},
+            {"agent": "ContextCapturingAgent", "result_key": "step2", "context_keys": ["step1"]},
+        ]
+        result = squad.run({"input": "x", "claim_id": "C001"})
+        received = result["step2"]["received_keys"]
+        assert "input" in received
+        assert "claim_id" in received
+        assert "squad_id" in received
+
+
 # ─── 5. AgentRegistry — regression ────────────────────────────────────────────
 
 from k9_aif_abb.k9_agents.registry.agent_registry import AgentRegistry

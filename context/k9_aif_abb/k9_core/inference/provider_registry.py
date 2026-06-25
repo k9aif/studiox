@@ -62,12 +62,14 @@ class ProviderAdapterRegistry:
         """Lazily register the OOB adapters to avoid circular imports at module load."""
         from k9_aif_abb.k9_core.inference.ollama_provider_adapter import OllamaProviderAdapter
         from k9_aif_abb.k9_core.inference.openai_provider_adapter import OpenAIProviderAdapter
+        from k9_aif_abb.k9_core.inference.mock_provider_adapter import MockProviderAdapter
 
         cls._adapters.setdefault("ollama", OllamaProviderAdapter)
         cls._adapters.setdefault("openai", OpenAIProviderAdapter)
         cls._adapters.setdefault("openai-compatible", OpenAIProviderAdapter)
+        cls._adapters.setdefault("mock", MockProviderAdapter)
         cls._defaults_loaded = True
-        log.debug("Default provider adapters loaded: ollama, openai, openai-compatible")
+        log.debug("Default provider adapters loaded: ollama, openai, openai-compatible, mock")
 
     @classmethod
     def reset(cls) -> None:

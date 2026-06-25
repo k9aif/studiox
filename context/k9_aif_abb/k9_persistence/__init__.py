@@ -32,8 +32,7 @@ downstream Solution Building Blocks (SBBs).
 This package may include:
 
 - `sqlite_persistence` — SQLite-based persistence implementation
-- `chromadb_persistence` — ChromaDB-based vector persistence implementation
-- Additional persistence backends for future framework extensions
+- For vector stores, use `k9_data.adapters` with `VectorDBFactory`
 
 
 ## Example: Extending BasePersistence
