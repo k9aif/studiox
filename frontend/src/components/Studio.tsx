@@ -50,12 +50,13 @@ export function buildProjectPayload(
   })).filter((sq) => sq.agents.length > 0);
 
   const orchestrators = orchNodes.map((o) => {
-    const connectedSquad = squadNodes.find((sq) =>
-      edges.some((e) => e.source === o.id && e.target === sq.id)
-    );
+    const connectedSquads = squadNodes
+      .filter((sq) => allEdges.some((e) => e.source === o.id && e.target === sq.id))
+      .map((sq) => sq.data.label);
     return {
       name: o.data.label,
-      squad: connectedSquad?.data.label ?? (squads[0]?.name ?? 'DefaultSquad'),
+      squads: connectedSquads.length > 0 ? connectedSquads : [squads[0]?.name ?? 'DefaultSquad'],
+      parallel: o.data.parallelSquads ?? false,
       retry_policy: o.data.retryPolicy ?? 'none',
     };
   });

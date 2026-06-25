@@ -184,6 +184,21 @@ export function Inspector() {
                 ))}
               </select>
             </div>
+            <div className="inspector-field">
+              <label className="inspector-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={data.parallelSquads ?? false}
+                  onChange={(e) => set('parallelSquads', e.target.checked)}
+                  style={{ accentColor: '#3b82f6' }}
+                />
+                Parallel Squad Execution
+              </label>
+              <div style={{ fontSize: 10, color: '#4a4a6a', lineHeight: 1.5, marginTop: 4 }}>
+                When enabled, connected squads run concurrently via execute_squads(parallel=True).
+                Use for independent or cross-cutting squads. Disable for squads that feed into each other.
+              </div>
+            </div>
           </>
         )}
 

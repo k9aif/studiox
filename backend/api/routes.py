@@ -422,7 +422,8 @@ class SquadDef(BaseModel):
 
 class OrchestratorDef(BaseModel):
     name: str
-    squad: str
+    squads: List[str] = Field(default_factory=list)
+    parallel: bool = False
 
 class ScenarioDef(BaseModel):
     """A single 'best case' use-case scenario embedded in the generated scaffold.

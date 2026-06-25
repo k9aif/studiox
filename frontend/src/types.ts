@@ -37,6 +37,7 @@ export interface NodeData extends Record<string, unknown> {
   llmProvider?: string;
   routingStrategy?: string;
   retryPolicy?: string;
+  parallelSquads?: boolean;
   system?: boolean;
   collapsed?: boolean;
 }

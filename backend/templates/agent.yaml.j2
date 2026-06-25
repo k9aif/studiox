@@ -38,3 +38,33 @@ finalize_on_max_iterations: true
 governance:
   pre_process: false
   post_process: false
+
+# 4Ds — AI Fluency design decisions (Anthropic 4Ds Framework)
+delegation:
+{% if agent.type == 'K9ValidationLoopAgent' %}
+  interaction_mode: augmentation
+{% elif agent.type == 'K9PlanningLoopAgent' %}
+  interaction_mode: agency
+{% else %}
+  interaction_mode: automation
+{% endif %}
+  ai_tasks:
+    - {{ agent.name | lower | replace('agent', '') | trim }}
+  human_tasks:
+    - override and exception handling
+
+discernment:
+{% if agent.type == 'K9ValidationLoopAgent' or agent.type == 'K9PlanningLoopAgent' %}
+  confidence_threshold: 0.8
+  max_iterations: 5
+  escalate_on_low_confidence: true
+{% else %}
+  confidence_threshold: 0.7
+  max_iterations: 1
+  escalate_on_low_confidence: false
+{% endif %}
+
+diligence:
+  audit_trail: true
+  requires_governance: false
+  human_verification: not_required

@@ -17,8 +17,8 @@ export const VALID_TARGETS: Record<ComponentType, ComponentType[]> = {
 export const RULE_HINT: Record<ComponentType, string> = {
   intent_squad:      'IntentSquad → IntentAgent, then → Router',
   router:            'Router → Orchestrator only',
-  orchestrator:      'Orchestrator → Squad only',
-  hil_orchestrator:  'HIL Orchestrator → Squad only (event-driven, no Router)',
+  orchestrator:      'Orchestrator → 1 or more Squads (sequential or parallel)',
+  hil_orchestrator:  'HIL Orchestrator → 1 or more Squads (event-driven, no Router)',
   squad:             'Squad → Agent / ValidationLoop / CriticActor / Guard',
   agent:             'Agents have no outgoing connections',
   validation_loop:   'ValidationLoop has no outgoing connections',
@@ -31,8 +31,8 @@ export const RULE_HINT: Record<ComponentType, string> = {
 export const VALID_NEXT_LABEL: Record<ComponentType, string> = {
   intent_squad:      'IntentAgent, Router',
   router:            'Orchestrator',
-  orchestrator:      'Squad',
-  hil_orchestrator:  'Squad',
+  orchestrator:      '1+ Squads',
+  hil_orchestrator:  '1+ Squads',
   squad:             'Agent, Validation Loop, Critic-Actor, Guard',
   agent:             '—',
   validation_loop:   '—',
