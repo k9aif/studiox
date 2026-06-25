@@ -457,6 +457,26 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
               </div>
             )}
 
+          {/* Docling / OCR */}
+            <button onClick={() => toggleSection('docling')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', marginTop: 8 }}>
+              <span className="platform-group-label" style={{ color: '#ec4899', margin: 0 }}>Docling / OCR</span>
+              <span style={{ color: '#475569', fontSize: 10 }}>{expandedSections['docling'] ? '▲' : '▼'}</span>
+            </button>
+            {expandedSections['docling'] && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, paddingLeft: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: project.docling_enabled ? '#8892a4' : '#64748b' }}>
+                  <input type="checkbox" checked={project.docling_enabled ?? false} onChange={() => {
+                    setProject({ ...project, docling_enabled: !(project.docling_enabled ?? false) });
+                  }} style={{ accentColor: '#ec4899', cursor: 'pointer' }} />
+                  Enable Docling document normalization
+                </label>
+                <span style={{ fontSize: 10, color: '#94a3b8', paddingLeft: 4 }}>
+                  Converts PDF, DOCX, images to .md before agents process them.
+                  Requires a Docling server endpoint and an S3 output bucket.
+                </span>
+              </div>
+            )}
+
           {/* Deployment Target */}
             <button onClick={() => toggleSection('deployment')} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0', marginTop: 8 }}>
               <span className="platform-group-label" style={{ color: '#10b981', margin: 0 }}>Deployment Target</span>

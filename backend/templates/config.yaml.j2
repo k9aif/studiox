@@ -165,6 +165,31 @@ object_storage:
 #     secure: false
 {% endif %}
 
+# ── Docling / OCR ─────────────────────────────────────────────────────────
+# Converts uploaded documents (PDF, DOCX, images) to clean Markdown before
+# agents process them.  The Router fetches the original file from S3, sends
+# it to the Docling server, and stores the normalized .md output back to
+# a dedicated S3 bucket.  Agents receive only the markdown — never raw binary.
+#
+# Flow:
+#   1. User uploads document → app_backend → Router
+#   2. Router stores original in S3 (object_storage above)
+#   3. Router sends original to Docling server → receives .md
+#   4. Router stores .md in docling_bucket
+#   5. Router publishes event with document_uri pointing to .md in docling_bucket
+#   6. Downstream agents read clean markdown from S3
+{% if docling_enabled %}
+docling:
+  enabled: true
+  endpoint: "${DOCLING_ENDPOINT:-http://localhost:5001/v1/parse}"
+  docling_bucket: "{{ app_folder }}-docling-out"               # S3 bucket for normalized .md output
+{% else %}
+# docling:
+#   enabled: true
+#   endpoint: "${DOCLING_ENDPOINT:-http://localhost:5001/v1/parse}"
+#   docling_bucket: "{{ app_folder }}-docling-out"
+{% endif %}
+
 # ── Advanced / optional infrastructure ────────────────────────────────────
 # Not wired into this scaffold. See platforms.messaging / platforms.databases
 # above for what was selected in Studio. Uncomment and set the matching

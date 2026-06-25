@@ -435,6 +435,7 @@ class {squad['name']}(BaseSquad):
         messaging = [m for m in project.get("messaging_list", []) if m and m != "None"]
         databases = [d for d in project.get("database_list", []) if d and d != "None"]
         object_storage = [s for s in project.get("object_storage_list", []) if s and s != "None"]
+        docling_enabled = bool(project.get("docling_enabled", False))
         deployment_targets = [d for d in project.get("deployment_list", []) if d]
 
         config_yaml = _render("config.yaml.j2", {
@@ -449,6 +450,7 @@ class {squad['name']}(BaseSquad):
             "messaging": messaging,
             "databases": databases,
             "object_storage": object_storage,
+            "docling_enabled": docling_enabled,
             "deployment_targets": deployment_targets,
         })
         add(f"{app_folder}/config/config.yaml", config_yaml)

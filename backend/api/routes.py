@@ -442,6 +442,7 @@ class ProjectDef(BaseModel):
     messaging_list: List[str] = Field(default_factory=list)
     database_list: List[str] = Field(default_factory=list)
     object_storage_list: List[str] = Field(default_factory=list)
+    docling_enabled: bool = False
     deployment_list: List[str] = Field(default_factory=list)
     output_path: str = ""
     orchestrators: List[OrchestratorDef] = Field(default_factory=list)
