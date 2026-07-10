@@ -25,12 +25,15 @@ export function buildProjectPayload(
   edges: Edge[],
   llmConfig?: any
 ) {
+  const ADAPTER_TYPES = ['workflow_adapter', 'process_adapter', 'api_adapter', 'bpm_adapter', 'rules_adapter', 'data_adapter'];
+
   // Include hidden agent nodes — squads may be collapsed when scaffolding
-  const agentNodes = nodes.filter((n) =>
+  const agentNodes   = nodes.filter((n) =>
     ['agent', 'validation_loop', 'critic_actor'].includes(n.data.componentType as string)
   );
-  const squadNodes = nodes.filter((n) => n.data.componentType === 'squad');
-  const orchNodes  = nodes.filter((n) => n.data.componentType === 'orchestrator');
+  const squadNodes   = nodes.filter((n) => n.data.componentType === 'squad');
+  const orchNodes    = nodes.filter((n) => n.data.componentType === 'orchestrator');
+  const adapterNodes = nodes.filter((n) => ADAPTER_TYPES.includes(n.data.componentType as string));
 
   const agents = agentNodes.map((n) => ({
     name: n.data.label, type: n.data.agentType ?? 'BaseAgent',
@@ -41,8 +44,6 @@ export function buildProjectPayload(
     llm_provider: n.data.llmProvider ?? 'ollama',
   }));
 
-  // Include ALL edges (hidden or visible) — squads may be collapsed when scaffolding
-  const allEdges = [...edges];
   const squads = squadNodes.map((sq) => ({
     name: sq.data.label,
     agents: agentNodes
@@ -62,8 +63,20 @@ export function buildProjectPayload(
     };
   });
 
+  const allEdges = [...edges];
+  const adapters = adapterNodes.map((n) => {
+    const parentOrch = orchNodes.find((o) => allEdges.some((e) => e.source === o.id && e.target === n.id));
+    return {
+      name:         n.data.label,
+      adapter_type: n.data.componentType as string,
+      description:  n.data.description ?? '',
+      abbClass:     n.data.abbClass ?? '',
+      orchestrator: parentOrch?.data.label ?? null,
+    };
+  });
+
   return {
-    ...project, agents, squads, orchestrators,
+    ...project, agents, squads, orchestrators, adapters,
     llm_provider:        llmConfig?.provider ?? '',
     llm_model:           llmConfig?.model ?? '',
     generation_source:   llmConfig?.model ? 'llm' : 'rule-based',

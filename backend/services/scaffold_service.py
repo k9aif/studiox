@@ -259,6 +259,151 @@ def render_puml_to_png(puml_source: str, timeout: int = 10) -> Optional[bytes]:
         return None
 
 
+_ADAPTER_LABEL = {
+    "api_adapter":      "API Adapter — direct connector to an external REST/GraphQL endpoint (no LLM inference)",
+    "rules_adapter":    "Rules Adapter — delegates to a business rules engine (Drools, IBM ODM, Corticon)",
+    "workflow_adapter": "Workflow Adapter — delegates to a workflow engine (Airflow, IBM BAW, Step Functions)",
+    "process_adapter":  "Process Flow Adapter — integration platform connector (MuleSoft, TIBCO, IBM App Connect)",
+    "bpm_adapter":      "BPM Adapter — delegates to a BPM engine (Appian, Pega, Camunda)",
+    "data_adapter":     "Data Adapter — direct database or data warehouse read/write (no LLM inference)",
+}
+
+_AGENT_LABEL = {
+    "BaseAgent":             "BaseAgent — single-pass LLM inference; use for straightforward reasoning or extraction tasks",
+    "K9ValidationLoopAgent": "K9ValidationLoopAgent — iterative LLM loop with self-validation; use for AMBER-zone steps requiring high accuracy",
+    "K9CriticActorAgent":    "K9CriticActorAgent — generate → critique → refine loop; use for RED-zone steps with financial or reputational risk",
+}
+
+
+def _gen_architecture_md(project: dict, app_name: str, timestamp: str) -> str:
+    agents    = project.get("agents", [])
+    squads    = project.get("squads", [])
+    orchs     = project.get("orchestrators", [])
+    adapters  = project.get("adapters", [])
+    domain    = project.get("domain", "")
+    desc      = project.get("description", "")
+
+    lines: list[str] = []
+    lines += [
+        f"# Architecture Decision Record — {app_name}",
+        "",
+        f"**Generated:** {timestamp}  ",
+        f"**Studio:** K9X Studio — K9-AIF Architecture-First Framework  ",
+        f"**Domain:** {domain}  ",
+        f"**Description:** {desc}",
+        "",
+        "> This document records the classification of each processing step as **Agentic** or",
+        "> **Deterministic (Adapter)**. Review and update before expanding the scaffold.",
+        "> Change a classification here, then update the canvas and re-generate.",
+        "",
+        "---",
+        "",
+    ]
+
+    # ── Summary table ────────────────────────────────────────────────────────
+    total = len(agents) + len(adapters)
+    lines += [
+        "## Classification Summary",
+        "",
+        "| Category | Count | Rationale |",
+        "|---|---|---|",
+        f"| Agentic (LLM inference) | {len(agents)} | Steps requiring reasoning, judgment, or adaptive behaviour |",
+        f"| Deterministic (Adapter) | {len(adapters)} | Steps with fully defined rules — no LLM needed |",
+        f"| **Total** | **{total}** | |",
+        "",
+    ]
+
+    # ── Orchestration topology ────────────────────────────────────────────────
+    if orchs:
+        lines += ["## Orchestration Topology", ""]
+        for o in orchs:
+            orch_squads   = o.get("squads", [])
+            orch_adapters = [a for a in adapters if a.get("orchestrator") == o["name"]]
+            lines.append(f"### {o['name']}")
+            if orch_squads:
+                lines.append(f"- **Agentic squads:** {', '.join(orch_squads)}")
+            if orch_adapters:
+                lines.append(f"- **Adapters:** {', '.join(a['name'] for a in orch_adapters)}")
+            lines.append("")
+
+    # ── Integration Adapters ─────────────────────────────────────────────────
+    if adapters:
+        lines += [
+            "---",
+            "",
+            "## Integration Adapters — Deterministic / Non-Agentic",
+            "",
+            "These steps do **not** require LLM inference.",
+            "Implement them as integration code, connectors, or calls to existing platforms.",
+            "",
+        ]
+        for a in adapters:
+            atype   = a.get("adapter_type", "api_adapter")
+            label   = _ADAPTER_LABEL.get(atype, atype)
+            orch    = a.get("orchestrator") or "Router (direct)"
+            lines += [
+                f"### {a['name']}",
+                f"- **Type:** {label}",
+                f"- **Parent:** {orch}",
+                f"- **Description:** {a.get('description') or '—'}",
+                "- **Classification rationale:** Deterministic step — same input always produces the same output.",
+                "  No judgment, reasoning, or adaptive behaviour required.",
+                "- **Architect notes:** _(update: which system/endpoint handles this?)_",
+                "",
+            ]
+
+    # ── Agentic components ────────────────────────────────────────────────────
+    if agents:
+        lines += [
+            "---",
+            "",
+            "## Agentic Components — LLM Inference Required",
+            "",
+            "These steps require reasoning, judgment, or adaptive behaviour.",
+            "Each is scaffolded as a K9-AIF agent class.",
+            "",
+        ]
+        agent_map = {a["name"]: a for a in agents}
+        for sq in squads:
+            lines += [f"### Squad: {sq['name']}", ""]
+            for ag_name in sq.get("agents", []):
+                ag    = agent_map.get(ag_name, {})
+                atype = ag.get("type", "BaseAgent")
+                label = _AGENT_LABEL.get(atype, atype)
+                lines += [
+                    f"#### {ag_name}",
+                    f"- **Agent class:** {label}",
+                    f"- **Description:** {ag.get('description') or '—'}",
+                    "- **Classification rationale:** Requires LLM reasoning — judgment, ambiguity, or adaptive logic present.",
+                    "- **Architect notes:** _(update: HITL required? confidence threshold? override policy?)_",
+                    "",
+                ]
+
+    # ── How to change a classification ───────────────────────────────────────
+    lines += [
+        "---",
+        "",
+        "## How to Change a Classification",
+        "",
+        "If you disagree with a classification:",
+        "",
+        "1. Update the **Architect notes** above with your rationale.",
+        "2. In **K9X Studio canvas**: drag the correct component from the palette.",
+        "3. Delete the auto-generated component.",
+        "4. Wire the replacement to its orchestrator.",
+        "5. Re-generate the scaffold — this file will be regenerated.",
+        "",
+        "**Adapter → Agent**: the step needs judgment, ambiguity handling, or adaptive planning.",
+        "**Agent → Adapter**: the step is fully rule-based and can be implemented in code or an existing platform.",
+        "",
+        "---",
+        "",
+        "_Generated by K9X Studio · K9-AIF Architecture-First Framework · k9x.ai_",
+    ]
+
+    return "\n".join(lines)
+
+
 def generate_scaffold(project: dict) -> io.BytesIO:
     """
     Generate a K9-AIF scaffold ZIP from the studio project definition.
@@ -795,6 +940,9 @@ compiler toolchain for native deps, etc.) — `pip install --upgrade pip
 setuptools wheel` runs first to reduce build issues.
 """
         add(f"{app_folder}/README.md", readme)
+
+        # ── ARCHITECTURE.md — classification rationale for architect review ──
+        add(f"{app_folder}/ARCHITECTURE.md", _gen_architecture_md(project, app_name, timestamp))
 
         # ── diagrams/ — class diagram (PlantUML source + rendered PNG) ──
         class_diagram_puml = generate_class_diagram_puml(project, app_name, app_folder, timestamp)
