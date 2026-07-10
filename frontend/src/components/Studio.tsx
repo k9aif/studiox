@@ -14,9 +14,10 @@ import { Inspector } from './Inspector';
 import { ScaffoldView } from './ScaffoldView';
 import { ScaffoldDoneOverlay } from './ScaffoldDoneOverlay';
 import { ClassDiagramView } from './ClassDiagramView';
+import { ArchGuidePanel } from './ArchGuidePanel';
 import type { NodeData, ProjectMeta } from '../types';
 
-type CenterTab = 'about' | 'setup' | 'intake' | 'canvas' | 'classdiagram' | 'flow' | 'docs' | 'scaffold';
+type CenterTab = 'about' | 'setup' | 'intake' | 'canvas' | 'classdiagram' | 'flow' | 'docs' | 'scaffold' | 'archguide';
 
 export function buildProjectPayload(
   project: ProjectMeta,
@@ -350,6 +351,7 @@ export function Studio() {
                 { id: 'docs',     label: 'Generated Docs' },
                 { id: 'scaffold', label: 'View Scaffold' },
                 { id: 'classdiagram', label: 'Class Diagram' },
+                { id: 'archguide', label: 'Arch Guide' },
               ] as { id: CenterTab; label: string }[]).map(({ id, label }) => (
                 <button
                   key={id}
@@ -475,6 +477,7 @@ export function Studio() {
             {centerTab === 'docs' && <DocsPanel />}
             {centerTab === 'scaffold' && <ScaffoldView />}
             {centerTab === 'classdiagram' && <ClassDiagramView />}
+            {centerTab === 'archguide' && <ArchGuidePanel />}
 
           </div>
         </ReactFlowProvider>

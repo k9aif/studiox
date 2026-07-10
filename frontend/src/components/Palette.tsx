@@ -45,7 +45,7 @@ interface PaletteProps {
   onSwitchToCanvas?: () => void;
 }
 
-type PaletteTab = 'components' | 'project' | 'guidance';
+type PaletteTab = 'components' | 'project';
 
 
 function slugify(s: string) {
@@ -204,13 +204,6 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
         >
           Components
         </button>
-        <button
-          className={`palette-tab ${tab === 'guidance' ? 'active' : ''}`}
-          onClick={() => setTab('guidance')}
-          title="Architecture guidance — when to use Agentic AI vs deterministic adapters"
-        >
-          Arch Guide
-        </button>
       </div>
 
 
@@ -266,49 +259,9 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
             })()}
           </div>
 
-          <div className="palette-section-title">
-            K9-AIF Hierarchy
-            <span className="palette-hint-icon" tabIndex={-1}>
-              ⓘ
-              <span className="palette-hint-tooltip">
-                Intent Squad is optional — use before Router for non-deterministic routing.<br />
-                Squad nodes start collapsed.<br />
-                Click <strong>▶ N agents</strong> on a squad to expand its agents.<br />
-                Click <strong>▼</strong> to collapse again.
-              </span>
-            </span>
-          </div>
-          <div className="palette-hierarchy">
-            <div className="hier-line" style={{ color: COMPONENT_COLORS.intent_squad }}>⊕ Intent Orchestrator <span style={{ color: '#4a4a6a', fontSize: 9 }}>optional</span></div>
-            <div className="hier-line hier-indent" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ IntentSquad</div>
-            <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ K9IntentAgent</div>
-            <div className="hier-line" style={{ color: COMPONENT_COLORS.router }}>⇄ Router</div>
-            <div className="hier-line hier-indent" style={{ color: COMPONENT_COLORS.orchestrator }}>└ ◈ Orchestrator</div>
-            <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ Squad  ▶</div>
-            <div className="hier-line hier-indent-3" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ Agent</div>
-          </div>
-
-          <div className="palette-section-title" style={{ marginTop: 12 }}>
-            HIL — Human in the Loop
-            <span className="palette-hint-icon" tabIndex={-1}>
-              ⓘ
-              <span className="palette-hint-tooltip">
-                Event-driven orchestrator triggered by human actions via Kafka.<br />
-                No Router needed — subscribes to HIL topics directly.<br />
-                Drag to add a breakpoint where human judgment is required.
-              </span>
-            </span>
-          </div>
-          <div className="palette-hierarchy">
-            <div className="hier-line" style={{ color: '#475569' }}>┄┄ Kafka HIL topic ┄┄</div>
-            <div className="hier-line hier-indent" style={{ color: COMPONENT_COLORS.hil_orchestrator }}>◇ HIL Orchestrator <span style={{ color: '#4a4a6a', fontSize: 9 }}>event-driven</span></div>
-            <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ HILSquad</div>
-            <div className="hier-line hier-indent-3" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ HILAgent</div>
-          </div>
-
           {/* ── Integration Adapters ───────────────────── */}
-          <div style={{ margin: '14px 0 0', borderTop: '1px solid #1e2535' }} />
-          <div className="palette-section-title" style={{ marginTop: 12, color: '#94a3b8' }}>
+          <div style={{ margin: '10px 0 0', borderTop: '1px solid #1e2535' }} />
+          <div className="palette-section-title" style={{ marginTop: 10, color: '#94a3b8' }}>
             Integration Adapters
             <span style={{ fontSize: 9, color: '#475569', marginLeft: 6, fontWeight: 400 }}>Deterministic / Non-Agentic</span>
             <span className="palette-hint-icon" tabIndex={-1}>
@@ -349,89 +302,49 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
               );
             })}
           </div>
+
+          {/* ── Static reference diagrams at the bottom ─ */}
+          <div style={{ margin: '12px 0 0', borderTop: '1px solid #1e2535' }} />
+          <div className="palette-section-title" style={{ marginTop: 10 }}>
+            K9-AIF Hierarchy
+            <span className="palette-hint-icon" tabIndex={-1}>
+              ⓘ
+              <span className="palette-hint-tooltip">
+                Intent Squad is optional — use before Router for non-deterministic routing.<br />
+                Squad nodes start collapsed.<br />
+                Click <strong>▶ N agents</strong> on a squad to expand its agents.<br />
+                Click <strong>▼</strong> to collapse again.
+              </span>
+            </span>
+          </div>
+          <div className="palette-hierarchy">
+            <div className="hier-line" style={{ color: COMPONENT_COLORS.intent_squad }}>⊕ Intent Orchestrator <span style={{ color: '#4a4a6a', fontSize: 9 }}>optional</span></div>
+            <div className="hier-line hier-indent" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ IntentSquad</div>
+            <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ K9IntentAgent</div>
+            <div className="hier-line" style={{ color: COMPONENT_COLORS.router }}>⇄ Router</div>
+            <div className="hier-line hier-indent" style={{ color: COMPONENT_COLORS.orchestrator }}>└ ◈ Orchestrator / Adapter</div>
+            <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ Squad  ▶</div>
+            <div className="hier-line hier-indent-3" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ Agent</div>
+          </div>
+
+          <div className="palette-section-title" style={{ marginTop: 10 }}>
+            HIL — Human in the Loop
+            <span className="palette-hint-icon" tabIndex={-1}>
+              ⓘ
+              <span className="palette-hint-tooltip">
+                Event-driven orchestrator triggered by human actions via Kafka.<br />
+                No Router needed — subscribes to HIL topics directly.<br />
+                Drag to add a breakpoint where human judgment is required.
+              </span>
+            </span>
+          </div>
+          <div className="palette-hierarchy">
+            <div className="hier-line" style={{ color: '#475569' }}>┄┄ Kafka HIL topic ┄┄</div>
+            <div className="hier-line hier-indent" style={{ color: COMPONENT_COLORS.hil_orchestrator }}>◇ HIL Orchestrator <span style={{ color: '#4a4a6a', fontSize: 9 }}>event-driven</span></div>
+            <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ HILSquad</div>
+            <div className="hier-line hier-indent-3" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ HILAgent</div>
+          </div>
         </>
-      )}
-
-      {/* ── Architecture Guidance tab ──────────────── */}
-      {tab === 'guidance' && (
-        <div style={{ padding: '12px 14px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Architecture Gate — Classify Before You Build
-          </div>
-          <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
-            Not every step needs an LLM. Run this gate before adding a component.
-          </div>
-
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>✓ Use Agentic AI when</div>
-            {[
-              'Input is unstructured — text, images, ambiguous events',
-              'Decision requires reasoning under uncertainty',
-              'Success criteria are subjective or context-dependent',
-              'The plan must adapt dynamically mid-execution',
-              'Competing options need nuanced trade-off analysis',
-              'Recovery from unexpected failure requires judgment',
-            ].map((item) => (
-              <div key={item} style={{ fontSize: 11, color: '#64748b', padding: '3px 0 3px 8px', borderLeft: '2px solid #10b981', marginBottom: 3, lineHeight: 1.5 }}>{item}</div>
-            ))}
-          </div>
-
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>⇒ Use an Adapter (Deterministic) when</div>
-            {[
-              'Input is structured and rules are fully defined',
-              'Same input always produces the same output',
-              'A workflow / BPM / rules platform already owns this logic',
-              'LLM latency or cost is prohibitive',
-              'Auditability requires an exact, explainable trace',
-              'MuleSoft, TIBCO, Appian, Drools, ODM handles it today',
-            ].map((item) => (
-              <div key={item} style={{ fontSize: 11, color: '#64748b', padding: '3px 0 3px 8px', borderLeft: '2px solid #f59e0b', marginBottom: 3, lineHeight: 1.5 }}>{item}</div>
-            ))}
-          </div>
-
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>◈ Hybrid Pattern (most real systems)</div>
-            <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6, padding: '4px 8px', borderLeft: '2px solid #6366f1' }}>
-              Router classifies events → deterministic events go directly to an Adapter,
-              complex / ambiguous events route to an Orchestrator that mixes Squads + Adapters as needed.
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>✗ Anti-Patterns to Avoid</div>
-            {[
-              'Routing every event through an LLM "just to be safe"',
-              'Wrapping a simple REST call in a ValidationLoop agent',
-              'Replacing a rules engine with a prompt that mimics it',
-              'Using agents for batch ETL with no decision-making',
-              'Building 10+ agents when 2 agents + 1 adapter suffice',
-            ].map((item) => (
-              <div key={item} style={{ fontSize: 11, color: '#64748b', padding: '3px 0 3px 8px', borderLeft: '2px solid #ef4444', marginBottom: 3, lineHeight: 1.5 }}>{item}</div>
-            ))}
-          </div>
-
-          <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 6, padding: '10px 12px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#a5b4fc', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick Classification</div>
-            {[
-              ['Is the input structured?', '→ Adapter'],
-              ['Are the rules fully deterministic?', '→ Adapter'],
-              ['Requires judgment or reasoning?', '→ Agent'],
-              ['Can a human write the logic today?', '→ Adapter / Rules'],
-              ['Plan changes based on interim results?', '→ Agent'],
-              ['Existing platform owns this step?', '→ Adapter'],
-            ].map(([q, a]) => (
-              <div key={q} style={{ fontSize: 10, color: '#64748b', marginBottom: 4, display: 'flex', justifyContent: 'space-between', gap: 6, lineHeight: 1.4 }}>
-                <span>{q}</span>
-                <span style={{ color: '#8b5cf6', whiteSpace: 'nowrap', fontWeight: 600 }}>{a}</span>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ fontSize: 10, color: '#475569', fontStyle: 'italic', lineHeight: 1.5 }}>
-            K9-AIF principle: Agents handle uncertainty. Adapters handle certainty. Build the gate first.
-          </div>
-        </div>
       )}
 
       {/* ── Project Info tab ───────────────────────── */}
