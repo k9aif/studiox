@@ -1,7 +1,7 @@
 import type { ComponentType } from './types';
 
 const ADAPTER_TYPES: ComponentType[] = [
-  'workflow_adapter', 'process_adapter', 'api_adapter',
+  'messaging_adapter', 'workflow_adapter', 'process_adapter', 'api_adapter',
   'bpm_adapter', 'rules_adapter', 'data_adapter',
 ];
 
@@ -19,7 +19,9 @@ export const VALID_TARGETS: Record<ComponentType, ComponentType[]> = {
   critic_actor:      [],
   guard:             [],
   system:            [],
-  // Adapters are leaf nodes at design time — nothing connects outward from them
+  // Messaging Adapter is NOT a leaf — an event on Kafka/SQS can trigger a workflow or integration flow
+  messaging_adapter: ['workflow_adapter', 'process_adapter'],
+  // All other adapters are leaf nodes
   workflow_adapter:  [],
   process_adapter:   [],
   api_adapter:       [],
@@ -39,6 +41,7 @@ export const RULE_HINT: Record<ComponentType, string> = {
   critic_actor:      'CriticActor has no outgoing connections',
   guard:             'Guard has no outgoing connections',
   system:            'System infrastructure nodes are read-only',
+  messaging_adapter: 'Event bus (Kafka, RabbitMQ, SQS/SNS) — can trigger Workflow or Process Flow adapters',
   workflow_adapter:  'Delegates to a workflow engine — deterministic, no LLM',
   process_adapter:   'Delegates to an integration platform — deterministic, no LLM',
   api_adapter:       'Calls an external REST/GraphQL API — deterministic, no LLM',
@@ -59,6 +62,7 @@ export const VALID_NEXT_LABEL: Record<ComponentType, string> = {
   critic_actor:      '—',
   guard:             '—',
   system:            '—',
+  messaging_adapter: 'Workflow Adapter, Process Flow Adapter',
   workflow_adapter:  '—',
   process_adapter:   '—',
   api_adapter:       '—',

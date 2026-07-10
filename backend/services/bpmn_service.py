@@ -17,19 +17,20 @@ _TASK_TAGS = {
 
 # Deterministic BPMN tag → K9-AIF adapter type (unambiguous mappings)
 _ADAPTER_TAG_MAP: dict[str, str] = {
-    "servicetask":      "api_adapter",       # calls an external service / REST / SOAP
-    "businessruletask": "rules_adapter",     # invokes a rules engine (Drools, ODM, Corticon)
-    "scripttask":       "workflow_adapter",  # runs a deterministic script
-    "sendtask":         "process_adapter",   # fires an integration event / message
-    "receivetask":      "process_adapter",   # waits for an integration event / message
+    "servicetask":      "api_adapter",        # calls an external service / REST / SOAP
+    "businessruletask": "rules_adapter",      # invokes a rules engine (Drools, ODM, Corticon)
+    "scripttask":       "workflow_adapter",   # runs a deterministic script
+    "sendtask":         "messaging_adapter",  # publishes a message / event to a bus
+    "receivetask":      "messaging_adapter",  # waits for a message / event from a bus
 }
 
 # Name-based heuristics for generic <task> tags
 _ADAPTER_NAME_HINTS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bapi\b|rest\b|graphql|endpoint|http|fetch|invoke|call\b", re.I), "api_adapter"),
     (re.compile(r"\brule|policy|decision\b|drools|odm\b|corticon", re.I),           "rules_adapter"),
-    (re.compile(r"workflow|bpm\b|camunda|appian|pega|flowable|step\s*function", re.I), "workflow_adapter"),
-    (re.compile(r"integrat|mulesoft|tibco|esb\b|app\s*connect|mq\b|event\s*bus", re.I), "process_adapter"),
+    (re.compile(r"kafka|rabbitmq|activemq|sqs\b|sns\b|servicebus|eventhub|pubsub|event\s*bus|message\s*queue|topic\b", re.I), "messaging_adapter"),
+    (re.compile(r"workflow|bpm\b|camunda|appian|pega|flowable|step\s*function|airflow", re.I), "workflow_adapter"),
+    (re.compile(r"integrat|mulesoft|tibco|esb\b|app\s*connect|mq\b", re.I), "process_adapter"),
     (re.compile(r"\bdata(base)?\b|db\b|\bsql\b|persist|store\b|repo\b|warehouse", re.I), "data_adapter"),
 ]
 

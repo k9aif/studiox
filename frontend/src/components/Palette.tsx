@@ -9,7 +9,8 @@ const COMPONENT_COLORS: Record<string, string> = {
   intent_squad: '#06b6d4',
   router: '#6366f1', orchestrator: '#8b5cf6', hil_orchestrator: '#14b8a6', squad: '#0ea5e9',
   agent: '#10b981', validation_loop: '#f59e0b', critic_actor: '#ef4444', guard: '#64748b',
-  // Adapters — muted slate tones to signal "deterministic / non-agentic"
+  // Adapters — muted tones to signal "deterministic / non-agentic"
+  messaging_adapter: '#8a5a1a',
   workflow_adapter: '#92764a', process_adapter: '#3d7a8a', api_adapter: '#3d5a8a',
   bpm_adapter: '#7a3d8a', rules_adapter: '#3d8a5a', data_adapter: '#8a4a3d',
 };
@@ -24,17 +25,19 @@ const ICONS: Record<string, string> = {
   router: '⇄', orchestrator: '◈', hil_orchestrator: '◇', squad: '◫', agent: '◉',
   validation_loop: '↻', critic_actor: '⇌', guard: '⊛',
   // Adapters
+  messaging_adapter: '⊜',
   workflow_adapter: '⇒', process_adapter: '⊳', api_adapter: '⊙',
   bpm_adapter: '⬡', rules_adapter: '⊟', data_adapter: '⊞',
 };
 
 const ADAPTERS = [
-  { type: 'workflow_adapter', label: 'Workflow Adapter',     abbClass: 'WorkflowAdapter',    color: '#92764a', description: 'Delegates to a workflow engine (Airflow, Step Functions, IBM BAW)' },
-  { type: 'process_adapter',  label: 'Process Flow Adapter', abbClass: 'ProcessFlowAdapter', color: '#3d7a8a', description: 'Integration platform (MuleSoft, TIBCO, IBM App Connect)' },
-  { type: 'api_adapter',      label: 'API Adapter',          abbClass: 'ApiAdapter',         color: '#3d5a8a', description: 'Calls an external REST or GraphQL API endpoint' },
-  { type: 'bpm_adapter',      label: 'BPM Adapter',          abbClass: 'BpmAdapter',         color: '#7a3d8a', description: 'BPM engine (Appian, Pega, Camunda, IBM BAW)' },
-  { type: 'rules_adapter',    label: 'Rules Adapter',        abbClass: 'RulesAdapter',       color: '#3d8a5a', description: 'Business rules engine (Drools, IBM ODM, Corticon)' },
-  { type: 'data_adapter',     label: 'Data Adapter',         abbClass: 'DataAdapter',        color: '#8a4a3d', description: 'Direct database or data warehouse read/write' },
+  { type: 'messaging_adapter', label: 'Messaging Adapter',   abbClass: 'MessagingAdapter',   color: '#8a5a1a', description: 'Event bus (Kafka, RabbitMQ, SQS/SNS) — can trigger Workflow or Process Flow adapters' },
+  { type: 'workflow_adapter',  label: 'Workflow Adapter',    abbClass: 'WorkflowAdapter',    color: '#92764a', description: 'Delegates to a workflow engine (Airflow, Step Functions, IBM BAW)' },
+  { type: 'process_adapter',   label: 'Process Flow Adapter', abbClass: 'ProcessFlowAdapter', color: '#3d7a8a', description: 'Integration platform (MuleSoft, TIBCO, IBM App Connect)' },
+  { type: 'api_adapter',       label: 'API Adapter',          abbClass: 'ApiAdapter',         color: '#3d5a8a', description: 'Calls an external REST or GraphQL API endpoint' },
+  { type: 'bpm_adapter',       label: 'BPM Adapter',          abbClass: 'BpmAdapter',         color: '#7a3d8a', description: 'BPM engine (Appian, Pega, Camunda, IBM BAW)' },
+  { type: 'rules_adapter',     label: 'Rules Adapter',        abbClass: 'RulesAdapter',       color: '#3d8a5a', description: 'Business rules engine (Drools, IBM ODM, Corticon)' },
+  { type: 'data_adapter',      label: 'Data Adapter',         abbClass: 'DataAdapter',        color: '#8a4a3d', description: 'Direct database or data warehouse read/write' },
 ];
 
 let _pid = 200;

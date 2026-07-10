@@ -156,8 +156,9 @@ def zone_to_agent_type(zone: str) -> str:
 _SPEC_ADAPTER_HINTS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\bapi\b|rest\b|graphql|endpoint|http|fetch|invoke|call\b|webhook", re.I), "api_adapter"),
     (re.compile(r"\brule|policy|decision\b|drools|odm\b|corticon|brms", re.I),              "rules_adapter"),
+    (re.compile(r"kafka|rabbitmq|activemq|sqs\b|sns\b|servicebus|eventhub|pubsub|event\s*bus|message\s*queue|topic\b|event\s*stream", re.I), "messaging_adapter"),
     (re.compile(r"workflow|bpm\b|camunda|appian|pega|flowable|step\s*function|airflow", re.I), "workflow_adapter"),
-    (re.compile(r"integrat|mulesoft|tibco|esb\b|app\s*connect|mq\b|event\s*bus|pubsub", re.I), "process_adapter"),
+    (re.compile(r"integrat|mulesoft|tibco|esb\b|app\s*connect|mq\b", re.I),                "process_adapter"),
     (re.compile(r"\bdata(base)?\b|db\b|\bsql\b|persist|store\b|repo\b|warehouse|s3\b", re.I), "data_adapter"),
 ]
 

@@ -25,7 +25,7 @@ export function buildProjectPayload(
   edges: Edge[],
   llmConfig?: any
 ) {
-  const ADAPTER_TYPES = ['workflow_adapter', 'process_adapter', 'api_adapter', 'bpm_adapter', 'rules_adapter', 'data_adapter'];
+  const ADAPTER_TYPES = ['messaging_adapter', 'workflow_adapter', 'process_adapter', 'api_adapter', 'bpm_adapter', 'rules_adapter', 'data_adapter'];
   const allEdges = [...edges];
 
   // Include hidden agent nodes — squads may be collapsed when scaffolding

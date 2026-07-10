@@ -260,12 +260,13 @@ def render_puml_to_png(puml_source: str, timeout: int = 10) -> Optional[bytes]:
 
 
 _ADAPTER_LABEL = {
-    "api_adapter":      "API Adapter — direct connector to an external REST/GraphQL endpoint (no LLM inference)",
-    "rules_adapter":    "Rules Adapter — delegates to a business rules engine (Drools, IBM ODM, Corticon)",
-    "workflow_adapter": "Workflow Adapter — delegates to a workflow engine (Airflow, IBM BAW, Step Functions)",
-    "process_adapter":  "Process Flow Adapter — integration platform connector (MuleSoft, TIBCO, IBM App Connect)",
-    "bpm_adapter":      "BPM Adapter — delegates to a BPM engine (Appian, Pega, Camunda)",
-    "data_adapter":     "Data Adapter — direct database or data warehouse read/write (no LLM inference)",
+    "messaging_adapter": "Messaging Adapter — event bus connector (Kafka, RabbitMQ, SQS/SNS, Azure Service Bus); can trigger Workflow or Process Flow adapters downstream",
+    "api_adapter":       "API Adapter — direct connector to an external REST/GraphQL endpoint (no LLM inference)",
+    "rules_adapter":     "Rules Adapter — delegates to a business rules engine (Drools, IBM ODM, Corticon)",
+    "workflow_adapter":  "Workflow Adapter — delegates to a workflow engine (Airflow, IBM BAW, Step Functions)",
+    "process_adapter":   "Process Flow Adapter — integration platform connector (MuleSoft, TIBCO, IBM App Connect)",
+    "bpm_adapter":       "BPM Adapter — delegates to a BPM engine (Appian, Pega, Camunda)",
+    "data_adapter":      "Data Adapter — direct database or data warehouse read/write (no LLM inference)",
 }
 
 _AGENT_LABEL = {

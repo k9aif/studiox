@@ -10,6 +10,7 @@ export type ComponentType =
   | 'guard'
   | 'system'
   // ── Integration Adapters (design-time, deterministic / non-agentic)
+  | 'messaging_adapter'
   | 'workflow_adapter'
   | 'process_adapter'
   | 'api_adapter'
