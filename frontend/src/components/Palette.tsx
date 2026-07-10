@@ -150,8 +150,12 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
       data: { label: 'Message Bus', componentType: 'system' as ComponentType, color: '#334155', abbClass: 'Apache Kafka', description: 'Event streaming backbone', system: true } });
     onConnect({ source: routerId, target: kafkaId, sourceHandle: 's-right', targetHandle: 't-left' });
 
+    // Track orchestrator name → node ID so adapters can wire to the right parent
+    const orchNameToId: Record<string, string> = {};
+
     suggestion.orchestrators?.forEach((o: any, oi: number) => {
       const orchId = uid2();
+      orchNameToId[o.name] = orchId;
       const orchX = cx - 90 + oi * 300;
       addNode({ id: orchId, type: 'k9node', position: { x: orchX, y: 220 },
         data: { label: o.name, componentType: 'orchestrator' as ComponentType, color: COMPONENT_COLORS.orchestrator, abbClass: 'BaseOrchestrator', description: `Orchestrator for ${o.name}` } });
@@ -180,6 +184,24 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
         });
       });
     });
+
+    // Place integration adapters — wired from their orchestrator (or Router if none)
+    const adapterList: any[] = suggestion.adapters ?? [];
+    adapterList.forEach((a: any, idx: number) => {
+      const adapterType = (a.adapter_type ?? 'api_adapter') as ComponentType;
+      const abbClass = (a.adapter_type ?? 'api_adapter')
+        .split('_').map((w: string) => w[0].toUpperCase() + w.slice(1)).join('');
+      const sourceId = a.orchestrator ? (orchNameToId[a.orchestrator] ?? routerId) : routerId;
+      const orchIdx = Object.keys(orchNameToId).indexOf(a.orchestrator ?? '');
+      const baseX = cx - 90 + Math.max(orchIdx, 0) * 300;
+      const adapterId = uid2();
+      addNode({ id: adapterId, type: 'k9node',
+        position: { x: baseX + 160 + (idx % 3) * 180, y: 400 + Math.floor(idx / 3) * 120 },
+        data: { label: a.name, componentType: adapterType, color: COMPONENT_COLORS[adapterType] ?? '#3d5a8a',
+          abbClass, description: a.description ?? a.name } });
+      onConnect({ source: sourceId, target: adapterId, sourceHandle: 's-right', targetHandle: 't-left' });
+    });
+
     // Auto-layout, then collapse all squads so default view is clean
     setTimeout(() => {
       layoutCanvas();

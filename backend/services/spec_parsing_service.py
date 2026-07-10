@@ -153,28 +153,56 @@ def zone_to_agent_type(zone: str) -> str:
     return 'BaseAgent'
 
 
+_SPEC_ADAPTER_HINTS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bapi\b|rest\b|graphql|endpoint|http|fetch|invoke|call\b|webhook", re.I), "api_adapter"),
+    (re.compile(r"\brule|policy|decision\b|drools|odm\b|corticon|brms", re.I),              "rules_adapter"),
+    (re.compile(r"workflow|bpm\b|camunda|appian|pega|flowable|step\s*function|airflow", re.I), "workflow_adapter"),
+    (re.compile(r"integrat|mulesoft|tibco|esb\b|app\s*connect|mq\b|event\s*bus|pubsub", re.I), "process_adapter"),
+    (re.compile(r"\bdata(base)?\b|db\b|\bsql\b|persist|store\b|repo\b|warehouse|s3\b", re.I), "data_adapter"),
+]
+
+
+def _spec_adapter_type(name: str, description: str) -> str:
+    """Pick the best adapter type from name + description; defaults to api_adapter."""
+    text = f"{name} {description}"
+    for pattern, atype in _SPEC_ADAPTER_HINTS:
+        if pattern.search(text):
+            return atype
+    return "api_adapter"
+
+
 def build_suggestion_from_zones(project_name: str, zone_groups: dict) -> dict:
-    """Rule-based canvas suggestion: one squad for deterministic agents, one for AI agents."""
+    """
+    Rule-based canvas suggestion.
+    GREEN (deterministic) → Integration Adapters wired to an OperationsOrchestrator.
+    AMBER / RED (AI)      → Agents inside squads under an IntelligenceOrchestrator.
+    """
     prefix = to_pascal(project_name)
     green = zone_groups.get('green', [])
     ai    = zone_groups.get('ai', [])
 
-    orchestrators, squads, all_agents = [], [], []
+    orchestrators, squads, all_agents, adapters = [], [], [], []
 
     if green:
-        orchestrators.append({'name': f'{prefix}OperationsOrchestrator'})
-        squads.append({'name': f'{prefix}OperationsSquad', 'agents': [a['name'] for a in green]})
+        orch_name = f'{prefix}OperationsOrchestrator'
+        orchestrators.append({'name': orch_name})
         for a in green:
-            all_agents.append({'name': a['name'], 'type': 'BaseAgent',
-                               'model': 'general', 'description': a['description']})
+            atype = _spec_adapter_type(a['name'], a.get('description', ''))
+            adapters.append({
+                'name': a['name'],
+                'adapter_type': atype,
+                'description': a.get('description', a['name']),
+                'orchestrator': orch_name,
+            })
+
     if ai:
         orchestrators.append({'name': f'{prefix}IntelligenceOrchestrator'})
         squads.append({'name': f'{prefix}IntelligenceSquad', 'agents': [a['name'] for a in ai]})
         for a in ai:
             all_agents.append({'name': a['name'], 'type': zone_to_agent_type(a['zone']),
-                               'model': 'reasoning', 'description': a['description']})
+                               'model': 'reasoning', 'description': a.get('description', a['name'])})
 
-    return {'orchestrators': orchestrators, 'squads': squads, 'agents': all_agents}
+    return {'orchestrators': orchestrators, 'squads': squads, 'agents': all_agents, 'adapters': adapters}
 
 
 def default_suggestion(project_name: str, domain: str) -> dict:

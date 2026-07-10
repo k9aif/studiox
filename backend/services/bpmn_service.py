@@ -15,6 +15,24 @@ _TASK_TAGS = {
     "businessruletask", "sendtask", "receivetask", "manualtask",
 }
 
+# Deterministic BPMN tag → K9-AIF adapter type (unambiguous mappings)
+_ADAPTER_TAG_MAP: dict[str, str] = {
+    "servicetask":      "api_adapter",       # calls an external service / REST / SOAP
+    "businessruletask": "rules_adapter",     # invokes a rules engine (Drools, ODM, Corticon)
+    "scripttask":       "workflow_adapter",  # runs a deterministic script
+    "sendtask":         "process_adapter",   # fires an integration event / message
+    "receivetask":      "process_adapter",   # waits for an integration event / message
+}
+
+# Name-based heuristics for generic <task> tags
+_ADAPTER_NAME_HINTS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bapi\b|rest\b|graphql|endpoint|http|fetch|invoke|call\b", re.I), "api_adapter"),
+    (re.compile(r"\brule|policy|decision\b|drools|odm\b|corticon", re.I),           "rules_adapter"),
+    (re.compile(r"workflow|bpm\b|camunda|appian|pega|flowable|step\s*function", re.I), "workflow_adapter"),
+    (re.compile(r"integrat|mulesoft|tibco|esb\b|app\s*connect|mq\b|event\s*bus", re.I), "process_adapter"),
+    (re.compile(r"\bdata(base)?\b|db\b|\bsql\b|persist|store\b|repo\b|warehouse", re.I), "data_adapter"),
+]
+
 # Heuristics for richer agent type selection
 _VALIDATION_HINTS = re.compile(
     r"validat|verif|check|review|audit|inspect|assess|evaluat", re.I
@@ -52,6 +70,36 @@ def _agent_type(name: str, tag: str) -> str:
 
 def _model_for(agent_type: str) -> str:
     return "reasoning" if agent_type != "BaseAgent" else "general"
+
+
+def _adapter_type_for(name: str, tag: str) -> str | None:
+    """Return an adapter type string if this task should be deterministic, else None → agent."""
+    if tag in _ADAPTER_TAG_MAP:
+        return _ADAPTER_TAG_MAP[tag]
+    if tag == "task":
+        for pattern, atype in _ADAPTER_NAME_HINTS:
+            if pattern.search(name):
+                return atype
+    return None
+
+
+def _make_node(name: str, tag: str, description: str = "") -> tuple[dict | None, dict | None]:
+    """Return (agent_dict, None) or (None, adapter_dict) — exactly one is non-None."""
+    pascal = _to_pascal(name)
+    adapter_type = _adapter_type_for(name, tag)
+    if adapter_type:
+        suffix = "Adapter"
+        if not pascal.endswith(suffix):
+            pascal += suffix
+        return None, {
+            "name": pascal,
+            "adapter_type": adapter_type,
+            "description": description or name,
+        }
+    if not pascal.endswith("Agent"):
+        pascal += "Agent"
+    atype = _agent_type(name, tag)
+    return {"name": pascal, "type": atype, "model": _model_for(atype), "description": description or name}, None
 
 
 def _make_agent(name: str, tag: str, description: str = "") -> dict:
@@ -99,13 +147,33 @@ def parse_bpmn(xml_content: str) -> dict:
     orchestrators: list[dict] = []
     squads: list[dict] = []
     agents: list[dict] = []
+    adapters: list[dict] = []
 
-    seen_agents: set[str] = set()
+    seen_names: set[str] = set()
 
     def add_agent(a: dict):
-        if a["name"] not in seen_agents:
-            seen_agents.add(a["name"])
+        if a["name"] not in seen_names:
+            seen_names.add(a["name"])
             agents.append(a)
+
+    def add_adapter(a: dict):
+        if a["name"] not in seen_names:
+            seen_names.add(a["name"])
+            adapters.append(a)
+
+    def classify_task(t: ET.Element, fallback_name: str, orch_name: str) -> tuple[str | None, None]:
+        """Classify one BPMN task → returns (agent_name, None) or (None, adapter) added to lists."""
+        raw_name = _attr(t, "name") or fallback_name
+        tag = _tag(t)
+        agent, adapter = _make_node(raw_name, tag)
+        if adapter:
+            adapter["orchestrator"] = orch_name
+            add_adapter(adapter)
+            return None, adapter["name"]
+        if agent:
+            add_agent(agent)
+            return agent["name"], None
+        return None, None
 
     for process in processes:
         proc_name = _attr(process, "name") or "Main"
@@ -115,7 +183,6 @@ def parse_bpmn(xml_content: str) -> dict:
         lanes = [el for el in process.iter() if _tag(el) == "lane"]
 
         if lanes:
-            # Build id→element map for all tasks in process
             task_by_id: dict[str, ET.Element] = {
                 _attr(el, "id"): el
                 for el in process.iter()
@@ -131,7 +198,6 @@ def parse_bpmn(xml_content: str) -> dict:
                 if not squad_name.endswith("Squad"):
                     squad_name += "Squad"
 
-                # flowNodeRef elements list the IDs of tasks in this lane
                 ref_ids = {
                     el.text.strip()
                     for el in lane.iter()
@@ -141,17 +207,18 @@ def parse_bpmn(xml_content: str) -> dict:
 
                 agent_names: list[str] = []
                 for t in lane_tasks:
-                    a = _make_agent(_attr(t, "name") or _tag(t), _tag(t))
-                    add_agent(a)
-                    agent_names.append(a["name"])
-
-                if not agent_names:
-                    a = _make_agent(f"Process{lane_name}", "task")
-                    add_agent(a)
-                    agent_names.append(a["name"])
+                    name, _ = classify_task(t, _tag(t), orch_name)
+                    if name:
+                        agent_names.append(name)
 
                 orchestrators.append({"name": orch_name})
-                squads.append({"name": squad_name, "agents": agent_names})
+                if agent_names:
+                    squads.append({"name": squad_name, "agents": agent_names})
+                elif not any(a.get("orchestrator") == orch_name for a in adapters):
+                    # Lane had no tasks at all — add a placeholder agent
+                    a = _make_agent(f"Process{lane_name}", "task")
+                    add_agent(a)
+                    squads.append({"name": squad_name, "agents": [a["name"]]})
 
         # ── Case 2: SubProcesses ──────────────────────────────────────────────
         else:
@@ -173,16 +240,16 @@ def parse_bpmn(xml_content: str) -> dict:
                     sp_tasks = _tasks_in(sp)
                     agent_names = []
                     for t in sp_tasks:
-                        a = _make_agent(_attr(t, "name") or sp_name, _tag(t))
-                        add_agent(a)
-                        agent_names.append(a["name"])
+                        name, _ = classify_task(t, sp_name, orch_name)
+                        if name:
+                            agent_names.append(name)
 
-                    if not agent_names:
+                    if agent_names:
+                        squads.append({"name": squad_name, "agents": agent_names})
+                    elif not sp_tasks:
                         a = _make_agent(sp_name, "task")
                         add_agent(a)
-                        agent_names.append(a["name"])
-
-                    squads.append({"name": squad_name, "agents": agent_names})
+                        squads.append({"name": squad_name, "agents": [a["name"]]})
 
             # ── Case 3: Flat tasks ────────────────────────────────────────────
             else:
@@ -197,23 +264,23 @@ def parse_bpmn(xml_content: str) -> dict:
 
                 agent_names = []
                 for t in direct_tasks:
-                    a = _make_agent(_attr(t, "name") or "Task", _tag(t))
-                    add_agent(a)
-                    agent_names.append(a["name"])
-
-                if not agent_names:
-                    a = _make_agent(f"{proc_pascal}Processing", "task",
-                                    "Core processing agent")
-                    add_agent(a)
-                    agent_names.append(a["name"])
+                    name, _ = classify_task(t, "Task", orch_name)
+                    if name:
+                        agent_names.append(name)
 
                 orchestrators.append({"name": orch_name})
-                squads.append({"name": squad_name, "agents": agent_names})
+                if agent_names:
+                    squads.append({"name": squad_name, "agents": agent_names})
+                elif not direct_tasks:
+                    a = _make_agent(f"{proc_pascal}Processing", "task", "Core processing agent")
+                    add_agent(a)
+                    squads.append({"name": squad_name, "agents": [a["name"]]})
 
     return {
         "orchestrators": orchestrators,
         "squads": squads,
         "agents": agents,
+        "adapters": adapters,
     }
 
 
