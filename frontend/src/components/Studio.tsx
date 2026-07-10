@@ -343,15 +343,15 @@ export function Studio() {
             {/* Center tabs */}
             <div className="center-tabs">
               {([
-                { id: 'about',    label: 'About' },
-                { id: 'setup',    label: 'Setup' },
-                { id: 'intake',   label: 'Intake' },
-                { id: 'canvas',   label: 'Canvas' },
-                { id: 'flow',     label: 'Graph' },
-                { id: 'docs',     label: 'Generated Docs' },
-                { id: 'scaffold', label: 'View Scaffold' },
+                { id: 'about',        label: 'About' },
+                { id: 'archguide',    label: 'Arch Guide' },
+                { id: 'setup',        label: 'Setup' },
+                { id: 'intake',       label: 'Intake' },
+                { id: 'canvas',       label: 'Canvas' },
+                { id: 'flow',         label: 'Graph' },
+                { id: 'docs',         label: 'Generated Docs' },
+                { id: 'scaffold',     label: 'View Scaffold' },
                 { id: 'classdiagram', label: 'Class Diagram' },
-                { id: 'archguide', label: 'Arch Guide' },
               ] as { id: CenterTab; label: string }[]).map(({ id, label }) => (
                 <button
                   key={id}
