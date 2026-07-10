@@ -8,7 +8,14 @@ export type ComponentType =
   | 'validation_loop'
   | 'critic_actor'
   | 'guard'
-  | 'system';
+  | 'system'
+  // ── Integration Adapters (design-time, deterministic / non-agentic)
+  | 'workflow_adapter'
+  | 'process_adapter'
+  | 'api_adapter'
+  | 'bpm_adapter'
+  | 'rules_adapter'
+  | 'data_adapter';
 
 export type AgentClassType = 'BaseAgent' | 'K9ValidationLoopAgent' | 'K9CriticActorAgent';
 

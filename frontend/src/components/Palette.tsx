@@ -9,6 +9,9 @@ const COMPONENT_COLORS: Record<string, string> = {
   intent_squad: '#06b6d4',
   router: '#6366f1', orchestrator: '#8b5cf6', hil_orchestrator: '#14b8a6', squad: '#0ea5e9',
   agent: '#10b981', validation_loop: '#f59e0b', critic_actor: '#ef4444', guard: '#64748b',
+  // Adapters — muted slate tones to signal "deterministic / non-agentic"
+  workflow_adapter: '#92764a', process_adapter: '#3d7a8a', api_adapter: '#3d5a8a',
+  bpm_adapter: '#7a3d8a', rules_adapter: '#3d8a5a', data_adapter: '#8a4a3d',
 };
 const AGENT_TYPE_MAP: Record<string, string> = {
   BaseAgent: 'agent', K9ValidationLoopAgent: 'validation_loop', K9CriticActorAgent: 'critic_actor',
@@ -20,7 +23,19 @@ const ICONS: Record<string, string> = {
   intent_squad: '⊕',
   router: '⇄', orchestrator: '◈', hil_orchestrator: '◇', squad: '◫', agent: '◉',
   validation_loop: '↻', critic_actor: '⇌', guard: '⊛',
+  // Adapters
+  workflow_adapter: '⇒', process_adapter: '⊳', api_adapter: '⊙',
+  bpm_adapter: '⬡', rules_adapter: '⊟', data_adapter: '⊞',
 };
+
+const ADAPTERS = [
+  { type: 'workflow_adapter', label: 'Workflow Adapter',     abbClass: 'WorkflowAdapter',    color: '#92764a', description: 'Delegates to a workflow engine (Airflow, Step Functions, IBM BAW)' },
+  { type: 'process_adapter',  label: 'Process Flow Adapter', abbClass: 'ProcessFlowAdapter', color: '#3d7a8a', description: 'Integration platform (MuleSoft, TIBCO, IBM App Connect)' },
+  { type: 'api_adapter',      label: 'API Adapter',          abbClass: 'ApiAdapter',         color: '#3d5a8a', description: 'Calls an external REST or GraphQL API endpoint' },
+  { type: 'bpm_adapter',      label: 'BPM Adapter',          abbClass: 'BpmAdapter',         color: '#7a3d8a', description: 'BPM engine (Appian, Pega, Camunda, IBM BAW)' },
+  { type: 'rules_adapter',    label: 'Rules Adapter',        abbClass: 'RulesAdapter',       color: '#3d8a5a', description: 'Business rules engine (Drools, IBM ODM, Corticon)' },
+  { type: 'data_adapter',     label: 'Data Adapter',         abbClass: 'DataAdapter',        color: '#8a4a3d', description: 'Direct database or data warehouse read/write' },
+];
 
 let _pid = 200;
 const uid2 = () => `regen-${_pid++}`;
@@ -30,7 +45,7 @@ interface PaletteProps {
   onSwitchToCanvas?: () => void;
 }
 
-type PaletteTab = 'components' | 'project';
+type PaletteTab = 'components' | 'project' | 'guidance';
 
 
 function slugify(s: string) {
@@ -189,6 +204,13 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
         >
           Components
         </button>
+        <button
+          className={`palette-tab ${tab === 'guidance' ? 'active' : ''}`}
+          onClick={() => setTab('guidance')}
+          title="Architecture guidance — when to use Agentic AI vs deterministic adapters"
+        >
+          Arch Guide
+        </button>
       </div>
 
 
@@ -283,7 +305,133 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
             <div className="hier-line hier-indent-2" style={{ color: COMPONENT_COLORS.squad }}>└ ◫ HILSquad</div>
             <div className="hier-line hier-indent-3" style={{ color: COMPONENT_COLORS.agent }}>└ ◉ HILAgent</div>
           </div>
+
+          {/* ── Integration Adapters ───────────────────── */}
+          <div style={{ margin: '14px 0 0', borderTop: '1px solid #1e2535' }} />
+          <div className="palette-section-title" style={{ marginTop: 12, color: '#94a3b8' }}>
+            Integration Adapters
+            <span style={{ fontSize: 9, color: '#475569', marginLeft: 6, fontWeight: 400 }}>Deterministic / Non-Agentic</span>
+            <span className="palette-hint-icon" tabIndex={-1}>
+              ⓘ
+              <span className="palette-hint-tooltip">
+                Adapters delegate to deterministic systems — no LLM inference.<br />
+                Router → Adapter (skip Orchestrator for fully rule-based steps).<br />
+                Orchestrator can mix Squads + Adapters in the same pipeline.
+              </span>
+            </span>
+          </div>
+          <div className="palette-list" style={{ marginTop: 4 }}>
+            {ADAPTERS.map((a) => {
+              const isValidNext = validNextTypes === null || validNextTypes.includes(a.type as ComponentType);
+              return (
+                <div
+                  key={a.type}
+                  className={`palette-item ${isValidNext ? '' : 'palette-item-dimmed'} ${validNextTypes && isValidNext ? 'palette-item-highlighted' : ''}`}
+                  style={{ borderLeft: `3px solid ${isValidNext ? a.color : '#2a2a35'}`, opacity: isValidNext ? 1 : 0.4 }}
+                  draggable={isValidNext}
+                  onDragStart={(e) => isValidNext && onDragStart(e, a as PaletteComponent)}
+                  title={isValidNext ? a.description : 'Adapters connect from Router or Orchestrator only'}
+                >
+                  <span className="palette-icon" style={{ color: isValidNext ? a.color : '#3a3a4a' }}>
+                    {ICONS[a.type] ?? '⊙'}
+                  </span>
+                  <div className="palette-item-text">
+                    <div className="palette-label" style={{ color: isValidNext ? '' : '#3a3a4a' }}>{a.label}</div>
+                    <div className="palette-class">{a.abbClass}</div>
+                  </div>
+                  {validNextTypes && isValidNext && (
+                    <span className="palette-valid-badge" style={{ color: a.color }}>✓</span>
+                  )}
+                  {validNextTypes && !isValidNext && (
+                    <span className="palette-invalid-badge">✗</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </>
+      )}
+
+      {/* ── Architecture Guidance tab ──────────────── */}
+      {tab === 'guidance' && (
+        <div style={{ padding: '12px 14px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Architecture Gate — Classify Before You Build
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
+            Not every step needs an LLM. Run this gate before adding a component.
+          </div>
+
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>✓ Use Agentic AI when</div>
+            {[
+              'Input is unstructured — text, images, ambiguous events',
+              'Decision requires reasoning under uncertainty',
+              'Success criteria are subjective or context-dependent',
+              'The plan must adapt dynamically mid-execution',
+              'Competing options need nuanced trade-off analysis',
+              'Recovery from unexpected failure requires judgment',
+            ].map((item) => (
+              <div key={item} style={{ fontSize: 11, color: '#64748b', padding: '3px 0 3px 8px', borderLeft: '2px solid #10b981', marginBottom: 3, lineHeight: 1.5 }}>{item}</div>
+            ))}
+          </div>
+
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>⇒ Use an Adapter (Deterministic) when</div>
+            {[
+              'Input is structured and rules are fully defined',
+              'Same input always produces the same output',
+              'A workflow / BPM / rules platform already owns this logic',
+              'LLM latency or cost is prohibitive',
+              'Auditability requires an exact, explainable trace',
+              'MuleSoft, TIBCO, Appian, Drools, ODM handles it today',
+            ].map((item) => (
+              <div key={item} style={{ fontSize: 11, color: '#64748b', padding: '3px 0 3px 8px', borderLeft: '2px solid #f59e0b', marginBottom: 3, lineHeight: 1.5 }}>{item}</div>
+            ))}
+          </div>
+
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>◈ Hybrid Pattern (most real systems)</div>
+            <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6, padding: '4px 8px', borderLeft: '2px solid #6366f1' }}>
+              Router classifies events → deterministic events go directly to an Adapter,
+              complex / ambiguous events route to an Orchestrator that mixes Squads + Adapters as needed.
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>✗ Anti-Patterns to Avoid</div>
+            {[
+              'Routing every event through an LLM "just to be safe"',
+              'Wrapping a simple REST call in a ValidationLoop agent',
+              'Replacing a rules engine with a prompt that mimics it',
+              'Using agents for batch ETL with no decision-making',
+              'Building 10+ agents when 2 agents + 1 adapter suffice',
+            ].map((item) => (
+              <div key={item} style={{ fontSize: 11, color: '#64748b', padding: '3px 0 3px 8px', borderLeft: '2px solid #ef4444', marginBottom: 3, lineHeight: 1.5 }}>{item}</div>
+            ))}
+          </div>
+
+          <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 6, padding: '10px 12px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#a5b4fc', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick Classification</div>
+            {[
+              ['Is the input structured?', '→ Adapter'],
+              ['Are the rules fully deterministic?', '→ Adapter'],
+              ['Requires judgment or reasoning?', '→ Agent'],
+              ['Can a human write the logic today?', '→ Adapter / Rules'],
+              ['Plan changes based on interim results?', '→ Agent'],
+              ['Existing platform owns this step?', '→ Adapter'],
+            ].map(([q, a]) => (
+              <div key={q} style={{ fontSize: 10, color: '#64748b', marginBottom: 4, display: 'flex', justifyContent: 'space-between', gap: 6, lineHeight: 1.4 }}>
+                <span>{q}</span>
+                <span style={{ color: '#8b5cf6', whiteSpace: 'nowrap', fontWeight: 600 }}>{a}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 10, color: '#475569', fontStyle: 'italic', lineHeight: 1.5 }}>
+            K9-AIF principle: Agents handle uncertainty. Adapters handle certainty. Build the gate first.
+          </div>
+        </div>
       )}
 
       {/* ── Project Info tab ───────────────────────── */}

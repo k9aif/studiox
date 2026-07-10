@@ -202,7 +202,7 @@ export function Studio() {
     }
   };
 
-  const [showBottom, setShowBottom] = useState(true);
+  const [showBottom, setShowBottom] = useState(false);
   const [centerTab, setCenterTab] = useState<CenterTab>('about');
   const [draggedComponent, setDraggedComponent] = useState<any>(null);
 
@@ -304,8 +304,8 @@ export function Studio() {
 
           <div className="header-sep" />
 
-          <button className="btn-secondary" onClick={() => setShowBottom((v) => !v)}>
-            {showBottom ? 'Hide Files' : 'Show Files'}
+          <button className="btn-secondary" onClick={() => setShowBottom((v) => !v)} title="Toggle config files & activity log panel">
+            {showBottom ? '▾ Config & Log' : '▸ Config & Log'}
           </button>
           <button className="btn-secondary" onClick={clearCanvas}>Clear</button>
 
