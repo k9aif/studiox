@@ -26,6 +26,7 @@ export function buildProjectPayload(
   llmConfig?: any
 ) {
   const ADAPTER_TYPES = ['workflow_adapter', 'process_adapter', 'api_adapter', 'bpm_adapter', 'rules_adapter', 'data_adapter'];
+  const allEdges = [...edges];
 
   // Include hidden agent nodes — squads may be collapsed when scaffolding
   const agentNodes   = nodes.filter((n) =>
@@ -63,7 +64,6 @@ export function buildProjectPayload(
     };
   });
 
-  const allEdges = [...edges];
   const adapters = adapterNodes.map((n) => {
     const parentOrch = orchNodes.find((o) => allEdges.some((e) => e.source === o.id && e.target === n.id));
     return {
