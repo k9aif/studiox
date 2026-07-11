@@ -110,6 +110,27 @@ inference:
 governance:
   enabled: false
 
+# ── k9x_Shield — Chain of Vulnerability Tests ────────────────────────────────
+# Dual-gate security: ingress chain runs before the LLM, egress chain runs
+# after the LLM and before any tool executes.
+# Set enabled: true to activate. strict: true promotes FLAG → BLOCK.
+# Wire into any agent: MyAgent(config=config, governance=ShieldGovernance(config))
+security:
+  shield:
+    enabled: false
+    strict: false
+    ingress:
+      checks:
+        - InputSizeCheck
+        - PromptInjectionCheck
+        - PIIBoundaryCheck
+    egress:
+      checks:
+        - SemanticDriftCheck
+        - ToolArgumentCheck
+        - ExecutionGuardCheck
+        - PIIBoundaryCheck
+
 monitoring:
   console: true
   log_level: INFO
