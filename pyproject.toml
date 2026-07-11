@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "k9x"
-version = "0.4.1"
+version = "0.4.2"
 description = "K9-AIF Studio — visual, drag-and-drop architecture builder for K9-AIF projects"
 readme = "README.md"
 requires-python = ">=3.10"
