@@ -8,6 +8,37 @@ Try it live: [studio.k9x.ai](https://studio.k9x.ai)
 
 ---
 
+## Installation
+
+Recommended:
+
+```bash
+pip install k9x
+```
+
+Then start the studio:
+
+```bash
+k9x studio
+```
+
+This opens a browser tab at `http://localhost:12999` by default. Useful flags:
+
+```bash
+k9x studio --port 8080          # use a different port
+k9x studio --bg                 # run in the background, return immediately
+k9x studio --stop               # stop a background instance
+k9x config                      # write a starter .env with LLM provider settings
+k9x satan                       # start K9X Satan, the adversarial red-team harness
+k9x upgrade                     # pip install --upgrade k9x
+```
+
+Run `k9x help` for the full command list. See [LLM Configuration](#llm-configuration)
+below for connecting a local or hosted model — the studio runs in demo mode
+without one.
+
+---
+
 ## Workflow
 
 ```
@@ -54,7 +85,7 @@ Then point the studio at your Ollama endpoint. Your data never leaves your envir
 
 | Provider | Endpoint example | Notes |
 |---|---|---|
-| **Ollama** | `http://192.168.1.10:11434` | Local / self-hosted. No API key needed. |
+| **Ollama** | `http://10.0.0.5:11434` | Local / self-hosted. No API key needed. |
 | **OpenAI-compatible** | `https://api.openai.com/v1` | Also works with vLLM, LM Studio, Together AI |
 | **Anthropic** | `https://api.anthropic.com` | Requires Anthropic API key |
 
@@ -84,7 +115,7 @@ cp .env.sample .env
 ```bash
 # .env
 LLM_PROVIDER=ollama
-LLM_ENDPOINT=http://192.168.1.10:11434
+LLM_ENDPOINT=http://10.0.0.5:11434
 LLM_MODEL=granite3-dense:2b
 LLM_API_KEY=                        # leave blank for Ollama
 ```
@@ -96,7 +127,7 @@ The `.env` file is loaded automatically on startup and is excluded from source c
 ```bash
 podman run -d --name k9x_studio -p 8080:8080 \
   -e LLM_PROVIDER=ollama \
-  -e LLM_ENDPOINT=http://192.168.1.10:11434 \
+  -e LLM_ENDPOINT=http://10.0.0.5:11434 \
   -e LLM_MODEL=granite3-dense:2b \
   -e K9X_PROJECTS_ROOT="/k9x/projects" \
   -v ~/k9x-studio-working:/k9x/projects:Z \
@@ -111,7 +142,7 @@ Edit `config.yaml` in the studio root before starting:
 llm:
   enabled: true
   provider: ollama
-  endpoint: "http://192.168.1.10:11434"
+  endpoint: "http://10.0.0.5:11434"
   model: granite3-dense:2b
   api_key: ""
 ```

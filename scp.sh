@@ -1,2 +1,3 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scp "$SCRIPT_DIR/k9x_studio.tar.gz" ravinata@192.168.1.98:/home/ravinata/ai/k9x-ecosystem/studio/
+DEPLOY_TARGET="${DEPLOY_TARGET:?Set DEPLOY_TARGET to user@host:/path before running (e.g. DEPLOY_TARGET=deploy@10.0.0.5:/opt/k9x-studio/ ./scp.sh)}"
+scp "$SCRIPT_DIR/k9x_studio.tar.gz" "$DEPLOY_TARGET"

@@ -12,7 +12,7 @@ YAML config::
 
     cache:
       provider: redis
-      redis_host: 192.168.1.98       # default: localhost
+      redis_host: localhost       # default: localhost
       redis_port: 6379               # default: 6379
       redis_db: 0                    # default: 0
       key_prefix: k9aif:             # optional prefix for all keys

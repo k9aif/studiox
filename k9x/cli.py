@@ -16,10 +16,13 @@ from dotenv import load_dotenv
 
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 12999
+DEFAULT_SATAN_PORT = 6660
 
 STATE_DIR = Path.home() / ".k9x"
 PID_FILE = STATE_DIR / "studio.pid"
 LOG_FILE = STATE_DIR / "studio.log"
+SATAN_PID_FILE = STATE_DIR / "satan.pid"
+SATAN_LOG_FILE = STATE_DIR / "satan.log"
 
 BUNDLED_GENERATOR_TEMPLATES = Path(__file__).resolve().parent / "_generator_templates"
 
@@ -132,6 +135,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="stop a studio previously started with --bg",
     )
 
+    satan = sub.add_parser("satan", help="Start K9X Satan — adversarial red-team harness for K9-AIF")
+    satan.add_argument(
+        "--host", default=os.environ.get("K9X_SATAN_HOST", DEFAULT_HOST),
+        help=f"bind host (default: {DEFAULT_HOST})",
+    )
+    satan.add_argument(
+        "--port", type=int, default=int(os.environ.get("K9X_SATAN_PORT", DEFAULT_SATAN_PORT)),
+        help=f"bind port (default: {DEFAULT_SATAN_PORT}, env K9X_SATAN_PORT)",
+    )
+    satan.add_argument(
+        "--no-browser", action="store_true",
+        help="don't open a browser tab automatically",
+    )
+    satan.add_argument(
+        "--bg", "--background", dest="bg", action="store_true",
+        help="run satan in the background and return immediately",
+    )
+    satan.add_argument(
+        "--stop", action="store_true",
+        help="stop a satan instance previously started with --bg",
+    )
+
     config = sub.add_parser("config", help="Write a starter .env file with LLM provider settings")
     config.add_argument(
         "--output", default=".env-example",
@@ -237,6 +262,86 @@ def _stop_background() -> int:
     finally:
         PID_FILE.unlink(missing_ok=True)
     return 0
+
+
+def _run_satan_foreground(host: str, port: int, no_browser: bool) -> int:
+    if _port_in_use(host, port):
+        print(f"[k9x] Port {port} is already in use — is k9x satan already running?")
+        print(f"[k9x]   Try 'k9x satan --port <other-port>', or 'k9x satan --stop' "
+              f"if it was started with --bg.")
+        return 1
+
+    url = f"http://{_display_host(host)}:{port}"
+    print("[k9x] K9X Satan — Security Analysis Tool for Agentic Networks")
+    print(f"[k9x] Listening on {_display_host(host)}:{port}")
+    print(f"[k9x] URL: {url}")
+    print("[k9x] Press Ctrl+C to stop.")
+
+    if not no_browser:
+        import threading
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+
+    import uvicorn
+    import k9x_satan.app as satan_app
+    uvicorn.run(satan_app.app, host=host, port=port, log_level="info")
+    return 0
+
+
+def _start_satan_background(host: str, port: int, no_browser: bool) -> int:
+    url = f"http://{_display_host(host)}:{port}"
+
+    if _port_in_use(host, port):
+        print(f"[k9x] k9x satan already appears to be running at {url} "
+              f"(port {port} is in use) — nothing to do.")
+        return 0
+
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        sys.executable, "-m", "k9x", "satan",
+        "--host", host, "--port", str(port), "--no-browser",
+    ]
+    with open(SATAN_LOG_FILE, "ab") as log_f:
+        proc = subprocess.Popen(
+            cmd, stdout=log_f, stderr=log_f, stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    SATAN_PID_FILE.write_text(str(proc.pid))
+
+    print("[k9x] K9X Satan — Security Analysis Tool for Agentic Networks")
+    print(f"[k9x] Listening on {_display_host(host)}:{port} (pid {proc.pid})")
+    print(f"[k9x] URL: {url}")
+    print(f"[k9x]   logs: {SATAN_LOG_FILE}")
+    print(f"[k9x]   stop: k9x satan --stop")
+
+    if not no_browser:
+        time.sleep(1.0)
+        webbrowser.open(url)
+    return 0
+
+
+def _stop_satan_background() -> int:
+    if not SATAN_PID_FILE.exists():
+        print("[k9x] No background k9x satan process found.")
+        return 0
+
+    pid = int(SATAN_PID_FILE.read_text().strip())
+    try:
+        os.kill(pid, signal.SIGTERM)
+        print(f"[k9x] Stopped k9x satan (pid {pid}).")
+    except ProcessLookupError:
+        print(f"[k9x] k9x satan (pid {pid}) was not running.")
+    finally:
+        SATAN_PID_FILE.unlink(missing_ok=True)
+    return 0
+
+
+def _cmd_satan(args) -> int:
+    if args.stop:
+        return _stop_satan_background()
+    if args.bg:
+        return _start_satan_background(args.host, args.port, args.no_browser)
+    return _run_satan_foreground(args.host, args.port, args.no_browser)
 
 
 def _cmd_studio(args) -> int:
@@ -350,6 +455,9 @@ def main(argv=None) -> int:
         if leading_bg:
             args.bg = True
         return _cmd_studio(args)
+
+    if args.command == "satan":
+        return _cmd_satan(args)
 
     if args.command == "config":
         return _cmd_config(args)

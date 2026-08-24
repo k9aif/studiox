@@ -35,3 +35,9 @@ include = ["k9x*", "backend*", "frontend"]
 backend = ["templates/*.j2"]
 frontend = ["dist/**/*"]
 k9x = ["_generator_templates/*.j2"]
+
+# NOTE: k9x/cli.py has a `satan` subcommand (imports k9x_satan.app) that isn't
+# functional yet — k9x-satan isn't published, and its source isn't bundled
+# here (that copy was reverted; see k9x-ecosystem/k9x_satan/ instead, which is
+# becoming its own standalone package). Once k9x-satan is on PyPI, add it to
+# `dependencies` above and the subcommand will work with no further changes.

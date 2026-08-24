@@ -180,14 +180,14 @@ squads:
 ### Config structure (`config.yaml`)
 
 Two levels:
-- **Framework ABB config** (`k9_aif_abb/config/config.yaml`) — defaults for testing; Ollama at `192.168.1.98:11434`, SQLite persistence
-- **Example SBB config** (`examples/<App>/config/config.yaml`) — overrides for that app; EOC uses PostgreSQL (`eoc` schema), Kafka at `192.168.1.98:9092`
+- **Framework ABB config** (`k9_aif_abb/config/config.yaml`) — defaults for testing; Ollama at `<LAN_HOST_IP>:11434`, SQLite persistence
+- **Example SBB config** (`examples/<App>/config/config.yaml`) — overrides for that app; EOC uses PostgreSQL (`eoc` schema), Kafka at `<LAN_HOST_IP>:9092`
 
 Key config sections: `inference.llm_factory.models` (maps alias → Ollama model name + params), `inference.model_catalog` (maps alias → capabilities/tiers), `inference.router.persistence` (sqlite | postgres | memory), `postgres`, `messaging` (Kafka/Redpanda).
 
 ### Persistence
 
-- **Routing state store** (`k9_storage/routing_state_store.py`) — 4 tables: `sessions`, `session_turns`, `routing_decisions`, `context_artifacts`. SQLite OOB (auto-created); PostgreSQL via reflection. All tables live in the `k9aif` schema on the shared PostgreSQL instance at `192.168.1.98`.
+- **Routing state store** (`k9_storage/routing_state_store.py`) — 4 tables: `sessions`, `session_turns`, `routing_decisions`, `context_artifacts`. SQLite OOB (auto-created); PostgreSQL via reflection. All tables live in the `k9aif` schema on the shared PostgreSQL instance at `<LAN_HOST_IP>`.
 - **PostgresDatabaseStorage** sets `search_path` and `MetaData(schema=...)` from `postgres.schema` in config — schema must match the PostgreSQL schema or reflection will miss the tables.
 
 ### EOC example structure
@@ -245,15 +245,15 @@ All major components are provisioned through factories — never instantiated di
 
 ---
 
-## Infrastructure (shared, always-on at 192.168.1.98)
+## Infrastructure (shared, always-on at <LAN_HOST_IP>)
 
 | Service | Address |
 |---|---|
-| Ollama | `http://192.168.1.98:11434` |
-| PostgreSQL | `192.168.1.98:5432` (databases: `k9aif` schema `k9aif`, EOC uses `eoc` schema `eoc`) |
-| Kafka / Redpanda | `192.168.1.98:9092` |
-| Neo4j | `bolt://192.168.1.98:7687` |
-| Docling OCR | `http://192.168.1.98:5001/v1/parse` |
+| Ollama | `http://<LAN_HOST_IP>:11434` |
+| PostgreSQL | `<LAN_HOST_IP>:5432` (databases: `k9aif` schema `k9aif`, EOC uses `eoc` schema `eoc`) |
+| Kafka / Redpanda | `<LAN_HOST_IP>:9092` |
+| Neo4j | `bolt://<LAN_HOST_IP>:7687` |
+| Docling OCR | `http://<LAN_HOST_IP>:5001/v1/parse` |
 
 `K9_ENV` environment variable controls governance enforcement: `development` / `test` permit NoopGovernance; `production` / `staging` cause `enforce_governance()` to raise.
 
@@ -268,4 +268,4 @@ K9-AIF includes a full MCP client ABB stack for calling external tool servers:
 | `BaseMCPAgent` | `k9_core/agent/base_mcp_agent.py` | Abstract base for MCP-aware agents |
 | `MCPClientAgent` | `k9_agents/integration/mcp_client_agent.py` | Concrete MCP agent SBB |
 
-The **Docling OCR MCP server** at `http://192.168.1.98:5001/v1/parse` is the live tool server for document intelligence. It converts PDF, DOCX, and images to clean Markdown (tables, layout preserved), which agents consume as prompt context. `DocumentExtractorAgent` in the EOC connects to Docling via `MCPHttpConnector` — the connector type is config-driven, so any MCP-compatible tool server can be substituted without touching squad or orchestrator code.
+The **Docling OCR MCP server** at `http://<LAN_HOST_IP>:5001/v1/parse` is the live tool server for document intelligence. It converts PDF, DOCX, and images to clean Markdown (tables, layout preserved), which agents consume as prompt context. `DocumentExtractorAgent` in the EOC connects to Docling via `MCPHttpConnector` — the connector type is config-driven, so any MCP-compatible tool server can be substituted without touching squad or orchestrator code.

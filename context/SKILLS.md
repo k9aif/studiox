@@ -174,7 +174,7 @@ llm_invoke(config, req)
   → K9ModelRouter.route(req)                   # scores all catalog models
   → catalog.get_model(best_alias)              # looks up llm_ref
   → LLMFactory.get(llm_ref)                   # cached OllamaLLM instance
-  → OllamaLLM.invoke(prompt)                  # hits Ollama at 192.168.1.98:11434
+  → OllamaLLM.invoke(prompt)                  # hits Ollama at <LAN_HOST_IP>:11434
   → RouteDecision + complexity/governance scores persisted to routing state store (SQLite or PostgreSQL)
 ```
 

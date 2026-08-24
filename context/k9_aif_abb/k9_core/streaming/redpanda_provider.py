@@ -19,7 +19,7 @@ class RedpandaStreamProvider(BaseStreamProvider):
     def __init__(self, brokers: str | None = None):
         # Load messaging configuration from governed CONFIG
         msg_cfg = CONFIG.get("messaging", {})
-        self.brokers = brokers or ",".join(msg_cfg.get("brokers", ["192.168.1.98:9092"]))
+        self.brokers = brokers or ",".join(msg_cfg.get("brokers", ["localhost:9092"]))
         self.topic = msg_cfg.get("topic", "k9aif-events")
         self.security_protocol = msg_cfg.get("security_protocol", "PLAINTEXT")
         self.log_level = (

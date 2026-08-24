@@ -13,7 +13,7 @@ YAML config::
     cache:
       provider: in_memory      # in_memory | redis  (default: in_memory)
       # redis-specific keys when provider: redis
-      redis_host: 192.168.1.98
+      redis_host: localhost
       redis_port: 6379
       redis_db: 0
       key_prefix: k9aif:
