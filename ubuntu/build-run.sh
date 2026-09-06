@@ -13,9 +13,28 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-# Build context has to be ai/ (parent of both k9-aif-framework/ and
-# k9x-ecosystem/) — see ubuntu/Containerfile's header comment for why.
-AI_DIR="$(cd "$PROJECT_DIR/../.." && pwd)"
+
+# Build context has to be ai/ (parent of k9-aif-framework/) — see
+# ubuntu/Containerfile's header comment for why. This project gets cloned
+# at different depths on different machines (e.g. ai/k9x-ecosystem/k9x_studio
+# here, ai/studiox on a box using getlatest.sh's flat repo list) — walk up
+# looking for k9-aif-framework rather than assuming a fixed depth.
+AI_DIR=""
+for candidate in "$PROJECT_DIR/.." "$PROJECT_DIR/../.."; do
+  candidate="$(cd "$candidate" 2>/dev/null && pwd || true)"
+  if [[ -n "$candidate" && -d "$candidate/k9-aif-framework/generator/templates" ]]; then
+    AI_DIR="$candidate"
+    break
+  fi
+done
+[[ -n "$AI_DIR" ]] || {
+  echo "Error: could not find k9-aif-framework/generator/templates by walking"
+  echo "  up from $PROJECT_DIR (checked 1 and 2 levels up). k9x_studio must"
+  echo "  sit alongside k9-aif-framework, both under the same ai/ directory."
+  exit 1
+}
+STUDIO_REL_PATH="${PROJECT_DIR#"$AI_DIR"/}"
+
 IMAGE="k9x-studio:latest"
 CONTAINER="k9x-studio"
 PROJECTS_HOST_DIR="${HOME}/containers/volumes/k9x-studio/projects"
@@ -25,15 +44,11 @@ cmd="${1:-help}"
 case "$cmd" in
 
   build)
-    echo "Building $IMAGE (context: $AI_DIR) ..."
-    [[ -d "$AI_DIR/k9-aif-framework/generator/templates" ]] || {
-      echo "Error: $AI_DIR/k9-aif-framework not found — k9x_studio must sit"
-      echo "  alongside k9-aif-framework (both directly under ai/) for the build"
-      echo "  to reach generator/templates/. See ubuntu/Containerfile's header."
-      exit 1
-    }
+    echo "Building $IMAGE (context: $AI_DIR, project dir: $STUDIO_REL_PATH) ..."
     cd "$AI_DIR"
-    sudo podman build -t "$IMAGE" -f k9x-ecosystem/k9x_studio/ubuntu/Containerfile .
+    sudo podman build -t "$IMAGE" \
+      --build-arg "STUDIO_DIR=$STUDIO_REL_PATH" \
+      -f "$STUDIO_REL_PATH/ubuntu/Containerfile" .
     echo "Build complete: $IMAGE"
     ;;
 

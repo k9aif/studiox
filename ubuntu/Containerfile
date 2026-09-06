@@ -6,30 +6,51 @@
 # Multi-stage build: Node stage builds the React/Vite frontend into
 # frontend/dist/, then the Python stage copies backend + that dist/ output.
 #
-# Build (from this project's root, k9x-ecosystem/k9x_studio/):
-#   podman build -t k9x-studio:latest -f ubuntu/Containerfile .
+# Build context must be ai/ (parent of k9-aif-framework/) — this project
+# gets cloned at different relative depths on different machines (e.g.
+# k9x-ecosystem/k9x_studio here, studiox elsewhere), so build-run.sh passes
+# STUDIO_DIR as a build-arg rather than this file assuming a fixed path.
+#
+# k9-aif itself installs from PyPI via requirements.txt (k9-aif[s3]) like
+# every other dependency — no local framework checkout needed for that.
+# The ONE thing that does need a local checkout: generator/templates/
+# (used by backend/services/scaffold_service.py's canonical BaseAgent
+# template) isn't shipped in the PyPI package (its pyproject.toml only
+# includes k9_aif_abb*), so those ~40K of .j2 files are copied in
+# explicitly from the local k9-aif-framework checkout.
+#
+# Build (from ai/, the parent of k9-aif-framework/ and this project):
+#   podman build -t k9x-studio:latest \
+#     --build-arg STUDIO_DIR=k9x-ecosystem/k9x_studio \
+#     -f k9x-ecosystem/k9x_studio/ubuntu/Containerfile .
+# (build-run.sh computes STUDIO_DIR automatically — see there.)
+
+ARG STUDIO_DIR=k9x-ecosystem/k9x_studio
 
 FROM docker.io/library/node:20-slim AS frontend-build
+ARG STUDIO_DIR
 WORKDIR /build/frontend
-COPY frontend/package.json frontend/package-lock.json ./
+COPY ${STUDIO_DIR}/frontend/package.json ${STUDIO_DIR}/frontend/package-lock.json ./
 RUN npm ci
-COPY frontend/ ./
+COPY ${STUDIO_DIR}/frontend/ ./
 RUN npm run build
 
 FROM registry.access.redhat.com/ubi9/python-311:latest
+ARG STUDIO_DIR
 USER root
 
 WORKDIR /app
-COPY requirements.txt .
+COPY ${STUDIO_DIR}/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY ${STUDIO_DIR}/ .
 COPY --from=frontend-build /build/frontend/dist /app/frontend/dist
+COPY k9-aif-framework/generator/templates /app/generator-templates
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    K9X_GENERATOR_TEMPLATES_DIR=/app/backend/templates
+    K9X_GENERATOR_TEMPLATES_DIR=/app/generator-templates
 
 EXPOSE 8090
 
