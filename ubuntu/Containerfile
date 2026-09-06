@@ -28,7 +28,8 @@ COPY . .
 COPY --from=frontend-build /build/frontend/dist /app/frontend/dist
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    K9X_GENERATOR_TEMPLATES_DIR=/app/backend/templates
 
 EXPOSE 8090
 
