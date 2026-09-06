@@ -13,6 +13,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Build context has to be ai/ (parent of both k9-aif-framework/ and
+# k9x-ecosystem/) — see ubuntu/Containerfile's header comment for why.
+AI_DIR="$(cd "$PROJECT_DIR/../.." && pwd)"
 IMAGE="k9x-studio:latest"
 CONTAINER="k9x-studio"
 PROJECTS_HOST_DIR="${HOME}/containers/volumes/k9x-studio/projects"
@@ -22,9 +25,15 @@ cmd="${1:-help}"
 case "$cmd" in
 
   build)
-    echo "Building $IMAGE ..."
-    cd "$PROJECT_DIR"
-    sudo podman build -t "$IMAGE" -f ubuntu/Containerfile .
+    echo "Building $IMAGE (context: $AI_DIR) ..."
+    [[ -d "$AI_DIR/k9-aif-framework/generator/templates" ]] || {
+      echo "Error: $AI_DIR/k9-aif-framework not found — k9x_studio must sit"
+      echo "  alongside k9-aif-framework (both directly under ai/) for the build"
+      echo "  to reach generator/templates/. See ubuntu/Containerfile's header."
+      exit 1
+    }
+    cd "$AI_DIR"
+    sudo podman build -t "$IMAGE" -f k9x-ecosystem/k9x_studio/ubuntu/Containerfile .
     echo "Build complete: $IMAGE"
     ;;
 
