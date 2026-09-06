@@ -1,0 +1,42 @@
+# k9x_studio — Visual drag-and-drop K9-AIF builder
+# Single container: FastAPI backend serves both the API and the built React
+# frontend (backend/main.py mounts frontend/dist/ when present — no separate
+# frontend container needed in production, only in local `run.sh` dev mode).
+#
+# Multi-stage build: Node stage builds the React/Vite frontend into
+# frontend/dist/, then the Python stage copies backend + that dist/ output.
+#
+# Build (from this project's root, k9x-ecosystem/k9x_studio/):
+#   podman build -t k9x-studio:latest -f RHEL/Containerfile .
+
+FROM docker.io/library/node:20-slim AS frontend-build
+WORKDIR /build/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM registry.access.redhat.com/ubi9/python-311:latest
+USER root
+RUN dnf install -y --nodocs && dnf clean all
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+COPY --from=frontend-build /build/frontend/dist /app/frontend/dist
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8090
+
+HEALTHCHECK --interval=30s --timeout=8s --start-period=20s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8090/api/health')" \
+      || exit 1
+
+USER 1001
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8090", "--log-level", "info"]

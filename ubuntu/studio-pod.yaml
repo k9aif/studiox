@@ -1,0 +1,115 @@
+# k9x_studio — Podman Pod Spec (single-container deployment)
+#
+# Pod: k9-studio-pod
+# └── app-backend   FastAPI backend + built React frontend (port 8090)
+#
+# External services (published on the Podman host — see hostAliases below):
+#   Ollama → rhel-host:11434
+#
+# SETUP (run once):
+#   # 0. Replace <RHEL_HOST_IP> in hostAliases below with this host's LAN IP
+#   # 1. Build the image
+#   podman build -t k9x-studio:latest -f ubuntu/Containerfile .
+#
+# DEPLOY:
+#   podman play kube ubuntu/studio-pod.yaml --replace
+#
+# STOP:
+#   podman play kube ubuntu/studio-pod.yaml --down
+#
+# LOGS:
+#   podman logs -f k9-studio-pod-app-backend
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: k9-studio-pod
+  labels:
+    app: k9x-studio
+    component: visual-builder
+    version: "0.1"
+  annotations:
+    description: "k9x_studio — visual drag-and-drop K9-AIF builder, single-container pod"
+
+spec:
+  restartPolicy: OnFailure
+
+  hostAliases:
+  - ip: "<RHEL_HOST_IP>"  # replace with this host's LAN IP before deploying (e.g. 192.168.1.244)
+    hostnames:
+    - "rhel-host"
+
+  containers:
+
+  # ── Container: app-backend ───────────────────────────────────────────────
+  - name: app-backend
+    image: localhost/k9x-studio:latest
+    imagePullPolicy: Never
+
+    ports:
+    - name: http
+      containerPort: 8090
+      hostPort: 8090
+      protocol: TCP
+
+    command: ["uvicorn"]
+    args:
+    - "backend.main:app"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8090"
+    - "--log-level"
+    - "info"
+
+    env:
+    - name: LLM_PROVIDER
+      value: "ollama"
+    - name: LLM_ENDPOINT
+      value: "http://rhel-host:11434"
+    - name: LLM_MODEL
+      value: "granite3-dense:2b"
+    - name: GOVERNANCE_LLM_ENDPOINT
+      value: "http://rhel-host:11434"
+    - name: GOVERNANCE_LLM_MODEL
+      value: "granite3-guardian:latest"
+    - name: K9X_PROJECTS_ROOT
+      value: "/k9x/projects"
+    - name: K9X_BLOCK_LOCAL
+      value: "false"
+    - name: PYTHONUNBUFFERED
+      value: "1"
+
+    volumeMounts:
+    - name: projects
+      mountPath: /k9x/projects
+
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1"
+
+    livenessProbe:
+      httpGet:
+        path: /api/health
+        port: 8090
+      initialDelaySeconds: 20
+      periodSeconds: 30
+      failureThreshold: 3
+
+    readinessProbe:
+      httpGet:
+        path: /api/health
+        port: 8090
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      failureThreshold: 5
+
+  volumes:
+  - name: projects
+    hostPath:
+      path: /home/container_storage/volumes/k9x-studio/projects
+      type: DirectoryOrCreate
