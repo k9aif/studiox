@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 IMAGE="k9x-studio:latest"
 CONTAINER="k9x-studio"
-PROJECTS_HOST_DIR="/home/container_storage/volumes/k9x-studio/projects"
+PROJECTS_HOST_DIR="${HOME}/containers/volumes/k9x-studio/projects"
 
 cmd="${1:-help}"
 
