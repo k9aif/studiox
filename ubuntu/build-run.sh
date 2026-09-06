@@ -38,8 +38,8 @@ case "$cmd" in
     HOST_IP=$(hostname -I | awk '{print $1}')
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  k9x_studio"
-    echo "  Web UI:  http://${HOST_IP}:8090/"
-    echo "  Health:  http://${HOST_IP}:8090/api/health"
+    echo "  Web UI:  http://${HOST_IP}:8081/"
+    echo "  Health:  http://${HOST_IP}:8081/api/health"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo "Logs:"
