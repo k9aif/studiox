@@ -7,7 +7,7 @@
 # frontend/dist/, then the Python stage copies backend + that dist/ output.
 #
 # Build (from this project's root, k9x-ecosystem/k9x_studio/):
-#   podman build -t k9x-studio:latest -f RHEL/Containerfile .
+#   podman build -t k9x-studio:latest -f ubuntu/Containerfile .
 
 FROM docker.io/library/node:20-slim AS frontend-build
 WORKDIR /build/frontend
@@ -18,7 +18,6 @@ RUN npm run build
 
 FROM registry.access.redhat.com/ubi9/python-311:latest
 USER root
-RUN dnf install -y --nodocs && dnf clean all
 
 WORKDIR /app
 COPY requirements.txt .
