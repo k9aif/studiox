@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# k9x_studio — Podman build and deploy helper
+# k9x_studio — build and run helper (single container, no pod needed)
 # Run from any directory on the Podman host (no sudo needed — script handles it).
 #
 # Commands:
 #   build   — build the k9x-studio container image
-#   up      — deploy k9-studio-pod (1 container)
-#   down    — stop and remove the pod
-#   status  — show pod and container status
-#   logs    — tail app-backend logs
-#   all     — build + up in one step
+#   start   — start the container (port 8081)
+#   stop    — stop the container
+#   logs    — tail logs
+#   all     — build + start
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 IMAGE="k9x-studio:latest"
-POD_NAME="k9-studio-pod"
+CONTAINER="k9x-studio"
+PROJECTS_HOST_DIR="/home/container_storage/volumes/k9x-studio/projects"
 
 cmd="${1:-help}"
 
@@ -28,12 +28,20 @@ case "$cmd" in
     echo "Build complete: $IMAGE"
     ;;
 
-  up)
-    echo "Deploying pod: $POD_NAME (1 container) ..."
-    sudo podman play kube "$SCRIPT_DIR/studio-pod.yaml" --replace
-    echo ""
-    echo "Pod running. Containers:"
-    sudo podman ps --filter "pod=$POD_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Command}}"
+  start)
+    ENV_FILE="$PROJECT_DIR/.env"
+    [[ -f "$ENV_FILE" ]] || { echo "Error: $ENV_FILE not found."; exit 1; }
+    sudo mkdir -p "$PROJECTS_HOST_DIR"
+    echo "Starting $CONTAINER on port 8081 ..."
+    sudo podman rm -f "$CONTAINER" 2>/dev/null || true
+    sudo podman run -d \
+      --name "$CONTAINER" \
+      --restart=always \
+      -p 8081:8090 \
+      -v "$PROJECTS_HOST_DIR":/k9x/projects:Z \
+      -e K9X_PROJECTS_ROOT=/k9x/projects \
+      --env-file "$ENV_FILE" \
+      "$IMAGE"
     echo ""
     HOST_IP=$(hostname -I | awk '{print $1}')
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -41,33 +49,21 @@ case "$cmd" in
     echo "  Web UI:  http://${HOST_IP}:8081/"
     echo "  Health:  http://${HOST_IP}:8081/api/health"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "Logs:"
-    echo "  sudo podman logs -f ${POD_NAME}-app-backend"
     ;;
 
-  down)
-    echo "Stopping pod: $POD_NAME ..."
-    sudo podman play kube "$SCRIPT_DIR/studio-pod.yaml" --down || true
-    echo "Pod stopped."
-    ;;
-
-  status)
-    echo "=== Pod ==="
-    sudo podman pod ps --filter "name=$POD_NAME"
-    echo ""
-    echo "=== Containers ==="
-    sudo podman ps -a --filter "pod=$POD_NAME" \
-      --format "table {{.Names}}\t{{.Status}}\t{{.RestartCount}}\t{{.Command}}"
+  stop)
+    echo "Stopping $CONTAINER ..."
+    sudo podman stop "$CONTAINER" 2>/dev/null || true
+    echo "Stopped."
     ;;
 
   logs)
-    sudo podman logs -f "${POD_NAME}-app-backend"
+    sudo podman logs -f "$CONTAINER"
     ;;
 
   all)
     "$0" build
-    "$0" up
+    "$0" start
     ;;
 
   help|*)
@@ -75,11 +71,10 @@ case "$cmd" in
     echo ""
     echo "Commands:"
     echo "  build   — build the Podman image ($IMAGE)"
-    echo "  up      — deploy $POD_NAME (1 container)"
-    echo "  down    — stop and remove the pod"
-    echo "  status  — show pod and container status"
-    echo "  logs    — tail app-backend logs"
-    echo "  all     — build + up in one step"
+    echo "  start   — start the container (port 8081)"
+    echo "  stop    — stop the container"
+    echo "  logs    — tail logs"
+    echo "  all     — build + start"
     ;;
 
 esac
