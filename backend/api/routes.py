@@ -189,18 +189,18 @@ Return ONLY valid JSON. Every agent name in squads[].agents must have a matching
     if llm and llm.endpoint.strip():
         provider = llm.provider.strip() or "ollama"
         endpoint = llm.endpoint.strip().rstrip("/")
-        model    = llm.model.strip() or "granite3.3:2b"
+        model    = llm.model.strip() or "granite3-dense:2b"
         api_key  = llm.api_key or ""
     elif _os.environ.get("LLM_ENDPOINT", "").strip():
         endpoint = _os.environ.get("LLM_ENDPOINT", "").strip().rstrip("/")
         provider = _os.environ.get("LLM_PROVIDER", "ollama").strip()
-        model    = _os.environ.get("LLM_MODEL", "granite3.3:2b").strip()
+        model    = _os.environ.get("LLM_MODEL", "granite3-dense:2b").strip()
         api_key  = _os.environ.get("LLM_API_KEY", "").strip()
     else:
         cfg = get_llm_config()
         endpoint = cfg.get("endpoint", "").strip().rstrip("/")
         provider = cfg.get("provider", "ollama")
-        model    = cfg.get("model", "granite3.3:2b")
+        model    = cfg.get("model", "granite3-dense:2b")
         api_key  = cfg.get("api_key", "")
 
     if not endpoint:
@@ -354,7 +354,7 @@ async def bpmn_import(file: UploadFile = File(...), llm_config: Optional[str] = 
             cfg = _json.loads(llm_config)
             endpoint = cfg.get("endpoint", "").strip().rstrip("/")
             provider = cfg.get("provider", "ollama").strip()
-            model    = cfg.get("model", "granite3.3:2b").strip()
+            model    = cfg.get("model", "granite3-dense:2b").strip()
             api_key  = cfg.get("api_key", "")
             if endpoint and not _is_local_blocked(endpoint):
                 if not endpoint.startswith(("http://", "https://")):

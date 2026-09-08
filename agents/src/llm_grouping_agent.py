@@ -41,7 +41,7 @@ class LLMGroupingAgent(BaseAgent):
 
         endpoint = (cfg.get("endpoint") or "").strip().rstrip("/")
         provider = (cfg.get("provider") or "ollama").strip()
-        model    = (cfg.get("model") or "granite3.3:2b").strip()
+        model    = (cfg.get("model") or "granite3-dense:2b").strip()
         api_key  = cfg.get("api_key", "")
 
         if not endpoint or is_local_blocked(endpoint):
