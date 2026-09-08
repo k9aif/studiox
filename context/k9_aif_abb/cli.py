@@ -379,7 +379,7 @@ def info():
     print("  Graph:      https://graph.k9x.ai")
     print()
     print("  License:    Apache 2.0")
-    print("  Author:     Ravi Natarajan, AI Systems Architect, IBM")
+    print("  Author:     Ravi Natarajan, Independent Researcher")
     print()
     print("Key ABBs:")
     print("  BaseAgent          BaseRouter         BaseOrchestrator")
