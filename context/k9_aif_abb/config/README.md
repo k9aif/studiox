@@ -1,2 +1,0 @@
-	-	config.yaml = infrastructure & runtime settings (logging, monitoring, LLM provider).
-	-	flows.yaml = business logic wiring (which orchestrators/agents handle what).
