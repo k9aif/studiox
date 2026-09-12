@@ -575,6 +575,19 @@ class {squad['name']}(BaseSquad):
                 "app_folder": app_folder,
                 "orchestrator_name": orch_name,
                 "squad_names": orch_squads,
+                # Exact filename each squad was actually written under
+                # (squads/yaml/{to_snake(name)}.yaml — see the `add(...)`
+                # call above for config/squads.yaml's per-squad siblings)
+                # baked in directly, so the generated orchestrator looks up
+                # a filename instead of re-deriving one at runtime with
+                # different logic than what wrote the file. A naive
+                # lowercase (no snake_case) runtime fallback previously
+                # meant "TriageSquad" looked for triagesquad.yaml while the
+                # actual file was triage_squad.yaml — silently unfindable
+                # for every multi-word squad name, i.e. nearly all of them.
+                # (Ported from studiox_v2's identical fix — same bug, this
+                # codebase is where it originated before the fork.)
+                "squad_files": {sq: to_snake(sq) for sq in orch_squads},
                 "parallel": parallel,
                 "agent_names": all_agent_names,
                 "timestamp": timestamp,

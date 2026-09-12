@@ -26,6 +26,16 @@ _SQUAD_IDS = [
 ]
 {% endif %}
 
+# Exact squads/yaml/*.yaml filename for each squad this orchestrator owns —
+# baked in at generation time from the same to_snake() call that named the
+# actual file, not re-derived here with different (and non-equivalent)
+# runtime string logic. See scaffold_service.py's orchestrator.py.j2 render call.
+_SQUAD_FILES = {
+{% for sq in squad_names %}
+    "{{ sq }}": "{{ squad_files[sq] }}",
+{% endfor %}
+}
+
 
 class {{ orchestrator_name }}(BaseOrchestrator):
 
@@ -56,9 +66,7 @@ class {{ orchestrator_name }}(BaseOrchestrator):
         orchestrator_registry.register("{{ orchestrator_name }}", {{ orchestrator_name }})
 
         loader = SquadLoader(agent_registry, orchestrator_registry)
-        squad_yaml_path = project_root / "squads" / "yaml" / f"{squad_id.replace(' ', '_').lower()}.yaml"
-        if not squad_yaml_path.exists():
-            squad_yaml_path = project_root / "squads" / "yaml" / f"{''.join(c if c.isalnum() else '_' for c in squad_id).lower()}.yaml"
+        squad_yaml_path = project_root / "squads" / "yaml" / f"{_SQUAD_FILES[squad_id]}.yaml"
         return loader.load_one(str(squad_yaml_path), squad_id)
 
     def execute_flow(self, payload: Dict[str, Any]) -> Dict[str, Any]:

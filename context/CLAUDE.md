@@ -1,121 +1,161 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with code in **this repository —
-k9x_studio (studiox)**, the visual K9-AIF architecture builder. It is not the k9-aif-framework
-repo; do not follow instructions here that assume a top-level `k9_aif_abb/`, `examples/`, or
-`k9_projects/` — those belong to a different repo entirely.
+Guidance for Claude Code in this repository. Full prior version (extended
+config/persistence/MCP/adapter-table reference material) preserved in
+`old-CLAUDE.md`. Step-by-step recipes live in `SKILLS.md` — **read it
+directly when doing one of those tasks; it is no longer auto-imported here**,
+so don't assume its contents are already in context.
 
 ## What this is
 
-A browser-based drag-and-drop IDE for designing K9-AIF multi-agent systems: FastAPI backend +
-React/Vite/React Flow frontend. Architects compose Router → Orchestrator → Squad → Agent on a
-canvas, or import a spec doc (`.md`) or BPMN diagram (`.bpmn`), and generate production-ready
-YAML + Python scaffold. Live at [studio.k9x.ai](https://studio.k9x.ai).
+K9-AIF: architecture-first framework for governed, observable, multi-agent
+systems, built on OOA/OOD/TOGAF discipline. ABB (Architecture Building Block)
+= abstract contract in `k9_core/`. SBB (Solution Building Block) = concrete
+implementation extending an ABB, in `examples/<App>/` or `k9_projects/<App>/`.
+Liskov Substitution and Open/Closed are non-negotiable — new capability
+extends a `Base<Concern>` contract, never edits one.
 
-See `DESIGN.md` in the repo root for the self-agentization architecture (studiox's own backend is
-itself built as a K9-AIF app — orchestrators/squads/agents under `orchestrators/`, `squads/yaml/`,
-`studio_agents/`, not just procedural FastAPI routes).
+Diagrams default to PlantUML. BPMN swim lanes: horizontal bands top-to-bottom,
+labels left, activities left-to-right within a lane.
 
-## Dependency model — one thing to get right
+`BaseComponent` does **not** extend `ABC`. An ABB needing both infra
+(logging/monitoring/message bus) and enforced abstract methods extends
+`(BaseComponent, ABC)` — correct multiple inheritance, not redundant. Never
+assume a parent already extends `ABC` without checking.
 
-studiox depends on the **framework via PyPI only** — `pip install -r requirements.txt` pulls
-`k9-aif[s3]>=1.4.0` from PyPI. There is no vendored copy of the framework source in this repo.
-If you ever see one reappear under `context/` or elsewhere, that's a regression — see the
-`context/k9_aif_abb` removal (commit `906216f`) for why it was deleted. The one legitimate
-exception: `generator/templates/*.j2` isn't shipped in the PyPI package, so the production
-container build (`ubuntu/Containerfile`) copies those specifically from a local
-`k9-aif-framework` checkout — nothing else.
+## Execution hierarchy
+
+```
+Event → K9EventRouter → known event_type → domain topic
+                       → unknown → intent.in → IntentOrchestrator → domain topic
+domain topic → Orchestrator → 1+ Squads → 1+ Agents → LLM
+```
+
+**Three-layer decoupling — never violate:** each layer knows only the layer
+directly below it. Router imports/references Orchestrators only, never
+Squads or Agents. Orchestrator imports Squads only, never Agents. Squad YAML
+has no `orchestrator:` field; Agent YAML has no `squad:`/`routing:` fields.
+Agent registration happens in the app entry point, not inside the
+orchestrator.
+
+Cardinality: Router 1→N Orchestrators, Orchestrator 1→N Squads
+(`execute_squads(..., parallel=True/False)`), Squad 1→N Agents (sequential
+`flow`).
+
+## LLM calls — one path only
+
+Agents never call `OllamaLLM`/`LLMFactory` directly. Always:
+
+```python
+from k9_aif_abb.k9_utils.llm_invoke import llm_invoke
+resp = llm_invoke(self.config, InferenceRequest(prompt=..., task_type=...))
+```
+
+`llm_invoke` raises `RuntimeError` on failure — it never silently returns
+empty output; catch and handle explicitly. Full chain + adding a new
+provider: `SKILLS.md` Skills 2 and 13.
+
+**BaseAgent vs K9ValidationLoopAgent vs K9PlanningLoopAgent** — the
+generator/scaffold defaults every agent to one-shot `BaseAgent`. Ask per
+agent: one-pass answer → `BaseAgent`; iterative convergence on a confidence
+score → `K9ValidationLoopAgent`; agent must plan and revise its own steps →
+`K9PlanningLoopAgent`. Full recipe: `SKILLS.md` Skill 10.
+
+## Governance
+
+Every agent gets a governance pipeline via `require_governance()` at init.
+`K9_ENV=development|test` → `NoopGovernance` permitted (WARNING logged).
+`K9_ENV=production|staging` → `enforce_governance()` **raises**
+`PermissionError` if governance isn't configured. An agent that never calls
+`self.enforce_governance()` in `execute()` silently runs `NoopGovernance`
+even in production — the most common real bug in new agent code.
+
+## Everything is provisioned through factories
+
+Never instantiate directly in application code: `LLMFactory`,
+`ModelRouterFactory`, `AgentRegistry`, `OrchestratorRegistry`,
+`SecretManagerFactory`, `CacheFactory`, `ObjectStorageFactory`. Every factory
+`create(config)` has a zero-config default (env secrets, in-memory cache,
+local storage) — no config key required for the common case. Adding a new
+provider to any of these: `SKILLS.md` Skill 11.
+
+## Kafka ownership
+
+Only the **Router** (domain topics) and **Orchestrator** (results /
+downstream topics) touch Kafka. Agents are constructed without a
+`message_bus` — they share data sequentially through the Squad flow, not via
+A2A messaging. `publish_event()` on an agent reaches the logger/monitor only.
+
+## Pre-Push Checklist
+
+- Every new `.py` file starts with the two-line header
+  `# SPDX-License-Identifier: Apache-2.0` / `# K9-AIF Framework`, before any
+  module docstring. Nearly universal in `k9_aif_abb/` but not enforced by
+  any hook — check new files by hand; a whole adapter package (CrewAI) went
+  missing it for a full release cycle before anyone noticed.
+- No hardcoded IPs (`192.168.x.x` etc.) — env vars with localhost defaults:
+  `"${POSTGRES_HOST:-localhost}"`, `"${OLLAMA_BASE_URL:-http://localhost:11434}"`
+- No credentials in `config.yaml` — secrets in `.env` (gitignored) only
+- `.env` never staged; `env-example` is the template
+- No `__pycache__`/`.pyc` — `.gitignore` present before first commit
+- Three-layer decoupling preserved (see above)
+- After any `k9_aif_abb/` change: `./generate_pdoc.sh` (the `./` matters —
+  without it, pdoc silently documents whatever `k9-aif` is pip-installed in
+  `.venv` instead of the local tree) and commit `docs/pydocs/` in the same
+  commit
+
+## Hooks (`.claude/settings.json`, run automatically, exit 2 = blocked)
+
+| Hook | Triggers on | Checks |
+|---|---|---|
+| `check-python.sh` | any `*.py` write/edit | Python syntax |
+| `check-yaml.sh` | any `*.yaml`/`*.yml` write/edit | YAML validity |
+| `run-abb-tests.sh` | files under `k9_aif_abb/` | `test_framework.py` + `test_intelligent_model_router.py` |
+| `check-governance.sh` | `*.py` under `examples/` | warns if `NoopGovernance` appears |
+| `check-init-docstring.sh` | any `__init__.py` | warns if module docstring missing |
 
 ## Commands
 
-### Local dev setup
-
 ```bash
-./run.sh
-```
-Uses a shared venv at `../../k9-aif-framework/.venv` (sibling repo under the same `ai/`
-directory), installs `requirements.txt` into it, installs frontend deps if needed, and starts
-both processes: backend (`uvicorn backend.main:app`) on `http://localhost:8090`, frontend
-(`npm run dev`) on `http://localhost:5173`.
+# Setup
+python3.11 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 
-### Packaged install (what most users actually run)
+# Tests
+pytest k9_aif_abb/tests/ -v                      # all
+pytest k9_aif_abb/tests/test_framework.py -v     # framework stability only, no external services
 
-```bash
-pip install k9x
-k9x studio            # opens http://localhost:12999
-k9x studio --port 8080
-k9x studio --bg / --stop
-```
+# Run example apps (local)
+./run_k9chat.sh
+./run_acme_support_center.sh
 
-### Container build/run (production path — see `ubuntu/Containerfile`, `ubuntu/build-run.sh`)
+# EOC (RHEL/Podman) — after git pull, always rebuild; restart alone won't pick up code
+bash build.sh && bash run_eoc_pod.sh
+sudo podman pod ps
+sudo podman logs eoc-app-backend
 
-```bash
-./ubuntu/build-run.sh build   # podman build, context must be ai/ (parent of k9-aif-framework/)
-./ubuntu/build-run.sh start   # runs on port 8081, needs .env in project root
+# Generate a stub app
+./k9_generator.sh preview <AppName>
 ```
 
-### Tests
+## Known gotchas (not obvious from the code alone)
 
-```bash
-pytest backend/tests/ -v
-```
+- `K9ModelRouter.invoke()` bridges sync `BaseAgent.execute()` to async
+  `BaseLLM.generate()` via `_run_coro_sync()` — never call `asyncio.run()`
+  directly there. Inside an already-running event loop (FastAPI etc.),
+  `asyncio.run()` raises, and a broad `except Exception` upstream will
+  silently swallow it and fall back to stub output.
+- Any new `BaseLLM.generate()` implementation must accept
+  `system_prompt=None` — `K9ModelRouter` always passes it as a kwarg.
+- `persistence.enabled: false` / `provider: memory` must still resolve to a
+  SQLAlchemy-capable store — `RoutingStateStore` needs `.metadata`/`.engine`,
+  which plain `MemoryPersistence` doesn't provide. Resolves to
+  `SQLiteDatabaseStorage(db_path=":memory:")` instead.
 
-**No `.claude/hooks` are configured in this repo** — if you're looking for the PostToolUse hook
-table that used to be here, it described the framework repo, not this one, and has been removed.
+## Where the rest lives
 
-## Architecture
-
-### Backend layers
-
-```
-backend/api/routes.py          ← thin HTTP layer, validates input, calls into the router
-  → studio_core/router/router_factory.route_event(event_type, payload)
-    → orchestrators/*.py       ← e.g. SpecImportOrchestrator, BPMNImportOrchestrator
-      → squads/yaml/*.yaml     ← e.g. spec_import_squad.yaml
-        → studio_agents/       ← e.g. K9SubAgentSpawner-based parallel extraction
-backend/services/*.py          ← private helper functions the agents call
-  (spec_parsing_service.py, bpmn_service.py, scaffold_service.py, context_service.py)
-```
-
-Key endpoints (`backend/api/routes.py`): `POST /api/spec/import` (parse a `.md`/`.txt` spec doc,
-return intake fields + canvas suggestion), `POST /api/bpmn/import` (parse a `.bpmn`, same output
-shape), `GET /api/config`, `POST /api/setup/verify-framework`.
-
-### Spec-doc import (`backend/services/spec_parsing_service.py`)
-
-Parses a blueprint's **Agent Definition Register** (looks for a `### 3.1.8` or `### 3.3.1`
-heading — check this against the actual document if import returns the generic fallback
-suggestion instead of the real agent list; different blueprint generators use different section
-numbering). Zone column (GREEN/AMBER/RED) drives `zone_to_agent_type()`: GREEN → adapter
-(`BaseAgent`, no validation loop), AMBER → `K9ValidationLoopAgent`, RED → `K9CriticActorAgent`.
-
-### BPMN import (`backend/services/bpmn_service.py`)
-
-Lanes → one Orchestrator + one Squad each; tasks → Agents. **Does not currently read per-task
-`color:background-color` zone coloring** that some BPMN sources embed (e.g. Process Studio
-exports) — zone/agent-type assignment for BPMN-only import is a known gap, not yet wired the way
-the spec-doc path is.
-
-### Scaffold generation
-
-Renders Jinja2 templates (`backend/templates/*.j2`) into a downloadable project scaffold —
-`agents/src/*.py` (extending `k9_aif_abb.k9_core.agent.base_agent.BaseAgent` or
-`k9_aif_abb.k9_agents.validation.K9ValidationLoopAgent`), `orchestrators/*.py`, `squads/yaml/*`,
-`config/*`. **Known issue:** orchestrator-to-squad wiring has been found generating
-mismatched pairs (an orchestrator loading a different lane's squad) — verify wiring in any
-scaffold before treating it as correct; don't assume orchestrator N invokes squad N.
-
-### Frontend
-
-React + TypeScript + Vite + React Flow (XYFlow v12), Zustand store (`frontend/src/store.ts`),
-canvas in `frontend/src/components/Canvas.tsx`. Node coloring is currently by **role**
-(router/orchestrator/squad — fixed palette), not by autonomy zone.
-
-## Related repos
-
-- `k9-aif-framework` — the actual K9-AIF framework (ABBs), a sibling repo under the same `ai/`
-  directory. Read its source directly for grounding on framework behavior; don't rely on a stale
-  local copy.
-- `studiox_v2` (`github.com/k9aif/studiox_v2`) — a separate fork, used for enhancement work that
-  shouldn't touch this (studio.k9x.ai / IEEE-paper-referenced) repo directly. Don't assume changes
-  there are reflected here or vice versa.
+Config structure, persistence tables, MCP client stack, session management,
+Zero Trust guard, the full Provider Adapter table, and detailed Squad/Agent
+YAML examples were trimmed from this file per Anthropic's CLAUDE.md size
+guidance (keep only what's needed nearly every session). They're either
+self-evident from the source under `k9_aif_abb/`, covered step-by-step in
+`SKILLS.md`, or preserved verbatim in `old-CLAUDE.md`.

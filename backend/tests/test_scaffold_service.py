@@ -180,6 +180,15 @@ def test_multi_squad_orchestrators_load_independently(tmp_path):
 
     project_root = _generate_and_extract(tmp_path, MULTI_SQUAD_PROJECT)
 
+    # BaseOrchestrator has no start() — it never has (confirmed against
+    # k9_aif_abb.k9_core.orchestration.base_orchestrator directly: the only
+    # public entry point is execute_flow()). This test apparently never ran
+    # this far before (caught via the identical fix in studiox_v2, its
+    # fork). Calling the private _load_squad(squad_id) directly (not
+    # execute_flow, which would also run agents and require a live LLM)
+    # isolates exactly what this regression test is about: independent
+    # per-squad loading from squads/yaml/<squad>.yaml, not full agent
+    # execution.
     script = (
         "import sys, yaml\n"
         "from pathlib import Path\n"
@@ -188,10 +197,10 @@ def test_multi_squad_orchestrators_load_independently(tmp_path):
         "from orchestrators.triage_orchestrator import TriageOrchestrator\n"
         "from orchestrators.resolution_orchestrator import ResolutionOrchestrator\n"
         "config = yaml.safe_load(open(project_root / 'config' / 'config.yaml'))\n"
-        "squads_path = str(project_root / 'config' / 'squads.yaml')\n"
-        "for cls in (TriageOrchestrator, ResolutionOrchestrator):\n"
+        "for cls, squad_id in ((TriageOrchestrator, 'TriageSquad'), (ResolutionOrchestrator, 'ResolutionSquad')):\n"
         "    orch = cls(config=config)\n"
-        "    orch.start(squads_path)\n"
+        "    squad = orch._load_squad(squad_id)\n"
+        "    assert squad is not None, f'{cls.__name__} failed to load {squad_id}'\n"
         "print('squads loaded ok')\n"
     )
 
