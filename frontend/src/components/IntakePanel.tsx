@@ -196,7 +196,9 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
                   const res = await fetch('/api/bpmn/import', { method: 'POST', body: fd });
                   const data = await res.json();
                   if (!res.ok) throw new Error(data.detail ?? `Server error ${res.status}`);
-                  if (data.process_name) setProject({ ...project, project_name: data.process_name });
+                  const fallbackName = file.name.replace(/\.(bpmn|xml|zip)$/i, '').replace(/[_-]+/g, ' ').trim();
+                  const importedName = data.process_name || (!project.project_name.trim() ? fallbackName : '');
+                  if (importedName) setProject({ ...project, project_name: importedName });
                   if (data.suggestion) {
                     setPendingCanvasSuggestion(data.suggestion);
                     onSwitchTab?.('canvas');

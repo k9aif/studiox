@@ -346,6 +346,12 @@ async def bpmn_import(file: UploadFile = File(...), llm_config: Optional[str] = 
         raise HTTPException(status_code=422, detail=str(exc))
 
     process_name = extract_process_name(content)
+    if not process_name:
+        # Many BPMN exports (Camunda default, some Blueworks diagrams) omit a
+        # name attribute on <process>/<definitions> — fall back to the
+        # uploaded filename so project_name is never left blank.
+        stem = re.sub(r"\.(bpmn|xml|zip)$", "", file.filename or "", flags=re.IGNORECASE)
+        process_name = re.sub(r"[_\-]+", " ", stem).strip().title() or "Imported Process"
 
     # ── LLM regrouping — if a session LLM config was provided ─────────────────
     if llm_config:
