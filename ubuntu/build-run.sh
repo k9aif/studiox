@@ -14,26 +14,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Build context has to be ai/ (parent of k9-aif-framework/) — see
-# ubuntu/Containerfile's header comment for why. This project gets cloned
-# at different depths on different machines (e.g. ai/k9x-ecosystem/k9x_studio
-# here, ai/studiox on a box using getlatest.sh's flat repo list) — walk up
-# looking for k9-aif-framework rather than assuming a fixed depth.
-AI_DIR=""
-for candidate in "$PROJECT_DIR/.." "$PROJECT_DIR/../.."; do
-  candidate="$(cd "$candidate" 2>/dev/null && pwd || true)"
-  if [[ -n "$candidate" && -d "$candidate/k9-aif-framework/generator/templates" ]]; then
-    AI_DIR="$candidate"
-    break
-  fi
-done
-[[ -n "$AI_DIR" ]] || {
-  echo "Error: could not find k9-aif-framework/generator/templates by walking"
-  echo "  up from $PROJECT_DIR (checked 1 and 2 levels up). k9x_studio must"
-  echo "  sit alongside k9-aif-framework, both under the same ai/ directory."
-  exit 1
-}
-STUDIO_REL_PATH="${PROJECT_DIR#"$AI_DIR"/}"
+# Build context is this project's own directory -- the Containerfile only
+# ever copies from ${STUDIO_DIR} (this project itself, including its own
+# k9x/_generator_templates/), nothing from a sibling repo. Previously this
+# walked up 1-2 levels looking for a sibling k9-aif-framework checkout
+# (needed when the Containerfile copied templates from there) -- removed
+# along with that cross-repo dependency (2026-09-21), so k9x_studio no
+# longer cares where it's cloned relative to anything else.
+AI_DIR="$PROJECT_DIR"
+STUDIO_REL_PATH="."
 
 IMAGE="k9x-studio:latest"
 CONTAINER="k9x-studio"

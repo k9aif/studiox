@@ -6,26 +6,33 @@
 # Multi-stage build: Node stage builds the React/Vite frontend into
 # frontend/dist/, then the Python stage copies backend + that dist/ output.
 #
-# Build context must be ai/ (parent of k9-aif-framework/) — this project
-# gets cloned at different relative depths on different machines (e.g.
-# k9x-ecosystem/k9x_studio here, studiox elsewhere), so build-run.sh passes
-# STUDIO_DIR as a build-arg rather than this file assuming a fixed path.
+# Build context is this project's own directory -- everything this
+# Containerfile copies comes from ${STUDIO_DIR} (this project itself,
+# including its own k9x/_generator_templates/, scaffold_service.py's
+# canonical BaseAgent/Squad/etc. templates). No sibling-repo checkout
+# needed at build time. STUDIO_DIR still exists as a build-arg (defaults
+# to "." — build-run.sh passes it explicitly) rather than this file
+# hardcoding a path, since it's still useful if this project is ever built
+# from a different context root.
 #
 # k9-aif itself installs from PyPI via requirements.txt (k9-aif[s3]) like
-# every other dependency — no local framework checkout needed for that.
-# The ONE thing that does need a local checkout: generator/templates/
-# (used by backend/services/scaffold_service.py's canonical BaseAgent
-# template) isn't shipped in the PyPI package (its pyproject.toml only
-# includes k9_aif_abb*), so those ~40K of .j2 files are copied in
-# explicitly from the local k9-aif-framework checkout.
+# every other dependency.
 #
-# Build (from ai/, the parent of k9-aif-framework/ and this project):
+# Previously this Containerfile copied the generator templates from a
+# sibling k9-aif-framework/generator/templates/ checkout instead -- a
+# cross-repo dependency that broke when that directory was removed from
+# the framework (2026-09-21, superseded by this project). Fixed to use
+# the local copy that already existed here, removing the dependency and
+# the multi-repo build context it required entirely, rather than
+# restoring the deleted directory.
+#
+# Build (from this project's own directory):
 #   podman build -t k9x-studio:latest \
-#     --build-arg STUDIO_DIR=k9x-ecosystem/k9x_studio \
-#     -f k9x-ecosystem/k9x_studio/ubuntu/Containerfile .
-# (build-run.sh computes STUDIO_DIR automatically — see there.)
+#     --build-arg STUDIO_DIR=. \
+#     -f ubuntu/Containerfile .
+# (build-run.sh does this for you.)
 
-ARG STUDIO_DIR=k9x-ecosystem/k9x_studio
+ARG STUDIO_DIR=.
 
 FROM docker.io/library/node:20-slim AS frontend-build
 ARG STUDIO_DIR
@@ -46,11 +53,10 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY ${STUDIO_DIR}/ .
 COPY --from=frontend-build /build/frontend/dist /app/frontend/dist
-COPY k9-aif-framework/generator/templates /app/generator-templates
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    K9X_GENERATOR_TEMPLATES_DIR=/app/generator-templates
+    K9X_GENERATOR_TEMPLATES_DIR=/app/k9x/_generator_templates
 
 EXPOSE 8090
 

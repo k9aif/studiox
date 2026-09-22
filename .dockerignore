@@ -1,0 +1,13 @@
+.env
+.git/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+frontend/node_modules/
+frontend/dist/
+*.egg-info/
+build/
+dist/
+*.tar.gz
+.DS_Store
