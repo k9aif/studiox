@@ -2,7 +2,7 @@
 
 **Visual Architecture Builder for K9-AIF Systems**
 
-k9x_studio is a browser-based drag-and-drop IDE for designing K9-AIF multi-agent systems. It reads the `k9_aif_abb` component library, lets architects compose systems visually on a canvas, and generates production-ready YAML configuration and Python scaffold — the same output as `k9_generator.sh`, but designed rather than typed.
+k9x_studio is a browser-based drag-and-drop IDE for designing K9-AIF multi-agent systems. It reads the `k9_aif_abb` component library, lets architects compose systems visually on a canvas, and generates production-ready YAML configuration and Python scaffold.
 
 Try it live: [studio.k9x.ai](https://studio.k9x.ai)
 
@@ -122,17 +122,9 @@ LLM_API_KEY=                        # leave blank for Ollama
 
 The `.env` file is loaded automatically on startup and is excluded from source control.
 
-#### 2. Environment variables (Docker / Podman `-e` flags)
+#### 2. Environment variables (`--env-file` on `podman run`, used by `ubuntu/build-run.sh`)
 
-```bash
-podman run -d --name k9x_studio -p 8080:8080 \
-  -e LLM_PROVIDER=ollama \
-  -e LLM_ENDPOINT=http://10.0.0.5:11434 \
-  -e LLM_MODEL=granite3-dense:2b \
-  -e K9X_PROJECTS_ROOT="/k9x/projects" \
-  -v ~/k9x-studio-working:/k9x/projects:Z \
-  ghcr.io/k9aif/k9x-studio:latest
-```
+`ubuntu/build-run.sh start` passes this project's own `.env` straight through via `--env-file` — see method 1 above; there's no separate `-e` flag list to maintain.
 
 #### 3. `config.yaml` (file-based, alternative to `.env`)
 
@@ -168,15 +160,13 @@ cp .env.sample .env
 
 `.env` is gitignored and never committed. All secrets stay local to your machine.
 
-Or pull and run the container:
+Or build and run the container (Podman required, no separately-published image — see `ubuntu/build-run.sh`):
 
 ```bash
-podman pull ghcr.io/k9aif/k9x-studio:latest
-podman run -d --name k9x_studio -p 8080:8080 \
-  -e K9X_PROJECTS_ROOT="/k9x/projects" \
-  -v ~/k9x-studio-working:/k9x/projects:Z \
-  ghcr.io/k9aif/k9x-studio:latest
+./ubuntu/build-run.sh all
 ```
+
+Open **http://localhost:8081**.
 
 ---
 
@@ -228,7 +218,6 @@ podman run -d --name k9x_studio -p 8080:8080 \
 ## References
 
 - K9-AIF Framework: [github.com/k9aif/k9-aif-framework](https://github.com/k9aif/k9-aif-framework)
-- Studio container: `ghcr.io/k9aif/k9x-studio:latest`
 - Live demo: [studio.k9x.ai](https://studio.k9x.ai)
 - Ecosystem: [k9x.ai/ecosystem](https://k9x.ai/ecosystem)
 # studiox
