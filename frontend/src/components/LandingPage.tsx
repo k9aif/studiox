@@ -106,6 +106,10 @@ export function LandingPage() {
             <span>Run your own instance</span>
             <code>pip install k9x</code>
           </div>
+          <p className="k9l-demo-note">
+            This hosted Studio is a demo. K9X Studio is open source (Apache 2.0) —{' '}
+            <a href="#run-it-yourself">run it yourself</a> and connect your own LLM.
+          </p>
         </div>
 
         <div className="k9l-pipeline" aria-label="How a process becomes a scaffold">
@@ -152,6 +156,42 @@ export function LandingPage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section className="k9l-section" id="run-it-yourself">
+        <div className="k9l-label">Run it yourself</div>
+        <h2>Open source, on your machine, with your model</h2>
+        <p className="k9l-lede">
+          studio.k9x.ai is a shared demo instance. For real work, install K9X Studio locally or in
+          your own container, point it at the LLM you choose, and keep your documents on your side.
+        </p>
+        <div className="k9l-run">
+          <div className="k9l-run-step">
+            <div className="k9l-run-num">1</div>
+            <div className="k9l-run-title">Install</div>
+            <code>pip install k9x</code>
+          </div>
+          <div className="k9l-run-step">
+            <div className="k9l-run-num">2</div>
+            <div className="k9l-run-title">Start</div>
+            <code>k9x studio</code>
+          </div>
+          <div className="k9l-run-step">
+            <div className="k9l-run-num">3</div>
+            <div className="k9l-run-title">Configure on the Setup tab</div>
+            <div className="k9l-run-body">
+              Choose your LLM provider and model (Ollama, OpenAI, Anthropic, watsonx) and your Granite
+              Guardian model. Or set them once in <code>.env</code> (<code>k9x config</code> writes a starter file).
+            </div>
+          </div>
+        </div>
+        <p className="k9l-run-foot">
+          No model is built in: templates, BPMN, blueprints and eval plans never need one, and an LLM is
+          only used for free-form specs and manual entry, when you configure it.{' '}
+          <a href="https://pypi.org/project/k9x/" target="_blank" rel="noopener noreferrer">PyPI</a>
+          {' · '}
+          <a href="https://github.com/k9aif/studiox" target="_blank" rel="noopener noreferrer">Source</a>
+        </p>
       </section>
 
       <section className="k9l-section">

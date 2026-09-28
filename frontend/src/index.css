@@ -2834,3 +2834,21 @@ html, body, #root {
   text-align: center;
   margin-top: 10px;
 }
+
+.k9l-demo-note { font-size: 12.5px !important; color: var(--k9l-muted); margin: 14px 0 0 !important; max-width: 520px; line-height: 1.6 !important; }
+.k9l-demo-note a, .k9l-run-foot a { color: var(--k9l-teal); }
+.k9l-lede { color: var(--k9l-muted); font-size: 14.5px; line-height: 1.7; max-width: 760px; margin: -8px 0 20px; }
+.k9l-run { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.k9l-run-step { background: var(--k9l-panel); border: 1px solid var(--k9l-line); border-radius: 12px; padding: 16px; }
+.k9l-run-num {
+  width: 26px; height: 26px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #04221f; background: var(--k9l-teal); margin-bottom: 10px;
+}
+.k9l-run-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.k9l-run-step > code, .k9l-run-body code {
+  color: var(--k9l-amber); background: rgba(255, 209, 102, 0.08); border: 1px solid rgba(255, 209, 102, 0.2);
+  padding: 2px 7px; border-radius: 6px; font-size: 12.5px;
+}
+.k9l-run-body { font-size: 12.5px; color: var(--k9l-muted); line-height: 1.65; }
+.k9l-run-foot { font-size: 12.5px; color: var(--k9l-muted); margin-top: 14px; line-height: 1.6; }
+@media (max-width: 900px) { .k9l-run { grid-template-columns: 1fr; } }
