@@ -72,12 +72,17 @@ With screening on and no reachable Guardian model, uploads are blocked (the head
 
 ## LLM Configuration
 
-An LLM is **optional**. BPMN, spec and eval-plan import are rule-based and work without one. An LLM adds smarter squad grouping for unstructured specs, AI-suggested architectures from a free-text description, and optional narrated documentation.
+An LLM is **optional**. Studio decides by where the canvas comes from:
 
-### Why configure an LLM?
+| Canvas source | Uses the LLM? |
+|---|---|
+| Template (including **Regenerate** on a template canvas) | Never: always rebuilt from the original template |
+| BPMN, structured blueprint, agent evaluation plan | Never: rule-based |
+| Free-form spec with no agent register (`.md` / `.txt` / `.html`) | Yes, if configured; otherwise a generic starter template |
+| Manual entry (no document) | Yes, if configured; otherwise a generic starter template |
+| Narrated docs on Generate Scaffold | Only when an LLM is set on the Setup tab |
 
-- **Generate Architecture** uses the LLM to suggest Orchestrators, Squads, and Agents suited to your project description
-- **BPMN import** (complex diagrams) uses the LLM to intelligently group flat tasks into meaningful Squads
+Scaffold code itself is always generated from templates, never by an LLM. Granite Guardian screening uses its own `GOVERNANCE_LLM_*` settings (see above).
 
 ### Recommended approach — run LLM locally
 
@@ -105,10 +110,12 @@ Then point the studio at your Ollama endpoint. Your data never leaves your envir
 
 | Use case | Model |
 |---|---|
-| Local / fast | `granite3-dense:2b`, `mistral:7b` |
-| Local / quality | `llama3.1:8b`, `llama3.2:3b` |
+| Local / fast | `qwen2.5:7b` |
+| Local / quality | `qwen3.8:27b` (reasoning model; ~30 s per suggestion on a single GPU), `qwen2.5:32b` |
 | OpenAI | `gpt-4o-mini` (best price/quality for JSON tasks) |
-| Anthropic | `claude-haiku-4-5-20251001` (fast), `claude-sonnet-4-6` (quality) |
+| Anthropic | `claude-haiku-4-5-20251001` (fast), `claude-sonnet-5` (quality) |
+
+Avoid models under 7B: they rarely return valid architecture JSON, and Studio falls back to the starter template.
 
 ### Configuration methods
 

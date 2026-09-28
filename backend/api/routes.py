@@ -219,7 +219,9 @@ Return ONLY valid JSON. Every agent name in squads[].agents must have a matching
         return {"suggestion": default, "source": "default"}
 
     try:
-        raw = _call_llm(endpoint, provider, model, api_key, prompt)
+        # Reasoning models (e.g. qwen3.8:27b) can take well over a minute.
+        raw = _call_llm(endpoint, provider, model, api_key, prompt, timeout=240)
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL)
         raw = re.sub(r"```(?:json)?", "", raw).strip()
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
@@ -1413,6 +1415,31 @@ async def spec_import(file: UploadFile = File(...), llm_config: Optional[str] = 
 
     if result.get("status") == "blocked":
         raise HTTPException(status_code=422, detail=result.get("reason"))
+
+    # Free-form spec (no structured agent register found): the squad can only
+    # return a generic template. If an LLM is configured (Setup session config,
+    # else .env), ask it for an architecture from the spec text instead — the
+    # same path manual entry uses. Structured blueprints/BPMN/templates never
+    # reach here and stay rule-based.
+    if result.get("source") == "spec-fallback":
+        import json as _json
+        session_llm = None
+        if llm_config:
+            try:
+                session_llm = LlmSessionConfig(**_json.loads(llm_config))
+            except Exception:
+                session_llm = None
+        intake = result.get("intake") or {}
+        stem = Path(file.filename or "spec").stem.replace("-", " ").replace("_", " ").title()
+        llm_result = suggest(SuggestRequest(
+            project_name=(intake.get("project_name") or stem),
+            domain=intake.get("domain", "") or "",
+            description=content[:12000],
+            llm=session_llm,
+        ))
+        if llm_result.get("source") == "llm":
+            result["suggestion"] = llm_result["suggestion"]
+            result["source"] = "spec-llm"
 
     return {k: v for k, v in result.items() if k != "status"}
 

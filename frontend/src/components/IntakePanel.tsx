@@ -42,7 +42,7 @@ function ProcessStudioGroup({ children }: { children: React.ReactNode }) {
 }
 
 export function IntakePanel({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) {
-  const { project, setProject, nodes, generating, setGenerating, llmConfig, addLog, setLlmActive, addGeneratedDoc, setPendingCanvasSuggestion, pendingMappingDocument, setPendingMappingDocument, setMappingDocumentConfirmed, specImported, setSpecImported, clearCanvas, clearProject, setLastSpecFile, setLastBpmnFile, canvasIsRuleBased, setCanvasIsRuleBased, setGenResult, setLastTemplateId, stagedBpmn, setStagedBpmn, stagedBlueprint, setStagedBlueprint, stagedEvals, setStagedEvals } = useStore();
+  const { project, setProject, nodes, generating, setGenerating, llmConfig, addLog, setLlmActive, addGeneratedDoc, setPendingCanvasSuggestion, pendingMappingDocument, setPendingMappingDocument, setMappingDocumentConfirmed, specImported, setSpecImported, clearCanvas, clearProject, setLastSpecFile, setLastBpmnFile, canvasIsRuleBased, setCanvasIsRuleBased, setGenResult, setLastTemplateId, setLastTemplateSuggestion, stagedBpmn, setStagedBpmn, stagedBlueprint, setStagedBlueprint, stagedEvals, setStagedEvals } = useStore();
   const [wifBusy, setWifBusy] = useState(false);
   const [specBusy, setSpecBusy] = useState(false);
   const [specError, setSpecError] = useState('');
@@ -306,7 +306,7 @@ export function IntakePanel({ onSwitchTab }: { onSwitchTab?: (tab: string) => vo
 
   const restoreImplementationPlan = async (file: File, snapshot: any) => {
     setPendingCanvasSuggestion(null);
-    setLastTemplateId(null);
+    setLastTemplateId(null); setLastTemplateSuggestion(null);
     clearCanvas();
     setGenerating(true);
     onSwitchTab?.('canvas');
@@ -504,6 +504,8 @@ export function IntakePanel({ onSwitchTab }: { onSwitchTab?: (tab: string) => vo
   const handleGenerate = async () => {
     if (!canGenerate || generating) return;
     setGenerating(true);
+    // An Intake-generated canvas is not a template canvas any more.
+    setLastTemplateId(null); setLastTemplateSuggestion(null);
 
     // Ravi: "upload docs, click generate, no delay no instant traceability
     // page" — onSwitchTab used to fire from inside doWork(), the instant
@@ -1114,7 +1116,7 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
                   });
                   const data = await res.json();
                   if (data.suggestion) {
-                    setLastTemplateId(null);
+                    setLastTemplateId(null); setLastTemplateSuggestion(null);
                     setPendingCanvasSuggestion(data.suggestion);
                     onSwitchTab?.('canvas');
                     addLog(`Flow generated · source: ${data.source ?? 'default'}`);

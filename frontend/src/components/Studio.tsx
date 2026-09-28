@@ -583,11 +583,20 @@ export function Studio() {
                       storage), so gating on it directly let Regenerate
                       silently reappear for a still-BPMN-derived canvas after
                       any refresh (Ravi caught this via a live screenshot). */}
-                  {llmConfig?.model && nodes.length > 0 && !canvasIsRuleBased && (
+                  {/* Template canvases are rule-only: Regenerate rebuilds from
+                      the original template (same as Reset) and never calls
+                      an LLM, even when one is configured. The LLM paths below
+                      only run for spec-upload / manual-entry canvases. */}
+                  {nodes.length > 0 && !canvasIsRuleBased && (lastTemplateSuggestion || llmConfig?.model) && (
                     <button
                       onClick={async () => {
+                        if (lastTemplateSuggestion) {
+                          addLog('⟳ Rebuilt from the original template (rule-based, no LLM)');
+                          triggerReapply();
+                          return;
+                        }
                         setGenerating(true); setLlmActive(true);
-                        addLog(`Regenerating with ${llmConfig.model}…`);
+                        addLog(`Regenerating with ${llmConfig?.model}…`);
                         clearCanvas();
                         try {
                           if (lastSpecFile) {
@@ -622,9 +631,9 @@ export function Studio() {
                           addLog(`Regenerate failed: ${err.message}`, 'error');
                         } finally { setGenerating(false); setLlmActive(false); }
                       }}
-                      title="Pick a different model from the header and click to regenerate the flow"
+                      title={lastTemplateSuggestion ? 'Rebuild the canvas from the original template (no LLM)' : 'Pick a different model from the header and click to regenerate the flow'}
                       style={{
-                        position: 'absolute', bottom: 56, right: 16, zIndex: 10,
+                        position: 'absolute', bottom: 100, right: 16, zIndex: 10,
                         padding: '6px 14px', fontSize: 12, fontWeight: 600,
                         background: 'rgba(0,0,0,0.5)', border: '1px solid #2d6a4f',
                         color: '#52b788', borderRadius: 6, cursor: 'pointer',
