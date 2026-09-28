@@ -33,7 +33,7 @@ inference:
     # ── Ollama (default — local, no API key needed) ───────────────────────
     backend: ollama
     provider: ollama
-    base_url: "{{ ollama_base_url }}"
+    base_url: "${OLLAMA_BASE_URL:-http://localhost:11434}"
     models:
       general:
         model: "llama3.2:1b"
@@ -43,6 +43,10 @@ inference:
         model: "granite3-dense:2b"
         temperature: 0.2
         max_tokens: 4096
+      # granite-guardian:                    # uncomment to enable Granite Guardian
+      #   model: "granite3-guardian:2b"       # pull first: ollama pull granite3-guardian:2b
+      #   temperature: 0.0
+      #   max_tokens: 64
 
     # ── OpenAI ───────────────────────────────────────────────────────────
     # To enable: comment out the Ollama block above and uncomment this block.
@@ -107,29 +111,57 @@ inference:
         latency_tier: interactive
         cost_tier: standard
 
+# Every generated agent's __init__ wires k9x_Shield in by default (see
+# security.shield below) — this block only adds Granite Guardian on top of
+# it, additive not a replacement. Off by default: requires a real pulled
+# model (uncomment inference.llm_factory.models.granite-guardian above).
 governance:
   enabled: false
+  guardian:
+    enabled: false
 
 # ── k9x_Shield — Chain of Vulnerability Tests ────────────────────────────────
-# Dual-gate security: ingress chain runs before the LLM, egress chain runs
-# after the LLM and before any tool executes.
-# Set enabled: true to activate. strict: true promotes FLAG → BLOCK.
-# Wire into any agent: MyAgent(config=config, governance=ShieldGovernance(config))
+# Wired into every generated agent by default (see agents/*.py's __init__) —
+# not just documented here. Dual-gate: ingress chain runs before the LLM,
+# egress chain runs after the LLM and before any tool executes. All 13
+# checks run both directions by default; narrow this list, or set
+# enabled: false, to reduce coverage for this deployment. strict: true
+# promotes FLAG → BLOCK. Per-check tuning (thresholds, block_on_match: false
+# to downgrade a specific check to FLAG-only): check_config below.
 security:
   shield:
-    enabled: false
+    enabled: true
     strict: false
     ingress:
       checks:
         - InputSizeCheck
         - PromptInjectionCheck
         - PIIBoundaryCheck
-    egress:
-      checks:
         - SemanticDriftCheck
         - ToolArgumentCheck
         - ExecutionGuardCheck
+        - HardcodedCredentialCheck
+        - ToolAuthorizationCheck
+        - MemoryPoisoningCheck
+        - SystemPromptLeakageCheck
+        - OutputSanitizationCheck
+        - RequestFrequencyCheck
+        - PIIRequestCheck
+    egress:
+      checks:
+        - InputSizeCheck
+        - PromptInjectionCheck
         - PIIBoundaryCheck
+        - SemanticDriftCheck
+        - ToolArgumentCheck
+        - ExecutionGuardCheck
+        - HardcodedCredentialCheck
+        - ToolAuthorizationCheck
+        - MemoryPoisoningCheck
+        - SystemPromptLeakageCheck
+        - OutputSanitizationCheck
+        - RequestFrequencyCheck
+        - PIIRequestCheck
 
 monitoring:
   console: true

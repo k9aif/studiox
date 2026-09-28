@@ -1,22 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0a0a12;
-  --surface: #13131e;
-  --panel: #161622;
-  --border: #1f1f30;
-  --border-hover: #2e2e45;
-  --text: #c8c8e0;
-  --text-muted: #5a5a7a;
-  --text-dim: #3a3a55;
+  /* Look-and-feel pass — neutral
+     near-black/grey (was blue-indigo-tinted), --accent kept close to its
+     original value since it already closely matched Process Studio's own
+     primary purple (their numbered step-1 badge). New --ps-* tokens are
+     the multi-color step-badge palette their onboarding cards use — K9X
+     had no equivalent before this pass. */
+  --bg: #09090b;
+  --surface: #18181c;
+  --panel: #1c1c20;
+  --border: #2a2a30;
+  --border-hover: #3a3a42;
+  --text: #e2e2e6;
+  --text-muted: #8d8d93;
+  --text-dim: #5a5a60;
   --accent: #6366f1;
-  --accent-hover: #818cf8;
+  --accent-hover: #7c4dff;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  /* Step-badge accents — one per numbered onboarding step, never all the
+     same color (ibm-process-studio-4.png: purple/magenta/green/amber). */
+  --ps-purple: #6366f1;
+  --ps-magenta: #d02670;
+  --ps-green: #24a148;
+  --ps-amber: #eb6f00;
 }
 
 html, body, #root {
   width: 100%; height: 100%; overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg);
   color: var(--text);
   font-size: 13px;
@@ -253,6 +269,20 @@ html, body, #root {
 .logo-k9 { font-size: 16px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-decoration: none; cursor: pointer; }
 .logo-k9:hover { opacity: 0.8; }
 .logo-studio { font-size: 13px; font-weight: 300; color: #6666aa; }
+/* Ravi: "output what we have is good enough. this is Beta version...
+   K9X Studio (Beta)" — matches Process Studio's own "Process Studio
+   Beta (1.81)" header convention. */
+.header-beta-tag { font-size: 10px; font-weight: 600; color: #8892a4; margin-left: -4px; }
+
+/* Ravi: "wire to this under the hood. and display on studio top line to
+   indicate guardian is live." — mandatory-safety-screen status, visible on
+   every screen, not just in Setup. */
+.header-guardian-tag {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+  border-radius: 4px; padding: 2px 7px; margin-left: 8px;
+}
+.header-guardian-live { color: #34d399; background: rgba(52,211,153,0.10); border: 1px solid rgba(52,211,153,0.35); }
+.header-guardian-off  { color: #f87171; background: rgba(248,113,113,0.10); border: 1px solid rgba(248,113,113,0.35); }
 .header-divider { color: var(--border-hover); }
 .header-project { font-weight: 600; color: var(--text); }
 .header-domain {
@@ -273,6 +303,7 @@ html, body, #root {
 
 .studio-body {
   flex: 1; display: flex; overflow: hidden;
+  position: relative; /* anchors the palette collapse toggle button */
 }
 
 /* ── Palette ─────────────────────────────────────────────────── */
@@ -708,6 +739,10 @@ html, body, #root {
   font-size: 9px; color: #7a6830; letter-spacing: 0.02em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 420px;
+}
+.header-tagline {
+  font-size: 9px; color: #6b6b8a; letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 .header-workdir code {
   color: #a08840; font-family: var(--font-mono); font-size: 9px;
@@ -1517,14 +1552,6 @@ html, body, #root {
   margin-bottom: 2px;
 }
 
-.splash-local-hint {
-  font-size: 11px;
-  color: #ffd166;
-  letter-spacing: 0.05em;
-  text-align: center;
-  margin-top: 10px;
-}
-
 /* ── Center Tabs ─────────────────────────────────────────────── */
 
 .center-tabs {
@@ -1558,6 +1585,14 @@ html, body, #root {
   color: #a5b4fc;
   border-bottom-color: var(--accent);
 }
+
+/* Ravi: "the Intake button which is the first thing the User will look
+   for to click... just make the Intake prominent. bold." — bold + a
+   clearly distinct accent color so it stands out from the rest of the
+   flat tab row at a glance, without needing a full filled-button
+   treatment that would look inconsistent with the other tabs. */
+.center-tab-intake { font-weight: 700; color: #a78bfa; }
+.center-tab-intake:hover { color: #c4b5fd; }
 
 .center-placeholder {
   flex: 1;
@@ -1610,11 +1645,194 @@ html, body, #root {
   color: var(--text-muted);
 }
 
+.intake-source-banner {
+  margin-top: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #c4a6ff;
+  background: rgba(138,63,252,0.08);
+  border: 1px solid rgba(138,63,252,0.3);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.intake-source-banner-clear {
+  flex-shrink: 0; padding: 4px 12px; font-size: 11px; font-weight: 600;
+  color: #c4a6ff; background: rgba(138,63,252,0.12); border: 1px solid rgba(138,63,252,0.4);
+  border-radius: 5px; cursor: pointer; white-space: nowrap;
+}
+.intake-source-banner-clear:hover { background: rgba(138,63,252,0.22); }
+
+/* Ravi: "intake screen has to be much nicer, like Grok's suggestion" — a
+   reference mockup showed numbered, icon-led cards (1. Import Sources,
+   2. Generation Status, 3. Basic Info) instead of the old flat list of
+   upload rows. Same staging logic/handlers throughout, purely a visual
+   restructuring. */
+.intake-numbered-card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 22px 24px;
+}
+.intake-numbered-card-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+}
+.intake-numbered-card-icon {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(138,63,252,0.12); color: #a78bfa;
+}
+.intake-numbered-card-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.intake-numbered-card-subtitle { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+
+/* Ravi: "to have that flow below showing prechecks and guardian would be
+   very elegant" — one shared pipeline strip for whichever file was most
+   recently checked, instead of repeating the 3-node diagram under all 4
+   tiles (each tile now shows just a compact ✓/✕ result). */
+.intake-pipeline {
+  margin-top: 4px; padding: 12px 16px; border-radius: 10px;
+  background: rgba(138,63,252,0.05); border: 1px solid rgba(138,63,252,0.2);
+}
+.intake-pipeline-file {
+  font-size: 11px; color: var(--text-dim); margin-bottom: 8px;
+}
+.intake-pipeline-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 12px;
+}
+.intake-pipeline-arrow { color: #334155; }
+
+/* Thin Enterprise App Kit strip above the import tiles (disabled until the
+   kit parser ships). */
+.intake-kit-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 12px; margin-bottom: 14px;
+  border: 1px dashed rgba(99, 102, 241, 0.35); border-radius: 8px;
+  background: rgba(99, 102, 241, 0.05);
+}
+.intake-kit-bar-label {
+  flex-basis: 100%;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #facc15; margin-bottom: -4px;   /* yellow so the provision stands out */
+}
+.intake-kit-bar-icon {
+  width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(99, 102, 241, 0.14); color: var(--ps-purple);
+}
+.intake-kit-bar-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 220px; }
+.intake-kit-bar-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.intake-kit-bar-hint { font-size: 11px; color: var(--text-muted); line-height: 1.45; }
+.intake-kit-bar-hint code { font-size: 10.5px; color: var(--text); }
+.intake-kit-bar-badge {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px; flex-shrink: 0;
+  background: rgba(99, 102, 241, 0.16); color: #a5b4fc;
+}
+.intake-upload-btn--kit { border: 1px solid rgba(99, 102, 241, 0.4); color: #a5b4fc; }
+
+.intake-import-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px; margin-bottom: 14px;
+}
+.intake-import-tile {
+  border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  background: rgba(255,255,255,0.015); min-width: 0;
+}
+.intake-import-tile-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0;
+}
+.intake-import-tile-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.intake-import-tile-hint { font-size: 11px; color: var(--text-muted); line-height: 1.5; flex: 1; }
+.intake-import-resume {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding-top: 14px; margin-top: 4px; border-top: 1px solid var(--border);
+}
+.intake-import-resume-text { display: flex; flex-direction: column; gap: 2px; }
+.intake-import-resume-label { font-size: 13px; color: var(--text); font-weight: 500; }
+.intake-import-resume-hint { font-size: 11px; color: var(--text-dim); }
+.intake-resume-toggle {
+  background: none; border: none; padding-top: 14px; margin-top: 4px;
+  border-top: 1px solid var(--border); width: 100%; text-align: left;
+  font-size: 11px; color: var(--text-dim); cursor: pointer;
+}
+.intake-resume-toggle:hover { color: #a78bfa; }
+
+/* Ravi: "that manual input can be bigger and visible with the icon to
+   collapse and expand" + "I uncollapsed it and cannot see a way to
+   collapse again because it disappeared" — bigger than the plain resume
+   toggle, and lives OUTSIDE the collapsible content so clicking it always
+   works in either direction. */
+.intake-manual-entry-toggle {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: none; border: none; padding: 0; text-align: left;
+  font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer;
+}
+.intake-manual-entry-toggle:hover { color: var(--text); }
+.intake-manual-entry-toggle-chevron {
+  width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.06); font-size: 11px; color: inherit;
+}
+
+.intake-staged-summary {
+  padding: 10px 12px;
+  background: rgba(99,102,241,0.06);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.intake-status-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+}
+.intake-status-bar--done {
+  color: #34d399; background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.3);
+}
+.intake-status-bar--pending {
+  color: #94a3b8; background: rgba(148,163,184,0.06); border: 1px solid var(--border);
+}
+
+.intake-staged-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #c9cadb;
+  background: rgba(52,211,153,0.08);
+  border: 1px solid rgba(52,211,153,0.25);
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+.intake-staged-chip button {
+  background: none;
+  border: none;
+  color: #8892a4;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  line-height: 1;
+}
+.intake-staged-chip button:hover { color: #f87171; }
+
+.intake-staged-warning {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #f59e0b;
+  margin-bottom: 8px;
+}
+
 .intake-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 900px;
+  /* Ravi: "looks odd because the (.html) word wrap. so, the overall boxes
+     and rectangle can be extended in width." — 900px squeezed the 4-tile
+     Import Sources grid down to where "Upload Document (.html)" wrapped
+     mid-button; wider gives each tile (and the upload buttons inside)
+     enough room to stay on one line. */
+  max-width: 1200px;
 }
 
 .intake-row-2 {
@@ -1693,6 +1911,51 @@ html, body, #root {
 .intake-btn-flow:hover:not(:disabled) { background: rgba(82,183,136,0.08); }
 .intake-btn-flow:disabled { opacity: 0.35; cursor: not-allowed; }
 
+/* The staged-summary "Generate" CTA — the terminal action after staging,
+   deliberately more prominent than intake-btn-flow's other use (the manual-
+   entry "Generate Flow" button) so it reads as the next unmissable step. */
+.intake-btn-generate-primary {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  padding: 9px 24px;
+  margin-top: 4px;
+  background: linear-gradient(135deg, #1c3328, #101c16);
+  border: 1px solid #52b788;
+  border-radius: 8px;
+  color: #7ee8b8;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(82,183,136,0.12), 0 0 22px rgba(82,183,136,0.22);
+  transition: box-shadow 0.2s ease, background 0.2s ease, transform 0.1s ease;
+}
+.intake-btn-generate-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #21402f, #13251c);
+  box-shadow: 0 0 0 1px rgba(82,183,136,0.3), 0 0 30px rgba(82,183,136,0.4);
+}
+.intake-btn-generate-primary:active:not(:disabled) { transform: scale(0.995); }
+/* Ravi: "if it fails, the button generate turns RED with title 'Document
+   pre-checks failed' / Guardian rejected etc." — still disabled (nothing
+   valid is staged), but red rather than the neutral grey stripe, so a
+   failed check reads as an error to act on, not just "nothing to do yet". */
+.intake-btn-generate-primary--failed:disabled {
+  opacity: 1; color: #f87171; border-color: #ef4444;
+  background: linear-gradient(135deg, #331414, #1c0d0d);
+  box-shadow: 0 0 0 1px rgba(239,68,68,0.25), 0 0 22px rgba(239,68,68,0.25);
+  background-image: none;
+}
+.intake-btn-generate-primary:disabled {
+  opacity: 0.6; cursor: not-allowed; box-shadow: none;
+  color: var(--text-muted); border-color: var(--border);
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 6px,
+    transparent 6px, transparent 14px
+  );
+}
+
 /* ── Docs Panel ──────────────────────────────────────────────── */
 
 .docs-panel {
@@ -1747,6 +2010,58 @@ html, body, #root {
   padding-bottom: 4px;
 }
 .intake-seed-hint { font-size: 11px; color: #64748b; }
+
+/* ── Upload rows: one line per input, label left / button right ────── */
+.intake-upload-group {
+  display: flex; flex-direction: column; gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 14px;
+  margin-bottom: 4px;
+}
+.intake-upload-group-title {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #8892a4; padding: 8px 0 2px;
+}
+.intake-upload-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-hover);
+}
+.intake-upload-group-title + .intake-upload-row { border-top: none; }
+.intake-upload-row-text { display: flex; flex-direction: column; gap: 2px; }
+.intake-upload-row-label { font-size: 13px; color: var(--text); font-weight: 500; }
+.intake-upload-row-hint { font-size: 11px; color: var(--text-dim); }
+
+.intake-upload-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 7px 16px;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  width: fit-content;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.intake-upload-btn--bpmn   { border: 1px solid rgba(251, 146, 60, 0.4);  color: #fb923c; }
+.intake-upload-btn--bpmn:hover   { background: rgba(251, 146, 60, 0.1); border-color: rgba(251, 146, 60, 0.7); }
+.intake-upload-btn--spec    { border: 1px solid rgba(52, 211, 153, 0.4);  color: #34d399; }
+.intake-upload-btn--spec:hover   { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.7); }
+.intake-upload-btn--evals   { border: 1px solid rgba(167, 139, 250, 0.4); color: #a78bfa; }
+.intake-upload-btn--evals:hover  { background: rgba(167, 139, 250, 0.1); border-color: rgba(167, 139, 250, 0.7); }
+.intake-upload-btn--resume  { border: 1px solid rgba(96, 165, 250, 0.4); color: #60a5fa; }
+.intake-upload-btn--resume:hover { background: rgba(96, 165, 250, 0.1); border-color: rgba(96, 165, 250, 0.7); }
+.intake-upload-btn--busy { opacity: 0.6; cursor: default; }
+.intake-upload-btn--disabled {
+  opacity: 0.6; cursor: not-allowed; pointer-events: none;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 6px,
+    transparent 6px, transparent 14px
+  );
+}
 
 .docs-download-btn {
   background: transparent; border: none;
@@ -1843,16 +2158,58 @@ html, body, #root {
 .classdiagram-actions { display: flex; gap: 8px; }
 
 .classdiagram-canvas {
-  flex: 1; overflow: auto;
-  display: flex; align-items: center; justify-content: center;
+  flex: 1; overflow: scroll;
+  display: flex; align-items: flex-start; justify-content: flex-start;
   padding: 24px;
 }
 
+/* The container is already genuinely scrollable (overflow:auto verified via
+   scrollWidth > clientWidth) — the reported "no scroll bar" was macOS's
+   overlay scrollbars auto-hiding until an active scroll gesture, not a
+   missing feature. overflow:scroll above always reserves the track space;
+   these rules make it visibly present (not just present-on-hover) in
+   WebKit/Blink browsers, matching the dark theme instead of the OS default. */
+.classdiagram-canvas::-webkit-scrollbar {
+  width: 12px; height: 12px;
+}
+.classdiagram-canvas::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+.classdiagram-canvas::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+  border: 2px solid var(--surface);
+}
+.classdiagram-canvas::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* No max-width here on purpose: a diagram wider than the container must be
+   able to overflow so .classdiagram-canvas's overflow:auto actually has
+   something to scroll. A forced max-width:100% (the previous rule) meant
+   the image could never exceed the container, so there was never anything
+   to scroll — reported bug: "no scroll bar to scroll, right side is cut
+   off". transform-origin top-left so the zoom controls (below) scale from
+   a fixed corner instead of jumping around the viewport. */
 .classdiagram-canvas img {
-  max-width: 100%;
   background: #ffffff;
   border-radius: 6px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+  transform-origin: top left;
+  transition: transform 0.12s ease;
+}
+
+.classdiagram-zoom-controls {
+  display: flex; align-items: center; gap: 6px;
+}
+.classdiagram-zoom-controls button {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); cursor: pointer; font-size: 14px; font-weight: 600;
+}
+.classdiagram-zoom-controls button:hover { background: #6366f122; border-color: #6366f155; }
+.classdiagram-zoom-controls span {
+  font-size: 11px; color: var(--text-muted); min-width: 38px; text-align: center;
 }
 
 .classdiagram-error {
@@ -1863,4 +2220,617 @@ html, body, #root {
   font-family: var(--font-mono); font-size: 11px;
   background: var(--surface); padding: 1px 5px; border-radius: 4px;
   color: #a5b4fc;
+}
+
+/* ── Landing page (public, no-login "Get Started" hero) ─────────
+   Matches Process Studio's own unauthenticated landing (image 4):
+   dark hero, uppercase pill badge, white/near-white heading, muted
+   body copy, white-bg/purple-text primary CTA, ghost secondary CTA,
+   4 numbered step cards below in the --ps-* accent rotation. */
+
+.landing-screen {
+  width: 100%; height: 100%; overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center;
+  /* Ravi: "the purplish on the top in IBM Process Studio page is amazing
+     and nice" — a bolder, more saturated wash than the earlier subtle
+     radial (matches the reference screenshot's deep indigo-to-black hero
+     band, not just a faint tint). */
+  background: linear-gradient(180deg, #3b2894 0%, #241c52 22%, var(--bg) 62%);
+}
+
+.landing-topbar {
+  width: 100%; max-width: 1040px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.landing-brand {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 700; letter-spacing: 0.04em;
+  color: var(--text); text-decoration: none;
+}
+.landing-brand:hover { color: var(--accent-hover); }
+.landing-brand-logo { width: 22px; height: 22px; object-fit: contain; }
+
+.landing-signin-link {
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+  padding: 6px 10px; border-radius: 6px;
+}
+.landing-signin-link:hover { color: var(--text); background: var(--surface); }
+
+.landing-hero {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  max-width: 760px; padding: 40px 24px 44px;
+}
+
+.landing-pill {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+  color: #c4b5fd; background: #6366f122;
+  border-radius: 999px; padding: 5px 14px; margin-bottom: 20px;
+}
+
+.landing-title {
+  font-size: 60px; font-weight: 800; letter-spacing: -0.01em;
+  color: var(--text); margin-bottom: 20px; line-height: 1.1;
+}
+@media (max-width: 600px) {
+  .landing-title { font-size: 40px; }
+}
+.landing-tagline {
+  font-size: 17px; line-height: 1.7; color: var(--text-muted);
+  margin-bottom: 32px;
+}
+.landing-tagline strong { color: var(--text); }
+
+.landing-cta-row { display: flex; align-items: center; gap: 12px; }
+
+.landing-btn-primary {
+  background: #fff; color: #4b2fc4;
+  border: none; border-radius: 8px;
+  padding: 12px 22px; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.landing-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px #ffffff22; }
+
+.landing-btn-ghost {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border-hover); border-radius: 8px;
+  padding: 12px 22px; font-size: 14px; font-weight: 600;
+  cursor: pointer;
+}
+.landing-btn-ghost:hover { background: var(--surface); border-color: var(--accent); }
+
+.landing-how { width: 100%; max-width: 1100px; text-align: center; padding: 8px 24px 32px; }
+.landing-how-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.16em;
+  color: var(--text-dim); margin-bottom: 10px;
+}
+.landing-how-title {
+  font-size: 26px; font-weight: 700; color: var(--text);
+  max-width: 720px; margin: 0 auto; line-height: 1.3;
+}
+
+/* Shared width authority for the cards row and the flow bar beneath it —
+   both are plain width:100% of THIS, so they resolve to the exact same
+   pixel width by construction. Horizontal padding/max-width live here
+   only, not duplicated on each child. */
+.landing-section {
+  width: 100%; max-width: 1200px; margin: 0 auto;
+  padding: 0 24px;
+}
+
+.landing-steps {
+  width: 100%;
+  display: flex; align-items: stretch; gap: 4px;
+  padding: 0 0 20px;
+}
+@media (max-width: 900px) {
+  .landing-steps { flex-direction: column; }
+  .landing-step-chevron { display: none; }
+}
+
+.landing-step-wrap { display: flex; align-items: stretch; flex: 1 1 0; min-width: 0; gap: 4px; }
+
+.landing-step-card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; padding: 32px 28px;
+  flex: 1 1 0; min-width: 0;
+}
+
+.landing-step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+
+.landing-step-badge {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
+.landing-step-icon { display: flex; align-items: center; }
+
+.landing-step-title { font-size: 19px; font-weight: 700; color: var(--text); margin-bottom: 10px; line-height: 1.3; }
+.landing-step-body { font-size: 14px; line-height: 1.75; color: var(--text-muted); }
+
+.landing-step-chevron {
+  color: var(--text-dim); font-size: 22px; flex-shrink: 0;
+  align-self: center;
+}
+
+/* Guardian pipeline mockup inside Card 1 — Ravi shared a reference mockup
+   (Intake → Pre-validation → IBM Granite Guardian → Generate, glowing
+   purple boxes on near-black) and asked for "something like this in the
+   first card." Built as real SVG icons rather than embedding the reference
+   PNG — scales cleanly at card width, matches the site's existing icon
+   set/theming, and needs no extra asset. */
+.guardian-flow {
+  /* Ravi: "Firefox display is odd. strange." — icon+label+arrow per item
+     was wide enough that the row overflowed the card and wrapped between
+     items, stacking the whole thing vertically (not Firefox-specific,
+     just narrower rendering exposed it first). Forced to one row now —
+     labels ellipsize before the row ever wraps. */
+  display: flex; align-items: center; flex-wrap: nowrap;
+  gap: 3px; margin-top: 18px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+.guardian-flow-item { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 0 1 auto; }
+.guardian-flow-box {
+  width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #c4a6ff; background: rgba(138,63,252,0.10);
+  border: 1px solid rgba(138,63,252,0.45);
+  box-shadow: 0 0 10px rgba(138,63,252,0.3);
+}
+.guardian-flow-item:last-child .guardian-flow-box {
+  color: #7cc7ff; background: rgba(56,189,248,0.10);
+  border-color: rgba(56,189,248,0.5);
+  box-shadow: 0 0 10px rgba(56,189,248,0.35);
+}
+.guardian-flow-label {
+  font-size: 9.5px; font-weight: 600; color: var(--text-muted);
+  letter-spacing: 0.01em; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0; max-width: 54px;
+}
+.guardian-flow-arrow { color: var(--text-dim); font-size: 11px; flex-shrink: 0; }
+
+/* Ravi: "the flow at the bottom of the 4 cards, like a rectangle sleek
+   bar? ... Intake (Generate) --> like that." One continuous rounded bar,
+   not separate chips — segments divided by arrows, each showing the real
+   screen name + the exact button clicked there. */
+.landing-flowbar {
+  width: 100%;
+  display: flex; align-items: stretch; justify-content: center;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 18px 24px;
+  margin: 0 0 56px; gap: 4px;
+}
+/* min-width:0 is required, not decorative — without it, a flex item's
+   content-based minimum width can push the whole bar past max-width
+   (same bug class as the .ob-content vertical-scroll fix, horizontal
+   axis instead). Ravi: "width does not match." */
+.landing-flowbar-wrap { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 0; justify-content: center; }
+.landing-flowbar-step { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 14px; }
+.landing-flowbar-loc { font-size: 13px; font-weight: 700; color: var(--text); }
+.landing-flowbar-btn { font-size: 11px; color: var(--text-muted); margin-top: 2px; font-family: var(--font-mono); }
+.landing-flowbar-arrow { color: var(--text-dim); font-size: 16px; flex-shrink: 0; }
+
+@media (max-width: 700px) {
+  .landing-flowbar { flex-wrap: wrap; gap: 10px; }
+  .landing-flowbar-wrap { flex-wrap: wrap; justify-content: center; }
+}
+
+.landing-ecosystem {
+  width: 100%; max-width: 1040px;
+  display: flex; flex-wrap: wrap; gap: 16px;
+  padding: 0 24px 56px; justify-content: center;
+}
+.landing-eco-card {
+  flex: 1 1 260px; max-width: 320px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 24px;
+}
+.landing-eco-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 14px;
+}
+.landing-eco-name { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.landing-eco-body { font-size: 13px; line-height: 1.7; color: var(--text-muted); }
+
+.landing-footer {
+  font-size: 11px; color: var(--text-dim); padding-bottom: 28px;
+}
+.landing-footer a { color: var(--accent-hover); text-decoration: none; }
+.landing-footer a:hover { text-decoration: underline; }
+
+/* ── Onboarding wizard ── matches Process Studio's own welcome modal:
+   plain title bar + ✕, uppercase pill, one H1, one intro paragraph, then
+   either a numbered horizontal stepper (step 1) or up to 3 stacked
+   icon+title+description rows with dividers (framework/studio steps). */
+
+.ob-overlay {
+  position: fixed; inset: 0; z-index: 950;
+  /* Ravi: "the background is blurred... need not be blurred." — dim only,
+     no backdrop-filter. */
+  background: #000000a0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+
+.ob-card {
+  position: relative;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 20px;
+  /* Ravi: "perhaps too big a card... if a person is using their laptop or
+     ipad" — width is fixed (stable from step to step), but height is
+     content-based (max-height only) — a fixed height made every step
+     stretch to fill it even when nearly empty (step 1: "way too big
+     hiding the title... the first look should be the best"), so light
+     steps now stay small and only content-heavy steps (rows + quote)
+     approach the cap. */
+  width: min(760px, 94vw); max-height: min(78vh, 640px);
+  min-width: 420px; min-height: 200px;
+  max-width: min(1100px, 96vw);
+  /* Ravi: "can I expand the card? right bottom a white curve to drag to
+     expand a bit?" — the native browser resize handle. overflow:hidden
+     (not auto) since .ob-content already owns its own internal scroll;
+     the card itself never needs a second scrollbar, just needs overflow
+     != visible for `resize` to apply, and hidden also clips content to
+     the rounded corners cleanly on drag. */
+  overflow: hidden; resize: both;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 64px #00000099;
+  animation: toast-in 0.2s ease;
+}
+@media (max-width: 700px) {
+  .ob-card { max-height: min(85vh, 640px); resize: none; }
+}
+
+.ob-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+/* Ravi: "can I move the card around the screen? like cursor on top bar
+   of the card, move around." — the move cursor is the affordance hint;
+   dragging itself is handled in OnboardingWizard.tsx's pointer handlers. */
+.ob-header-draggable { cursor: move; touch-action: none; }
+.ob-header-draggable .ob-close { cursor: pointer; }
+.ob-header-title { font-size: 16px; font-weight: 700; color: var(--text); }
+
+.ob-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-dim); font-size: 15px; padding: 6px 8px;
+  border-radius: 6px;
+}
+.ob-close:hover { color: var(--text); background: var(--surface); }
+
+/* flex:1 + min-height:0 is required, not decorative — without it a flex
+   child can't shrink below its content's intrinsic height, so overflow-y
+   never actually kicks in (same bug class as the Evals-tab scroll fix
+   elsewhere in this app). Ravi: "that card, is not scrollable vertically
+   ... incomplete and cutoff." */
+/* Ravi: "there is space in the top, we can remove a line of space" —
+   trimmed top padding specifically (bottom kept for breathing room at the
+   end of a scrolled step). */
+.ob-content { flex: 1; min-height: 0; padding: 10px 32px 18px; overflow-y: auto; }
+
+.ob-badge {
+  display: inline-block;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+  border-radius: 999px; padding: 5px 12px; margin-bottom: 6px;
+}
+
+.ob-title { font-size: 21px; font-weight: 700; color: var(--text); margin-bottom: 8px; line-height: 1.3; }
+.ob-intro { font-size: 13.5px; line-height: 1.6; color: var(--text-muted); }
+.ob-intro p { margin: 0 0 8px; }
+.ob-intro p:last-child { margin-bottom: 0; }
+
+/* Numbered horizontal stepper — Process Studio's "QUICK START GUIDE" */
+.ob-stepper { display: flex; align-items: flex-start; margin: 10px 0 2px; }
+.ob-stepper-node {
+  flex: 1; position: relative;
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 0 4px;
+}
+.ob-stepper-node:not(:last-child)::after {
+  content: ''; position: absolute; top: 15px; left: 50%; width: 100%; height: 2px;
+  background: var(--border-hover); z-index: 0;
+}
+.ob-stepper-circle {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: var(--text-muted);
+  background: var(--panel); border: 2px solid var(--border-hover);
+  position: relative; z-index: 1; flex-shrink: 0;
+}
+.ob-stepper-circle-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ob-stepper-label { font-size: 10.5px; color: var(--text-dim); margin-top: 6px; line-height: 1.35; max-width: 100px; }
+.ob-stepper-label-active { color: #c4b5fd; font-weight: 600; }
+
+/* Icon + title + description boxes — the framework/studio steps. Ravi:
+   "make it horizontal and less long... if we make it horizontal we can
+   add rect boxes, 2 in each row" — switched from stacked divided rows
+   (each full-width, one under another) to a 2-column grid of bordered
+   boxes, roughly halving this section's height. A trailing odd item
+   (3 rows, no quote) spans both columns instead of leaving an empty cell. */
+.ob-rows {
+  margin-top: 10px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  align-items: stretch;
+}
+.ob-rows > *:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.ob-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface);
+  height: 100%; box-sizing: border-box;
+}
+.ob-row-icon {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel); border: 1px solid var(--border);
+}
+.ob-row-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.ob-row-desc { font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
+
+/* The closing quote now sits as the grid's 4th box (see OnboardingWizard.tsx)
+   rather than a separate full-width block underneath — .ob-row's border/
+   padding/background apply, this just swaps the layout to stacked
+   paragraph+cite and keeps the accent left-edge as its distinguishing mark. */
+.ob-row.ob-quote { flex-direction: column; gap: 4px; border-left: 3px solid var(--accent); }
+.ob-quote p { font-size: 12px; font-style: italic; color: var(--text); line-height: 1.5; margin: 0; }
+/* Ravi: "Grady Booch name can be more visible. for his credit." */
+.ob-quote cite { font-size: 12px; font-weight: 700; color: var(--text); font-style: normal; }
+
+/* Ravi: "remove the Grady Booch saying to the last slide? we have so much
+   space here" — the closing "Next Steps" step has just a one-line intro,
+   so the quote gets its own larger, roomier treatment here instead of the
+   compact grid-box version used when it shared space with framework rows. */
+.ob-quote-standalone {
+  margin: 20px 0 0; padding: 18px 22px;
+  border-left: 3px solid var(--accent); background: var(--surface);
+  border-radius: 0 10px 10px 0;
+}
+.ob-quote-standalone p { font-size: 15px; margin-bottom: 8px; }
+.ob-quote-standalone cite { font-size: 13px; }
+
+.ob-ecosystem { margin-top: 14px; }
+.ob-ecosystem-label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 6px;
+}
+.ob-ecosystem-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.ob-ecosystem-chip {
+  flex: 1 1 160px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px;
+}
+.ob-ecosystem-name { font-size: 11.5px; font-weight: 700; color: var(--text); margin-bottom: 1px; }
+.ob-ecosystem-desc { font-size: 10.5px; color: var(--text-muted); line-height: 1.4; }
+
+.ob-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 24px; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+
+.ob-dontshow {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-dim); cursor: pointer;
+}
+
+.ob-nav { display: flex; align-items: center; gap: 14px; }
+.ob-dots { display: flex; gap: 6px; }
+.ob-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-hover); }
+.ob-dot-active { background: var(--accent); width: 16px; border-radius: 3px; }
+
+.ob-btn-back {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border-hover); border-radius: 8px;
+  padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.ob-btn-back:hover { background: var(--surface); }
+
+.ob-btn-next {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 8px;
+  padding: 9px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.ob-btn-next:hover { background: var(--accent-hover); }
+
+/* ── K9Meter — branded VU-meter progress bar ─────────────────────
+   Ravi: "left side our trademark K9X and have similar bar... like from
+   traceability to canvas... gives that cool look like it is doing it."
+   Then: "no color like hot red at the end. nope. just blue squares....
+   slowly progressing" — dropped the green/amber/accent gradient for one
+   plain blue, single color throughout. */
+.k9-meter {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 10px; padding: 8px 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.k9-meter-brand {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.04em;
+  background: linear-gradient(135deg, #6366f1, #a78bfa);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  flex-shrink: 0;
+}
+.k9-meter-row { display: flex; gap: 3px; flex: 1; }
+.k9-meter-seg {
+  width: 100%; height: 16px; border-radius: 2px;
+  background: var(--border); transition: background 0.15s ease;
+}
+.k9-meter-seg-lit { background: #3b82f6; }
+.k9-meter-label {
+  font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);
+  flex-shrink: 0; min-width: 70px; text-align: right;
+}
+
+/* ── IBM Process Studio group (collapsible) on the Intake card ── */
+.intake-ps-group {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.03);
+}
+.intake-ps-group--open { border-color: var(--border-hover); }
+.intake-ps-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 0;
+  padding: 9px 12px;
+  cursor: pointer;
+  color: var(--text);
+  text-align: left;
+}
+.intake-ps-group-title { font-size: 12px; font-weight: 600; letter-spacing: 0.3px; }
+.intake-ps-group-sub { font-size: 11px; color: var(--text-muted); flex: 1; }
+.intake-ps-group-chevron { font-size: 10px; color: var(--text-dim); }
+.intake-ps-group-body { padding: 0 12px 12px; }
+.intake-ps-group-body .intake-kit-bar { margin: 0; }
+
+/* ══ K9X landing page (k9l-*) — generic K9X look, teal/amber on navy ══ */
+.k9l {
+  --k9l-bg: #070b14;
+  --k9l-panel: rgba(13, 20, 34, 0.78);
+  --k9l-line: rgba(94, 234, 212, 0.14);
+  --k9l-text: #e6edf5;
+  --k9l-muted: #93a3b8;
+  --k9l-teal: #2dd4bf;
+  --k9l-teal-deep: #0f766e;
+  --k9l-amber: #ffd166;
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--k9l-bg);
+  color: var(--k9l-text);
+  font-family: var(--font-sans);
+}
+.k9l > :is(header, section, footer) { position: relative; z-index: 1; }
+.k9l-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.k9l-bg-img { position: absolute; background-repeat: no-repeat; background-size: contain; }
+.k9l-bg-eco {
+  inset: 6% -8% auto 38%;
+  height: 80%;
+  background-position: right center;
+  filter: invert(1) hue-rotate(180deg) saturate(0.5) blur(0.4px);
+  opacity: 0.06;
+  transform: rotate(-4deg);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 85%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 85%, transparent 100%);
+}
+.k9l-bg-canvas {
+  inset: auto 30% 2% -4%;
+  height: 66%;
+  background-position: left bottom;
+  opacity: 0.24;
+  filter: saturate(0.7);
+  transform: rotate(3deg);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 40% 60%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 70% at 40% 60%, #000 30%, transparent 75%);
+}
+.k9l-bg-vignette {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 60% 55% at 20% 30%, rgba(45, 212, 191, 0.10), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 85% 90%, rgba(255, 209, 102, 0.06), transparent 70%),
+    linear-gradient(180deg, rgba(7, 11, 20, 0) 0%, rgba(7, 11, 20, 0.55) 60%, var(--k9l-bg) 100%);
+}
+
+.k9l-top {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 1160px; margin: 0 auto; padding: 18px 24px;
+}
+.k9l-brand { display: flex; align-items: center; gap: 10px; color: var(--k9l-text); text-decoration: none; font-weight: 700; letter-spacing: 1px; }
+.k9l-brand-logo { width: 30px; height: 30px; object-fit: contain; }
+.k9l-nav { display: flex; align-items: center; gap: 18px; }
+.k9l-nav a, .k9l-nav button {
+  background: none; border: 0; color: var(--k9l-muted); font: inherit; font-size: 13px;
+  cursor: pointer; text-decoration: none; padding: 0;
+}
+.k9l-nav a:hover, .k9l-nav button:hover { color: var(--k9l-text); }
+.k9l-nav .k9l-nav-cta {
+  color: var(--k9l-teal); border: 1px solid var(--k9l-line); border-radius: 999px; padding: 6px 14px;
+}
+
+.k9l-hero {
+  display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 48px; align-items: center;
+  max-width: 1160px; margin: 0 auto; padding: 56px 24px 40px;
+}
+.k9l-eyebrow { color: var(--k9l-amber); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; }
+.k9l-hero h1 { font-size: clamp(32px, 4.6vw, 52px); line-height: 1.08; margin: 0 0 18px; font-weight: 700; }
+.k9l-hero p { color: var(--k9l-muted); font-size: 16px; line-height: 1.7; margin: 0 0 26px; max-width: 560px; }
+.k9l-cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.k9l-btn-primary, .k9l-btn-ghost {
+  font: inherit; font-size: 14px; font-weight: 600; border-radius: 10px; padding: 12px 22px; cursor: pointer;
+}
+.k9l-btn-primary { background: var(--k9l-teal); color: #04221f; border: 0; }
+.k9l-btn-primary:hover { background: #5eead4; }
+.k9l-btn-ghost { background: transparent; color: var(--k9l-text); border: 1px solid rgba(230, 237, 245, 0.18); }
+.k9l-btn-ghost:hover { border-color: var(--k9l-teal); }
+.k9l-pip { display: flex; align-items: center; gap: 10px; margin-top: 22px; font-size: 12px; color: var(--k9l-muted); }
+.k9l-pip code { color: var(--k9l-amber); background: rgba(255, 209, 102, 0.08); border: 1px solid rgba(255, 209, 102, 0.2); padding: 3px 8px; border-radius: 6px; }
+
+.k9l-pipeline {
+  background: var(--k9l-panel); border: 1px solid var(--k9l-line); border-radius: 16px;
+  padding: 22px 22px 8px; backdrop-filter: blur(6px);
+}
+.k9l-pipe-row { position: relative; display: flex; gap: 14px; align-items: flex-start; padding-bottom: 22px; }
+.k9l-pipe-icon {
+  flex: 0 0 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  color: var(--k9l-teal); background: rgba(45, 212, 191, 0.10); border: 1px solid var(--k9l-line);
+}
+.k9l-pipe-row:last-child .k9l-pipe-icon { color: var(--k9l-amber); background: rgba(255, 209, 102, 0.10); border-color: rgba(255, 209, 102, 0.25); }
+.k9l-pipe-label { font-size: 14px; font-weight: 600; margin-top: 2px; }
+.k9l-pipe-sub { font-size: 12px; color: var(--k9l-muted); margin-top: 2px; }
+.k9l-pipe-line { position: absolute; left: 18px; top: 40px; bottom: 2px; width: 2px; background: linear-gradient(var(--k9l-teal), transparent); opacity: 0.4; }
+
+.k9l-section { max-width: 1160px; margin: 0 auto; padding: 36px 24px; }
+.k9l-label { color: var(--k9l-teal); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+.k9l-section h2 { font-size: 26px; margin: 0 0 22px; font-weight: 700; }
+
+.k9l-inputs, .k9l-eco { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.k9l-input, .k9l-eco-card {
+  background: var(--k9l-panel); border: 1px solid var(--k9l-line); border-radius: 12px; padding: 16px;
+}
+.k9l-input-icon, .k9l-eco-icon { color: var(--k9l-teal); margin-bottom: 10px; }
+.k9l-input-title, .k9l-eco-name { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.k9l-input-body, .k9l-eco-body { font-size: 12.5px; color: var(--k9l-muted); line-height: 1.6; }
+.k9l-input:last-child { border-color: rgba(255, 209, 102, 0.25); }
+.k9l-input:last-child .k9l-input-icon { color: var(--k9l-amber); }
+
+.k9l-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.k9l-step {
+  display: flex; gap: 18px; align-items: flex-start;
+  background: var(--k9l-panel); border: 1px solid var(--k9l-line); border-radius: 12px; padding: 16px 18px;
+}
+.k9l-step-num { font-size: 22px; font-weight: 700; color: var(--k9l-teal); min-width: 34px; font-variant-numeric: tabular-nums; }
+.k9l-step-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.k9l-step-where { font-size: 11px; font-weight: 500; color: var(--k9l-amber); border: 1px solid rgba(255, 209, 102, 0.25); border-radius: 999px; padding: 1px 8px; }
+.k9l-step-body { font-size: 13.5px; color: var(--k9l-muted); line-height: 1.65; }
+
+.k9l-footer { text-align: center; color: var(--k9l-muted); font-size: 12px; padding: 32px 16px 40px; }
+.k9l-footer a { color: var(--k9l-teal); }
+
+@media (max-width: 900px) {
+  .k9l-hero { grid-template-columns: 1fr; padding-top: 32px; }
+  .k9l-inputs, .k9l-eco { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .k9l-bg-eco { inset: 30% -40% auto 0; }
+  .k9l-bg-canvas { inset: auto -30% -4% -20%; height: 45%; }
+}
+@media (max-width: 560px) {
+  .k9l-top, .k9l-hero, .k9l-section { padding-left: 16px; padding-right: 16px; }
+  .k9l-nav a { display: none; }
+  .k9l-inputs, .k9l-eco { grid-template-columns: 1fr; }
+}
+
+.splash-local-hint {
+  font-size: 11px;
+  color: #ffd166;
+  letter-spacing: 0.05em;
+  text-align: center;
+  margin-top: 10px;
 }

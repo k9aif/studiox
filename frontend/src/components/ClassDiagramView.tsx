@@ -9,6 +9,8 @@ export function ClassDiagramView() {
   const { project, nodes, edges, llmConfig, lastTemplateId } = useStore();
   const [imgError, setImgError] = useState(false);
   const [liveSvgUrl, setLiveSvgUrl] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const ZOOM_STEP = 0.25, ZOOM_MIN = 0.25, ZOOM_MAX = 3;
 
   const isTemplate = Boolean(lastTemplateId);
 
@@ -34,6 +36,7 @@ export function ClassDiagramView() {
 
   useEffect(() => {
     setImgError(false);
+    setZoom(1);
   }, [svgUrl]);
 
   if (nodes.length === 0) {
@@ -56,6 +59,14 @@ export function ClassDiagramView() {
           )}
         </div>
         <div className="classdiagram-actions">
+          {svgUrl && !imgError && (
+            <div className="classdiagram-zoom-controls">
+              <button onClick={() => setZoom((z) => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))} title="Zoom out">−</button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <button onClick={() => setZoom((z) => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))} title="Zoom in">+</button>
+              <button onClick={() => setZoom(1)} title="Reset zoom" style={{ width: 'auto', padding: '0 8px', fontSize: 11, fontWeight: 500 }}>Reset</button>
+            </div>
+          )}
           {svgUrl && (
             <a className="btn-secondary" href={svgUrl} target="_blank" rel="noopener noreferrer">
               Open full size
@@ -75,7 +86,12 @@ export function ClassDiagramView() {
             or download the <code>.puml</code> and render locally with <code>plantuml -tsvg</code>.
           </div>
         ) : (
-          <img src={svgUrl} alt="Class diagram" onError={() => setImgError(true)} />
+          <img
+            src={svgUrl}
+            alt="Class diagram"
+            onError={() => setImgError(true)}
+            style={{ transform: `scale(${zoom})` }}
+          />
         )}
       </div>
     </div>

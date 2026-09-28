@@ -1,6 +1,6 @@
 export function ArchGuidePanel() {
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: '32px 48px', maxWidth: 900 }}>
+    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '32px 48px', maxWidth: 900 }}>
 
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#e2e8f0', marginBottom: 6 }}>

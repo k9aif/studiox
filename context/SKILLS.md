@@ -388,21 +388,28 @@ def execute(self, payload: Dict[str, Any]) -> Dict[str, Any]:
 
 **To apply governance pipeline hooks:**
 
-```python
-import asyncio
+The hooks are `async` and `execute()` is sync, so bridge them with the
+framework's `_run_coro_sync` (the same helper the loop agents use). Don't use
+`asyncio.get_event_loop().run_until_complete(...)` or `asyncio.run(...)` —
+both raise inside an already-running event loop (FastAPI, Jupyter), and a
+broad `except` upstream then hides that governance never ran. Never call a
+hook without the bridge: an un-awaited coroutine runs no checks and raises
+nothing.
 
-# Pre-process (sanitize/validate input before LLM)
-payload = asyncio.get_event_loop().run_until_complete(
-    self.apply_pre_governance(payload)
-)
+```python
+from k9_aif_abb.k9_core.orchestration.base_orchestrator import _run_coro_sync
+
+# Pre-process (sanitize/validate input before LLM) -- raises PermissionError on BLOCK
+payload = _run_coro_sync(self.apply_pre_governance(payload))
 
 # ... call llm_invoke ...
 
 # Post-process (validate/redact output after LLM)
-result = asyncio.get_event_loop().run_until_complete(
-    self.apply_post_governance(result)
-)
+result = _run_coro_sync(self.apply_post_governance(result))
 ```
+
+In an orchestrator's `execute_flow()`, use the sync wrapper
+`self.apply_shield(payload)` → `{"allowed", "reason", "payload"}` instead.
 
 ---
 
@@ -1106,18 +1113,21 @@ If the answer to any Discernment question is "we need to check and possibly retr
 
 ## Skill 13 — Add a new LLM provider adapter (Claude, Bedrock, OpenAI, etc.)
 
-The framework ships with `OllamaLLM` as the OOB LLM adapter. To connect to a different provider (Anthropic Claude, AWS Bedrock, OpenAI, xAI Grok, IBM watsonx), implement a new adapter that extends `BaseLLM` and register it in `LLMFactory`.
+G-17: this skill previously described `LLMFactory.register("name", SomeBaseLLMSubclass)` as the whole mechanism. That's not how it works today — `BaseProviderAdapter` / `ProviderAdapterRegistry` is a real layer that already sits between `LLMFactory` and every OOB adapter (ollama, openai, openai-compatible, azure-openai, watsonx, mock), and predates this correction. Refreshed from the actual current code (`k9_core/inference/openai_provider_adapter.py`, `azure_openai_provider_adapter.py`) rather than the pattern below, which no longer matches what ships.
 
-**The framework is LLM-agnostic by design.** Agents, squads, orchestrators, and governance — none of them know or care which LLM provider is running underneath. They call `llm_invoke()`, and the factory + router + adapter chain handles the rest.
+**The framework is LLM-agnostic by design.** Agents, squads, orchestrators, and governance — none of them know or care which LLM provider is running underneath. They call `llm_invoke()`, and the factory + adapter-registry + adapter chain handles the rest.
 
-### Step 1: Implement the adapter
+**Two classes, not one.** A provider needs both:
+1. A `BaseLLM` subclass — the actual `generate()` implementation that talks to the provider's SDK.
+2. A `BaseProviderAdapter` subclass — resolves config (credentials, endpoint, model/deployment name) and constructs the right `BaseLLM` instance. `LLMFactory` never constructs a provider-specific object directly; it always goes through `ProviderAdapterRegistry.resolve(backend)`.
 
-Extend `BaseLLM` (`k9_aif_abb/k9_core/inference/base_llm.py`). The contract is one method: `generate(prompt: str) -> str`.
+### Step 1: Implement the BaseLLM subclass
+
+Extend `BaseLLM` (`k9_aif_abb/k9_core/inference/base_llm.py`). The contract is `generate(prompt: str, system_prompt: Optional[str] = None) -> str` — **`system_prompt=None` must always be accepted**, `K9ModelRouter` always passes it as a kwarg.
 
 ```python
 # k9_aif_abb/k9_core/inference/claude_llm.py
 
-import os
 from typing import Any, Optional
 from k9_aif_abb.k9_core.inference.base_llm import BaseLLM
 
@@ -1125,106 +1135,108 @@ from k9_aif_abb.k9_core.inference.base_llm import BaseLLM
 class ClaudeLLM(BaseLLM):
     """LLM adapter for Anthropic Claude API."""
 
-    layer = "Inference SBB — Claude"
+    layer = "Inference SBB"
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-20250514",
+        api_key: str,
+        model: str = "claude-sonnet-4-5",
         timeout: int = 300,
         monitor: Optional[Any] = None,
         **kwargs: Any,
     ):
         super().__init__(name="ClaudeLLM", monitor=monitor)
         self.model = model
-        self.timeout = timeout
-        self.api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        self.base_url = os.environ.get(
-            "ANTHROPIC_BASE_URL", "https://api.anthropic.com"
-        )
-        self._client = None
-
-    def _ensure_client(self):
-        if self._client is not None:
-            return
         try:
-            import anthropic
-            self._client = anthropic.Anthropic(
-                api_key=self.api_key,
-                base_url=self.base_url,
-                timeout=self.timeout,
-            )
-        except ImportError:
-            raise RuntimeError("pip install anthropic required")
+            from anthropic import AsyncAnthropic
+        except ImportError as exc:
+            raise ImportError("pip install anthropic>=0.30 required") from exc
+        self._client = AsyncAnthropic(api_key=api_key, timeout=timeout)
 
-    async def generate(self, prompt: str) -> str:
-        self._ensure_client()
+    async def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         try:
-            message = self._client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}],
+            kwargs = {"system": system_prompt} if system_prompt else {}
+            message = await self._client.messages.create(
+                model=self.model, max_tokens=4096,
+                messages=[{"role": "user", "content": prompt}], **kwargs,
             )
-            text = message.content[0].text
+            text = message.content[0].text.strip()
             self.logger.info("[ClaudeLLM] %s responded (%d chars)", self.model, len(text))
-            return text
+            return text or "[WARN] No response from model."
         except Exception as e:
             self.logger.error("[ClaudeLLM] request failed: %s", e)
             return f"[WARN] Claude API failed: {e}"
 ```
 
-**For AWS Bedrock**, the adapter would use `boto3` with the Bedrock runtime client instead of the Anthropic SDK directly. Same `BaseLLM` contract, different transport.
+**For AWS Bedrock**, the adapter would use `boto3` with the Bedrock runtime client instead of the Anthropic SDK directly. Same `BaseLLM` contract, different transport — not yet built OOB (no evidence of demand yet; see `AzureOpenAIProviderAdapter`'s own commit for why it *was* built — a real, observed need, not speculative coverage).
 
-**For OpenAI / xAI / watsonx**, the pattern is identical — different SDK, same `generate()` contract.
+**For OpenAI-compatible endpoints (OpenAI, xAI Grok, any OpenAI-compatible API)**, don't write a new `BaseLLM` at all — `OpenAILLM` already covers them; only the adapter's endpoint/key resolution differs. See `openai_provider_adapter.py`.
 
-### Step 2: Register in LLMFactory
+### Step 2: Implement the BaseProviderAdapter subclass
 
-`LLMFactory` uses a provider map to instantiate the right adapter. Add the new provider:
+Extend `BaseProviderAdapter` (`k9_aif_abb/k9_core/inference/base_provider_adapter.py`) — the real contract: a `provider_name` property (the registry key) and `create_llm(model_name, factory_cfg, extra_kwargs) -> BaseLLM`.
 
 ```python
-# In LLMFactory.bootstrap() or via registration
-from k9_aif_abb.k9_core.inference.claude_llm import ClaudeLLM
+# k9_aif_abb/k9_core/inference/claude_provider_adapter.py
 
-LLMFactory.register("claude", ClaudeLLM)
+import os
+from typing import Any, Dict
+from k9_aif_abb.k9_core.inference.base_provider_adapter import BaseProviderAdapter
+from k9_aif_abb.k9_core.inference.base_llm import BaseLLM
+
+
+class ClaudeProviderAdapter(BaseProviderAdapter):
+    @property
+    def provider_name(self) -> str:
+        return "claude"
+
+    def create_llm(self, model_name: str, factory_cfg: Dict[str, Any], extra_kwargs: Dict[str, Any]) -> BaseLLM:
+        from k9_aif_abb.k9_core.inference.claude_llm import ClaudeLLM
+
+        env_var = factory_cfg.get("api_key_env", "ANTHROPIC_API_KEY").strip()
+        api_key = os.environ.get(env_var, "")
+        if not api_key:
+            raise EnvironmentError(
+                f"Environment variable '{env_var}' (api_key_env) is not set. "
+                f"Add it to your .env file before running."
+            )
+        return ClaudeLLM(api_key=api_key, model=model_name, **extra_kwargs)
 ```
 
-Or extend the bootstrap logic in `LLMFactory` to recognize the new backend.
+Follow `OpenAIProviderAdapter`'s exact `api_key_env` → legacy `${VAR}` → implicit-fallback resolution order for consistency across adapters — don't invent a fourth pattern per provider.
 
-### Step 3: Configure in config.yaml
+### Step 3: Register in ProviderAdapterRegistry
+
+```python
+from k9_aif_abb.k9_core.inference.provider_registry import ProviderAdapterRegistry
+from k9_aif_abb.k9_core.inference.claude_provider_adapter import ClaudeProviderAdapter
+
+ProviderAdapterRegistry.register("claude", ClaudeProviderAdapter)
+```
+
+Register before `LLMFactory.bootstrap()` runs. No changes to `LLMFactory`, agents, squads, or orchestrators are needed — `ProviderAdapterRegistry.resolve(backend)` is the only thing `LLMFactory` calls to get an adapter.
+
+### Step 4: Configure in config.yaml
 
 ```yaml
 inference:
   llm_factory:
     backend: claude
-    provider: anthropic
-    base_url: "${ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+    api_key_env: ANTHROPIC_API_KEY
     models:
       general:
-        model: "claude-haiku-4-5-20251001"
+        model: "claude-haiku-4-5"
         temperature: 0.3
         max_tokens: 4096
       reasoning:
-        model: "claude-sonnet-4-20250514"
+        model: "claude-sonnet-4-5"
         temperature: 0.2
         max_tokens: 8192
-
-  model_catalog:
-    default_model: general
-    models:
-      general:
-        provider: anthropic
-        llm_ref: general
-        capabilities: [general, chat, summarization]
-        latency_tier: realtime
-        cost_tier: standard
-      reasoning:
-        provider: anthropic
-        llm_ref: reasoning
-        capabilities: [reasoning, analysis, extraction]
-        latency_tier: interactive
-        cost_tier: premium
 ```
 
-### Step 4: Credentials in .env only
+`model_name` (e.g. `"claude-haiku-4-5"`) is passed to `create_llm()` as-is — for Azure OpenAI specifically it doubles as the default *deployment* name unless `deployment:` is set explicitly per model, since Azure routes by deployment, not raw model id (see `azure_openai_provider_adapter.py`).
+
+### Step 5: Credentials in .env only
 
 ```bash
 # .env (never in config.yaml, never in git)
@@ -1234,6 +1246,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 # AWS_ACCESS_KEY_ID=...
 # AWS_SECRET_ACCESS_KEY=...
 # AWS_DEFAULT_REGION=us-east-1
+
+# For Azure OpenAI (already OOB — backend: azure-openai):
+# AZURE_OPENAI_API_KEY=...
 ```
 
 ### What does NOT change
@@ -1250,15 +1265,16 @@ When switching providers, these remain **identical** — zero code changes:
 - Audit trail and event publishing
 - UI and SSE streaming
 
-The only changes are: (1) the adapter class, (2) `config.yaml` provider section, (3) `.env` credentials.
+The only changes are: (1) the `BaseLLM` + `BaseProviderAdapter` pair, (2) `config.yaml`'s `inference.llm_factory` section, (3) `.env` credentials.
 
 ### Design constraints
 
-- **Lazy imports** — adapter packages (`anthropic`, `boto3`, `openai`) are imported inside the adapter, not at module level. This avoids `ImportError` for teams that don't use that provider.
-- **Credentials from env only** — never from `config.yaml`. Use `os.environ.get("KEY")`.
+- **Lazy imports** — adapter packages (`anthropic`, `boto3`, `openai`) are imported inside `create_llm()`/`__init__`, not at module level. This avoids `ImportError` for teams that don't use that provider.
+- **Credentials from env only** — never from `config.yaml`. `api_key_env` naming the variable is preferred over a raw value.
 - **Timeout must be configurable** — production LLMs with large prompts can take minutes. Never hardcode.
-- **Error handling** — return `[WARN]` prefixed string on failure (same convention as `OllamaLLM`). `llm_invoke()` detects this and raises `RuntimeError`.
-- **Async generate** — `BaseLLM.generate()` can be sync or async. `K9ModelRouter.invoke()` handles both via `asyncio.run()` or direct call.
+- **`generate()` must accept `system_prompt: Optional[str] = None`** — every existing adapter does; a new one that doesn't will break under `K9ModelRouter`.
+- **Error handling** — return a `[WARN]`-prefixed string on failure (same convention every OOB adapter already follows), never raise from inside `generate()` itself. `llm_invoke()` is what turns that into a `RuntimeError`, one layer up — don't duplicate that decision inside the adapter.
+- **Async `generate()`** — `BaseLLM.generate()` can be sync or async. `K9ModelRouter.invoke()` handles both via `_run_coro_sync()`.
 
 ---
 

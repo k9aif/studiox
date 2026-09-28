@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "k9x"
-version = "0.4.5"
-description = "K9-AIF Studio — visual, drag-and-drop architecture builder for K9-AIF projects"
+version = "0.5.0"
+description = "K9X Studio — turn BPMN, process specs and agent evaluation plans (including IBM Process Studio artifacts) into governed K9-AIF scaffolds"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 
 dependencies = [
-    "k9-aif[s3]>=1.8.0",
+    "k9-aif[s3,mcp]>=1.12.4",
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.0",
@@ -20,21 +20,48 @@ dependencies = [
     "requests>=2.31.0",
     "pyyaml>=6.0",
     "python-dotenv>=1.0",
+    "markdown>=3.5",
+    "openpyxl>=3.1",
+    "beautifulsoup4>=4.12",
 ]
 
 [project.scripts]
 k9x = "k9x.cli:main"
 
 [tool.setuptools]
-include-package-data = true
+packages = [
+    "k9x",
+    "k9x._studio_app",
+    "k9x._studio_app.studio_core",
+    "k9x._studio_app.studio_core.router",
+    "k9x._studio_app.studio_agents",
+    "k9x._studio_app.studio_agents.parallel",
+    "k9x._studio_app.agents",
+    "k9x._studio_app.agents.src",
+    "k9x._studio_app.squads",
+    "k9x._studio_app.orchestrators",
+    "k9x._studio_app.context",
+    "backend",
+    "backend.api",
+    "backend.services",
+    "frontend",
+]
 
-[tool.setuptools.packages.find]
-include = ["k9x*", "backend*", "frontend"]
+[tool.setuptools.package-dir]
+"k9x._studio_app.studio_core" = "studio_core"
+"k9x._studio_app.studio_agents" = "studio_agents"
+"k9x._studio_app.agents" = "agents"
+"k9x._studio_app.squads" = "squads"
+"k9x._studio_app.orchestrators" = "orchestrators"
+"k9x._studio_app.context" = "context"
 
 [tool.setuptools.package-data]
-backend = ["templates/*.j2"]
+backend = ["templates/*.j2", "templates/*.css", "templates/*.js"]
 frontend = ["dist/**/*"]
 k9x = ["_generator_templates/*.j2"]
+"k9x._studio_app.agents" = ["yaml/*.yaml"]
+"k9x._studio_app.squads" = ["yaml/*.yaml"]
+"k9x._studio_app.context" = ["*.md"]
 
 # NOTE: k9x/cli.py has a `satan` subcommand (imports k9x_satan.app) that isn't
 # functional yet — k9x-satan isn't published, and its source isn't bundled

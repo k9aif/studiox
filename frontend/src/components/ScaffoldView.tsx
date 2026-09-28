@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useStore } from '../store';
 import { marked } from 'marked';
 
@@ -111,6 +111,25 @@ export function ScaffoldView() {
   const [treeWidth, setTreeWidth] = useState(280);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
+  // Ravi: "I am not able to view the full filename in the FILES is that
+  // expandable by a little" — treeWidth state already existed (used by the
+  // header's toggle-width button) but had no drag handle; add one so the
+  // pane can be widened past the 280/380 toggle steps to fit genuinely
+  // long generated filenames.
+  const startResizeTree = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = treeWidth;
+    const onMove = (ev: MouseEvent) =>
+      setTreeWidth(Math.max(200, Math.min(640, startW + ev.clientX - startX)));
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [treeWidth]);
+
   const toggleFolder = (path: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -143,7 +162,7 @@ export function ScaffoldView() {
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%' }}>
       {/* File tree */}
       <div style={{
-        width: treeWidth, minWidth: treeWidth, borderRight: '1px solid var(--border)',
+        width: treeWidth, minWidth: treeWidth,
         overflowY: 'auto', fontFamily: "'SF Mono', monospace",
         background: 'var(--panel)', display: 'flex', flexDirection: 'column',
       }}>
@@ -153,7 +172,7 @@ export function ScaffoldView() {
           <button onClick={() => setExpanded(new Set())} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 10 }} title="Collapse all">⊟</button>
           <button onClick={() => setTreeWidth(v => v === 280 ? 380 : 280)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 10 }} title="Toggle width">◧</button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 0' }}>
           {tree.map((node) => (
             <TreeItem key={node.path} node={node} depth={0}
               selected={selected} onSelect={setSelected}
@@ -162,8 +181,10 @@ export function ScaffoldView() {
         </div>
       </div>
 
+      <div className="pane-resizer" onMouseDown={startResizeTree} title="Drag to resize" />
+
       {/* File content */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
         {selectedFile ? (
           <>
             <div style={{

@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 from k9_aif_abb.k9_agents.registry.agent_registry import AgentRegistry
 from k9_aif_abb.k9_core.orchestration.base_orchestrator import BaseOrchestrator
 from k9_aif_abb.k9_orchestrators.registry.orchestrator_registry import OrchestratorRegistry
+from k9_aif_abb.k9_security.vulnerability.shield_governance import ShieldGovernance
 from k9_aif_abb.k9_squad.squad_loader import SquadLoader
 
 {% for agent_name in agent_names %}
@@ -42,7 +43,13 @@ class {{ orchestrator_name }}(BaseOrchestrator):
     layer = "{{ app_name }} {{ orchestrator_name }} SBB"
 
     def __init__(self, config: Optional[Dict[str, Any]] = None, **kwargs) -> None:
-        super().__init__(config=config or {}, **kwargs)
+        config = config or {}
+        # k9x_Shield on the orchestrator too (config/config.yaml's
+        # security.shield block) -- checks the payload at the flow's entry,
+        # before any squad runs. Pass governance=<your own object> to override.
+        if kwargs.get("governance") is None:
+            kwargs["governance"] = ShieldGovernance(config=config)
+        super().__init__(config=config, **kwargs)
 
     def _load_squad(self, squad_id: str):
         from utils.agent_loader import AgentLoader
@@ -75,10 +82,16 @@ class {{ orchestrator_name }}(BaseOrchestrator):
         if not zt["allowed"]:
             log.warning("[%s] Zero Trust DENIED reason=%s", self.layer, zt["reason"])
             return {"status": "denied", "reason": zt["reason"]}
+        # Sync wrapper around the async Shield ingress hook -- a BLOCK comes
+        # back as allowed=False rather than an exception.
+        sh = self.apply_shield(zt["payload"])
+        if not sh["allowed"]:
+            log.warning("[%s] Shield DENIED reason=%s", self.layer, sh["reason"])
+            return {"status": "denied", "reason": sh["reason"]}
 {% if squad_names | length == 1 %}
         squad = self._load_squad(_SQUAD_ID)
-        return squad.execute(zt["payload"])
+        return squad.execute(sh["payload"])
 {% else %}
         squads = [self._load_squad(sid) for sid in _SQUAD_IDS]
-        return self.execute_squads(squads, zt["payload"], parallel={{ "True" if parallel else "False" }})
+        return self.execute_squads(squads, sh["payload"], parallel={{ "True" if parallel else "False" }})
 {% endif %}

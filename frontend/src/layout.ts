@@ -9,15 +9,30 @@ const NODE_H  = 80;
 const V_GAP   = 50;
 
 // Fixed X columns per tier — wider spacing to accommodate long node names
-const LEVEL_X: Record<string, number> = {
+// and give each column real breathing room (canvasLayers.ts's column
+// backgrounds read this exact table via LEVEL_X, not a separate copy — one
+// source, can't drift).
+export const LEVEL_X: Record<string, number> = {
   intent_squad:    -80,
   router:          150,
-  orchestrator:    480,
-  squad:           820,
-  agent:           1160,
-  validation_loop: 1160,
-  critic_actor:    1160,
-  guard:           1160,
+  orchestrator:    550,
+  hil_orchestrator: 550,   // same column as Orchestrator — it is one, just event-driven (studio_rules.md §4)
+  squad:          1000,
+  // Adapters get their own explicit column between Squad and Agent — this
+  // was previously an unnamed fallback (`?? 980`, same value), now named so
+  // the canvas-column backgrounds (Canvas.tsx) can be computed from this
+  // table rather than guessing at a magic number.
+  messaging_adapter: 1250,
+  workflow_adapter:  1250,
+  process_adapter:   1250,
+  api_adapter:       1250,
+  bpm_adapter:       1250,
+  rules_adapter:     1250,
+  data_adapter:      1250,
+  agent:           1550,
+  validation_loop: 1550,
+  critic_actor:    1550,
+  guard:           1550,
   system:          150,
 };
 
@@ -77,7 +92,7 @@ export function applyHierarchyLayout(
     const h    = subtreeHeight(id);
     const cy   = topEdge + h / 2;
     const node = nodes.find((n) => n.id === id)!;
-    const x    = LEVEL_X[(node.data as NodeData).componentType] ?? 980;
+    const x    = LEVEL_X[(node.data as NodeData).componentType] ?? LEVEL_X.messaging_adapter;
     pos[id] = { x, y: cy - NODE_H / 2 };
 
     const kids = children[id] ?? [];

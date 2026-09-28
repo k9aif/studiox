@@ -26,7 +26,7 @@ _INJECTION = re.compile(
 
 _GOVERNANCE_MAX_CHARS = int(os.environ.get("GOVERNANCE_MAX_CHARS", "50000"))
 _GOVERNANCE_ENDPOINT  = os.environ.get("GOVERNANCE_LLM_ENDPOINT", "").strip().rstrip("/")
-_GOVERNANCE_MODEL     = os.environ.get("GOVERNANCE_LLM_MODEL", "granite3-guardian:latest").strip()
+_GOVERNANCE_MODEL     = os.environ.get("GOVERNANCE_LLM_MODEL", "granite4.1-guardian:8b").strip()
 
 
 def governance_check(content: str) -> Optional[str]:

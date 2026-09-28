@@ -1,0 +1,91 @@
+/* Shared dark-theme styles for every K9X Studio-generated HTML document
+   (docs/main.html, k9x_traceability-matrix.html, k9x_<evals>.html). Plain
+   CSS, no templating syntax — read verbatim by _k9x_html_shell() in
+   scaffold_service.py and inserted into each document's <style> block.
+   Real file = real syntax highlighting/linting, and zero risk of the
+   brace-escaping bugs an embedded Python f-string requires. */
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 28px 32px 80px; background: #09090b; color: #e2e2e6;
+  font-family: 'IBM Plex Sans', -apple-system, sans-serif; font-size: 14px; line-height: 1.6;
+}
+a { color: #a78bfa; }
+.k9x-banner {
+  position: sticky; top: 0; z-index: 50; margin: -28px -32px 20px; padding: 8px 32px;
+  background: #8a3ffc; color: #fff; font-size: 12.5px;
+}
+.k9x-header { margin-bottom: 18px; }
+.k9x-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.k9x-meta { font-size: 12px; color: #8d8d93; margin-top: 2px; }
+.k9x-meta b { color: #a78bfa; font-weight: 600; }
+.k9x-pills { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+.k9x-pill {
+  background: rgba(99,102,241,0.08); border: 1px solid #2a2a30; border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; color: #c9cadb;
+}
+.k9x-pill b { color: #e2e2e6; }
+.k9x-note {
+  background: rgba(99,102,241,0.06); border: 1px solid #2a2a30; border-radius: 8px;
+  padding: 14px 16px; margin-bottom: 18px; font-size: 12.5px; color: #c9cadb; line-height: 1.8;
+}
+.k9x-note b { color: #e2e2e6; }
+/* Ravi: "all font is not good at all. too small. check input process
+   doc html." Reference doc (Process Studio's own generated blueprint)
+   uses 14px body / 13px table / 12px header — matched here. */
+.k9x-table-wrap { overflow-x: auto; margin: 12px 0 20px; border: 1px solid #2a2a30; border-radius: 8px; }
+.k9x-table-wrap table { margin: 0; }
+table { border-collapse: collapse; width: 100%; }
+th {
+  text-align: left; padding: 8px 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #8d8d93; border-bottom: 1px solid #2a2a30; white-space: nowrap;
+  position: sticky; top: 0; background: #121218;
+}
+td { padding: 9px 12px; font-size: 13px; color: #c9cadb; border-bottom: 1px solid #3a3a42; vertical-align: top; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 10.5px; background: #1e1e2e; }
+.k9x-section { border: 1px solid #2a2a30; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+.k9x-section-head {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: rgba(99,102,241,0.05); border: none; padding: 10px 14px; cursor: pointer;
+  font-size: 12px; font-weight: 700; color: #c9cadb; font-family: inherit;
+}
+.k9x-section-count { font-size: 11px; color: #8d8d93; font-weight: 400; }
+.k9x-section-body { overflow: auto; max-height: 420px; }
+.k9x-section.collapsed .k9x-section-body { display: none; }
+.k9x-controls { display: flex; gap: 8px; margin-bottom: 14px; }
+.k9x-controls button {
+  background: transparent; border: 1px solid #2a2a30; color: #c9cadb; border-radius: 5px;
+  padding: 5px 12px; font-size: 11px; cursor: pointer; font-family: inherit;
+}
+.k9x-controls button:hover { border-color: #8a3ffc; color: #a78bfa; }
+.k9x-footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #2a2a30; font-size: 11px; color: #8d8d93; }
+.k9x-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0 20px; border-bottom: 1px solid #2a2a30; }
+.k9x-tab {
+  background: none; border: none; border-bottom: 2px solid transparent; color: #8d8d93;
+  padding: 8px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+  text-decoration: none; display: inline-block;
+}
+.k9x-tab:hover { color: #c9cadb; }
+.k9x-tab.active { color: #a78bfa; border-bottom-color: #8a3ffc; }
+.k9x-doc-row { padding: 10px 0; border-bottom: 1px solid #2a2a30; }
+.k9x-doc-row:last-child { border-bottom: none; padding-bottom: 0; }
+.k9x-nav-header { padding: 0 10px 14px; margin-bottom: 10px; border-bottom: 1px solid #2a2a30; }
+.k9x-nav-brand { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: #a78bfa; text-transform: uppercase; margin-bottom: 6px; }
+.k9x-nav-title { font-size: 13px; font-weight: 600; color: #e2e2e6; line-height: 1.4; }
+.k9x-navlink {
+  display: block; padding: 7px 10px; margin-bottom: 2px; border-radius: 6px; font-size: 12.5px;
+  color: #8d8d93; text-decoration: none; border-left: 2px solid transparent;
+}
+.k9x-navlink-label { display: block; }
+.k9x-navlink-sub { display: block; font-size: 10.5px; color: #6b6b78; margin-top: 1px; font-weight: 400; }
+.k9x-navlink:hover { color: #c9cadb; background: rgba(255,255,255,0.02); }
+.k9x-navlink.active { color: #a78bfa; border-left-color: #8a3ffc; background: rgba(138,63,252,0.06); }
+.k9x-navlink.active .k9x-navlink-sub { color: #a78bfa99; }
+.k9x-doc-content { flex: 1; min-width: 0; }
+.k9x-doc-section { margin-bottom: 48px; scroll-margin-top: 52px; }
+mark.k9x-hl { background: #eab30855; color: #e2e2e6; border-radius: 2px; }
+mark.k9x-hl.active { background: #8a3ffc; color: #fff; }
+@media (max-width: 760px) {
+  .k9x-doc-wrap { flex-direction: column; }
+  .k9x-doc-nav { position: static; width: 100%; max-height: none; }
+}

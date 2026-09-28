@@ -10,8 +10,24 @@ export function AboutStudio() {
         </div>
         <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.8 }}>
           K9X Studio is a visual drag-and-drop workbench for designing K9-AIF compliant
-          multi-agent architectures — upload a spec doc, generate the canvas, download the scaffold.
+          multi-agent architectures. Upload a <strong style={{ color: '#c8d0de' }}>BPMN
+          diagram</strong>, <strong style={{ color: '#c8d0de' }}>process spec (.md)</strong>, and{' '}
+          <strong style={{ color: '#c8d0de' }}>Agent Evaluation Plan (-evals.md)</strong> — from any BPMN 2.0
+          tool or IBM Process Studio — to generate the full set of artifacts: canvas, traceability matrix, framework coverage
+          analysis, and a ready-to-run scaffold.
         </div>
+      </div>
+
+      {/* Where this fits — design-time flow originating upstream of this studio */}
+      <div style={{
+        marginBottom: 28, padding: '12px 16px',
+        background: 'rgba(20,184,166,0.05)', border: '1px solid #14b8a633', borderRadius: 8,
+        fontSize: 13, color: '#94a3b8', lineHeight: 2,
+      }}>
+        <span style={{ color: '#14b8a6', fontWeight: 600 }}>Design-time flow: </span>
+        <span>Your process (any BPMN 2.0 tool, a written spec, or IBM Process Studio)</span>
+        <span style={{ color: '#475569' }}> → </span>
+        <span style={{ color: '#a5b4fc', fontWeight: 600 }}>K9X Studio (this)</span>
       </div>
 
       {/* Workflow */}
@@ -21,9 +37,9 @@ export function AboutStudio() {
         fontSize: 13, color: '#94a3b8', lineHeight: 2,
       }}>
         <span style={{ color: '#6366f1', fontWeight: 600 }}>How to use: </span>
-        <span style={{ color: '#a5b4fc' }}>Setup LLM</span>
+        <span style={{ color: '#a5b4fc' }}>Setup LLM (optional — BPMN/spec import is rule-based by default)</span>
         <span style={{ color: '#475569' }}> → </span>
-        <span>Upload Spec Doc or BPMN</span>
+        <span>Upload BPMN + Spec + Eval Plan</span>
         <span style={{ color: '#475569' }}> → </span>
         <span>Canvas auto-generates</span>
         <span style={{ color: '#475569' }}> → </span>
@@ -36,8 +52,9 @@ export function AboutStudio() {
           What it does
         </div>
         {[
-          ['📄', 'Upload Spec Doc',    'Upload a project spec .md (Process Studio output) — canvas auto-generates with Router, Orchestrators, Squads, Agents.'],
-          ['🔵', 'Upload BPMN',        'Upload IBM Blueworks Live, Camunda, or Bizagi BPMN exports — canvas auto-generates from the process flow.'],
+          ['📄', 'Upload Spec Doc',    'Upload a project spec or blueprint (.md) — canvas auto-generates with Router, Orchestrators, Squads, Agents.'],
+          ['🔵', 'Upload BPMN',        'Upload BPMN 2.0 exports from Camunda, Bizagi, Blueworks Live, Process Studio or any other tool — canvas auto-generates from the process flow.'],
+          ['🛡',  'Upload Eval Plan',   'Upload an Agent Evaluation Plan (-evals.md) — stages test cases, maps each to the framework component that already covers it, and generates a tests/evals/*.py stub per case in the scaffold.'],
           ['🎨', 'Visual Canvas',      'Drag-and-drop K9-AIF components. Connect Router → Orchestrator → Squad → Agents visually.'],
           ['📐', 'Templates',          'Start from pre-built templates: Insurance, Finance, Healthcare, Customer Service, and more.'],
           ['⬇',  'Generate Scaffold',  'Download a ready-to-run K9-AIF project ZIP with all boilerplate generated.'],
@@ -76,6 +93,38 @@ export function AboutStudio() {
         ))}
       </div>
 
+      {/* k9x_ output prefix convention — Ravi: "somewhere in the About, we
+          have to mention that for the input files, the corresponding
+          output files with the prefix k9x_ is generated to show the
+          mapping with the framework component / task." */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>
+          Every Input Gets a Mapped k9x_ Output
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.8, marginBottom: 8 }}>
+          Every file you upload gets a corresponding <code style={{ color: '#c8d0de' }}>k9x_</code>-prefixed
+          document back in the scaffold, showing exactly how it maps onto the generated K9-AIF components —
+          your original content stays intact; K9X Studio only adds the mapping on top.
+        </div>
+        {[
+          ['📄', 'Process specification (.md)', 'k9x_traceability-matrix.xlsx / .csv', 'Every process element mapped to its generated component, base class, zone, and governance posture.'],
+          ['🌐', 'HTML spec export (e.g. IBM Process Studio)', 'k9x_<filename>.html', 'The same document, unmodified, with "K9X "-prefixed Component/Base Type columns injected directly into its own Agent Definition Register table.'],
+          ['🛡', 'Agent Evaluation Plan (-evals.md)', 'k9x_<filename>-evals.md', 'Every test case with its real k9x_Shield framework coverage — the same view shown live in the Evals tab.'],
+        ].map(([icon, input, output, desc]) => (
+          <div key={input as string} style={{ display: 'flex', gap: 12, marginBottom: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+            <span style={{ fontSize: 18 }}>{icon}</span>
+            <div>
+              <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                <span style={{ color: '#c8d0de', fontWeight: 500 }}>{input as string}</span>
+                <span style={{ color: '#475569' }}> → </span>
+                <code style={{ color: '#a78bfa' }}>{output as string}</code>
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6, marginTop: 3 }}>{desc as string}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* LLM note */}
       <div style={{ marginBottom: 28 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -97,6 +146,49 @@ export function AboutStudio() {
             <div>
               <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>{model as string}</div>
               <div style={{ fontSize: 11, color: '#64748b' }}>{desc as string}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Eval Coverage by Category */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>
+          Built-In Coverage for Agent Evaluation Plans
+        </div>
+        <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.8, marginBottom: 10 }}>
+          An Agent Evaluation Plan (-evals.md, e.g. from IBM Process Studio) classifies every test case into
+          one of eight categories. Two of those categories are already substantially implemented by the K9-AIF
+          framework — not asserted, verified against the framework's own source and{' '}
+          <span style={{ color: '#c8d0de' }}>k9x_satan</span>'s attack suite. Stage an eval plan on the
+          Intake tab and the Evals tab shows this same breakdown per test case, for the actual project.
+        </div>
+        {[
+          ['✓ Covered',  'Adversarial Evals',
+            '45 of 50 typical cases map directly to one of k9x_Shield’s 13 built-in vulnerability checks (prompt injection, insecure output handling, memory/system-prompt exfiltration, tool authorization, execution guardrails, PII, DoS). Wired into every generated agent by default — an SA verifies the config is on, not writes new detection logic.'],
+          ['✓ Covered',  'Behavioral Evals',
+            'AMBER-zone "never auto-approves" is real, generated code today: K9ValidationLoopAgent.should_continue’s confidence-threshold ESCALATE path.'],
+          ['⚠ Partial',  'Behavioral & Adversarial — RED zone / Overreliance',
+            'The ESCALATE decision plumbing (K9CriticActorAgent.should_accept) is framework-provided, but critique()’s domain judgment is a TODO stub the SA must implement before the test can be trusted.'],
+          ['— Solution', 'Functional Evals',
+            'Tests the solution’s own business logic (e.g. "Classify & Code GL Account") — the framework provides the agent pattern to put that logic in, not the logic itself. Can never be framework-generic.'],
+          ['— Solution', 'Domain Evals',
+            'Domain-specific correctness rubrics defined per solution — same reasoning as Functional Evals.'],
+          ['□ Planned',  'Observability Validation',
+            'No metrics-emission ABB exists yet. Roadmap: a BaseMetricsEmitter contract with OOB adapters (Stdout/Prometheus), alert thresholds declared as SBB config — mirroring how security.shield is configured today.'],
+          ['□ Planned',  'Human-in-the-Loop Validation',
+            'No HITL-routing ABB exists yet. Roadmap: an EscalationSink contract with an OOB K9HilEscalationAdapter routing ESCALATE outcomes into k9x_hil’s queue with SLA tracking.'],
+          ['□ Planned',  'Failure Mode & Fallback Testing',
+            'Overlaps Observability (dashboards) and HITL routing (fallback path) above — closes once both roadmap items do.'],
+        ].map(([badge, category, desc]) => (
+          <div key={category as string} style={{ display: 'flex', gap: 12, marginBottom: 8, padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6 }}>
+            <span style={{
+              fontSize: 11, flexShrink: 0, marginTop: 1, minWidth: 74,
+              color: (badge as string).startsWith('✓') ? '#10b981' : (badge as string).startsWith('⚠') ? '#f59e0b' : (badge as string).startsWith('□') ? '#6366f1' : '#64748b',
+            }}>{badge as string}</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{category as string}</div>
+              <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>{desc as string}</div>
             </div>
           </div>
         ))}
@@ -159,10 +251,47 @@ export function AboutStudio() {
         </a>
       </div>
 
+      {/* Future enhancements — documented ideas, not yet built. Running list —
+          add here first, batch-implement later, rather than one-off notes
+          scattered across tabs. */}
+      <div style={{
+        marginBottom: 28, padding: '12px 16px',
+        background: 'rgba(245,158,11,0.05)', border: '1px solid #f59e0b33', borderRadius: 8,
+        fontSize: 12, color: '#94a3b8', lineHeight: 1.8,
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#f59e0b', marginBottom: 10 }}>
+          🔮 Future Enhancements
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ color: '#f59e0b', fontWeight: 600, marginBottom: 4 }}>1. Requirements Compliance Check</div>
+          <div>
+            After scaffold generation, use a backend LLM to check the generated
+            <span style={{ color: '#c8d0de' }}> implementation-plan.md</span> traceability matrix against the original
+            <span style={{ color: '#c8d0de' }}> spec/blueprint .md</span> (not the BPMN — that's structure-only; not the
+            eval plan — that's derived from the blueprint, not the original ask) — flagging any named agent, tool,
+            HITL touchpoint, observability metric, or behavioral rule from the blueprint with no corresponding row in
+            the generated matrix, using whichever LLM is configured in Setup.
+          </div>
+        </div>
+
+        <div>
+          <div style={{ color: '#f59e0b', fontWeight: 600, marginBottom: 4 }}>2. Document the Intake→Traceability Pipeline</div>
+          <div>
+            Deepen this page's <span style={{ color: '#c8d0de' }}>"How the Canvas is Generated"</span> section with
+            the actual under-the-hood mechanics: BPMN/blueprint/eval files are fully parsed at <em>upload</em> time
+            (XML tree walk / regex table extraction), not at Generate time — clicking Generate just joins two
+            already-parsed structures via <span style={{ color: '#c8d0de' }}>blueprint_service.combine()</span>'s
+            three-way match (BPMN task name ↔ blueprint ATS step name ↔ agent's Owned Steps), which is why it
+            completes in milliseconds with zero LLM calls. Worth explaining so it doesn't read as suspiciously fast.
+          </div>
+        </div>
+      </div>
+
       {/* Build info */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {[
-          ['Version',    '1.0.0'],
+          ['Version',    '0.5.0'],
           ['Created by', 'Ravi Natarajan & Claude Code'],
           ['Framework',  'K9-AIF · Architecture-First Agentic AI'],
           ['Website',    'k9x.ai'],

@@ -15,6 +15,27 @@ const ICONS: Record<string, string> = {
   guard: '⊛',
 };
 
+// Drop the redundant "Agent" that sits between the stem and the role word
+// in a node's DISPLAYED label only — e.g. "Agn4AnomalyDetectionAgentSquad"
+// -> "Agn4AnomalyDetectionSquad". The role word itself (Squad/Orchestrator)
+// stays — Ravi's call after seeing the first pass: keep the type visible in
+// the label too, just drop the "Agent" filler word before it. Never touches
+// the underlying name anywhere else — scaffold generation, the mapping
+// document, YAML, everything keeps the full precise name; this is a
+// render-only cosmetic trim.
+function displayLabel(label: string): string {
+  return label
+    .replace(/Agent(Squad|Orchestrator)$/, '$1')
+    .replace(/Orchestrator$/, 'Orch'); // Ravi: "Orchestrator can be abbreviated as Orch" — Squad stays full
+}
+
+// Process Studio's own GREEN/AMBER/RED zone coding (Carbon strong-accent
+// triad — see plan.md's zone-color decision: read Process Studio's Tailwind
+// hexes on import, render with Carbon's on our dark canvas).
+const ZONE_COLORS: Record<string, string> = { GREEN: '#24a148', AMBER: '#f1c21b', RED: '#da1e28' };
+const AGENT_LIKE_TYPES = new Set(['agent', 'validation_loop', 'critic_actor', 'guard']);
+const SQUAD_LIKE_TYPES = new Set(['squad', 'intent_squad']);
+
 const handleStyle = (color: string) => ({
   background: color,
   border: '2px solid #0a0a12',
@@ -61,6 +82,14 @@ export function K9Node({ id, data, selected }: NodeProps) {
     );
   }
 
+  // Zone tint: agent nodes get a badge (precise, per-element); squad nodes
+  // get a colored top edge (a squad = one BPMN lane, so this reads as the
+  // lane's own zone, echoing Process Studio's per-lane coloring). Additive
+  // to the existing role-based coloring (d.color) — never replaces it.
+  const zoneColor = d.zone ? ZONE_COLORS[d.zone] : undefined;
+  const isAgentLike = AGENT_LIKE_TYPES.has(d.componentType);
+  const isSquadLike = SQUAD_LIKE_TYPES.has(d.componentType);
+
   return (
     <div
       style={{
@@ -72,6 +101,7 @@ export function K9Node({ id, data, selected }: NodeProps) {
           ? `0 0 0 3px #a78bfa33, 0 6px 24px ${d.color}55`
           : `0 2px 12px ${d.color}22`,
         transition: 'all 0.15s ease',
+        ...(isSquadLike && zoneColor ? { borderTop: `4px solid ${zoneColor}` } : {}),
       }}
     >
       <Handle type="target" position={Position.Top}    id="t-top"    style={handleStyle(d.color)} />
@@ -87,14 +117,27 @@ export function K9Node({ id, data, selected }: NodeProps) {
         <div style={{
           fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
           textTransform: 'uppercase', color: d.color, marginBottom: 4,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         }}>
-          {icon} {d.componentType.replace('_', ' ')}
+          <span>{icon} {d.componentType.replace('_', ' ')}</span>
+          {isAgentLike && zoneColor && (
+            <span
+              title={`Autonomy zone: ${d.zone}`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+                color: zoneColor, border: `1px solid ${zoneColor}88`, borderRadius: 3,
+                padding: '1px 5px', fontSize: 8, letterSpacing: '0.04em',
+              }}
+            >
+              ● {d.zone}
+            </span>
+          )}
         </div>
         <div style={{
           fontSize: 13, fontWeight: 600, color: '#e2e2f0',
           lineHeight: 1.3, wordBreak: 'break-word',
         }}>
-          {d.label}
+          {displayLabel(d.label)}
         </div>
         <div style={{
           fontSize: 10, color: '#6b6b8a', marginTop: 3, fontFamily: 'monospace',

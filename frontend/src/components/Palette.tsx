@@ -63,11 +63,12 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const toggleSection = (id: string) => setExpandedSections((s) => ({ ...s, [id]: !s[id] }));
   const isFirstRender = useRef(true);
-  const { project, setProject, clearCanvas, addNode, onConnect,
+  const { project, setProject, resetCanvasNodesForRebuild, addNode, onConnect,
           nodes, selectedNodeId, setGenerating, layoutCanvas, collapseAllSquads,
           addLog, setLastTemplateSuggestion, setLastTemplateId,
           reapplyTemplate, pendingCanvasSuggestion, setPendingCanvasSuggestion,
-          setLastSpecFile, setSpecImported } = useStore();
+          setLastSpecFile, setSpecImported, canvasIsRuleBased,
+          setLastBpmnFile, setCanvasIsRuleBased } = useStore();
 
 
   useEffect(() => {
@@ -142,7 +143,7 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
   }, []);
 
   const buildCanvas = (suggestion: any) => {
-    clearCanvas();
+    resetCanvasNodesForRebuild();
     const cx = 480;
     const routerId = uid2();
     addNode({ id: routerId, type: 'k9node', position: { x: cx - 90, y: 60 },
@@ -156,6 +157,15 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
     // Track orchestrator name → node ID so adapters can wire to the right parent
     const orchNameToId: Record<string, string> = {};
 
+    // Resolve each orchestrator's squads by relationship, never by array
+    // position — BPMN import (and any source with a mix of GREEN adapter-only
+    // lanes and AI lanes) does not guarantee orchestrators[i] pairs with
+    // squads[i]; a positional guess silently wires an orchestrator to a
+    // different lane's squad the moment any earlier orchestrator has none.
+    const squadByName: Record<string, any> = {};
+    (suggestion.squads ?? []).forEach((sq: any) => { squadByName[sq.name] = sq; });
+    const claimedSquadNames = new Set<string>();
+
     suggestion.orchestrators?.forEach((o: any, oi: number) => {
       const orchId = uid2();
       orchNameToId[o.name] = orchId;
@@ -165,11 +175,25 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
       onConnect({ source: routerId, target: orchId, sourceHandle: 's-right', targetHandle: 't-left' });
       onConnect({ source: kafkaId, target: orchId, sourceHandle: 's-right', targetHandle: 't-left' });
 
-      const orchSquads = suggestion.squads?.slice(oi, oi + 1) ?? [];
+      let orchSquads: any[];
+      if (Array.isArray(o.squads)) {
+        // Explicit linkage from the backend (e.g. bpmn_service.py) — authoritative,
+        // including the deliberately-empty case (GREEN/adapter-only orchestrator).
+        orchSquads = o.squads.map((name: string) => squadByName[name]).filter(Boolean);
+      } else {
+        // No explicit linkage (older suggestion shapes, e.g. spec-doc import) —
+        // match by shared name stem (Orchestrator/Squad suffix stripped) instead
+        // of guessing by position.
+        const stem = String(o.name).replace(/Orchestrator$/, '');
+        orchSquads = (suggestion.squads ?? []).filter((sq: any) =>
+          !claimedSquadNames.has(sq.name) && String(sq.name).replace(/Squad$/, '').startsWith(stem)
+        );
+      }
+      orchSquads.forEach((sq: any) => claimedSquadNames.add(sq.name));
       orchSquads.forEach((sq: any) => {
         const squadId = uid2();
         addNode({ id: squadId, type: 'k9node', position: { x: orchX - 20, y: 400 },
-          data: { label: sq.name, componentType: 'squad' as ComponentType, color: COMPONENT_COLORS.squad, abbClass: 'BaseSquad', description: `Squad: ${sq.name}` } });
+          data: { label: sq.name, componentType: 'squad' as ComponentType, color: COMPONENT_COLORS.squad, abbClass: 'BaseSquad', description: `Squad: ${sq.name}`, zone: sq.zone } });
         onConnect({ source: orchId, target: squadId, sourceHandle: 's-right', targetHandle: 't-left' });
 
         const count = (sq.agents ?? []).length;
@@ -182,7 +206,7 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
           const agId = uid2();
           addNode({ id: agId, type: 'k9node', position: { x: startX + ai * spacing, y: 580 },
             data: { label: name, componentType: ntype as ComponentType, color: COMPONENT_COLORS[ntype], abbClass: ABB_MAP[atype] ?? 'BaseAgent',
-              agentType: atype, model: def?.model ?? 'general', pattern: 'reasoning', description: def?.description ?? '' } });
+              agentType: atype, zone: def?.zone, processId: def?.process_id, model: def?.model ?? 'general', pattern: 'reasoning', description: def?.description ?? '' } });
           onConnect({ source: squadId, target: agId, sourceHandle: 's-right', targetHandle: 't-left' });
         });
       });
@@ -201,14 +225,58 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
       addNode({ id: adapterId, type: 'k9node',
         position: { x: baseX + 160 + (idx % 3) * 180, y: 400 + Math.floor(idx / 3) * 120 },
         data: { label: a.name, componentType: adapterType, color: COMPONENT_COLORS[adapterType] ?? '#3d5a8a',
-          abbClass, description: a.description ?? a.name } });
+          abbClass, description: a.description ?? a.name, zone: a.zone, processId: a.process_id } });
       onConnect({ source: sourceId, target: adapterId, sourceHandle: 's-right', targetHandle: 't-left' });
     });
 
-    // Auto-layout, then collapse all squads so default view is clean
+    // Ravi: "I see in the traceability that there is HITL touchpoint. but,
+    // on the canvas, however, I do not see the HIL orchestration... system
+    // should add it since process studio output and traceability had it."
+    // bpmn_service.py's build_mapping_document() marks any AMBER zone task
+    // "Human review before the workflow proceeds" and any RED zone task
+    // "Dual approval required" (_HITL_BY_ZONE) — the same zone value is
+    // already carried on each suggestion.agents entry here (see `zone:
+    // def?.zone` above), so no separate lookup is needed. One shared HIL
+    // Orchestrator + HILSquad + HILAgent for the whole canvas (not one per
+    // touchpoint) — same shape as Canvas.tsx's manual drag-and-drop wiring,
+    // teal `#14b8a6`, off the Kafka bus rather than under any one
+    // BaseOrchestrator, matching how a real event-driven HIL checkpoint
+    // resumes the workflow after a human decision.
+    const needsHil = (suggestion.agents ?? []).some((a: any) =>
+      ['AMBER', 'RED'].includes(String(a.zone ?? '').toUpperCase())
+    );
+    if (needsHil) {
+      const HIL_COLOR = COMPONENT_COLORS.hil_orchestrator;
+      const hilX = cx - 90 + (suggestion.orchestrators?.length ?? 0) * 300;
+      const hilId = uid2();
+      addNode({ id: hilId, type: 'k9node', position: { x: hilX, y: 220 },
+        data: { label: 'HILOrch', componentType: 'hil_orchestrator' as ComponentType, color: HIL_COLOR, abbClass: 'BaseHILOrchestrator', description: 'Event-driven HIL orchestrator — resumes the workflow after a human decision' } });
+      onConnect({ source: kafkaId, target: hilId, sourceHandle: 's-right', targetHandle: 't-left' });
+
+      const hilSquadId = uid2();
+      addNode({ id: hilSquadId, type: 'k9node', position: { x: hilX + 240, y: 220 },
+        data: { label: 'HILSquad', componentType: 'squad' as ComponentType, color: HIL_COLOR, abbClass: 'BaseSquad', description: 'Squad for post-human-action processing' } });
+      onConnect({ source: hilId, target: hilSquadId, sourceHandle: 's-right', targetHandle: 't-left' });
+
+      const hilAgentId = uid2();
+      addNode({ id: hilAgentId, type: 'k9node', position: { x: hilX + 480, y: 220 },
+        data: { label: 'HILAgent', componentType: 'agent' as ComponentType, color: HIL_COLOR, abbClass: 'BaseAgent', agentType: 'BaseAgent', model: 'general', pattern: 'reasoning', description: 'Processes the human decision and continues the workflow' } });
+      onConnect({ source: hilSquadId, target: hilAgentId, sourceHandle: 's-right', targetHandle: 't-left' });
+    }
+
+    // Auto-layout, then collapse all squads so default view is clean — except
+    // right after a BPMN-confirmed build, where collapsing immediately hid
+    // every agent node the user had just reviewed and confirmed in the
+    // Traceability matrix. Ravi: "canvas did not show agents while the
+    // scaffold did" — not data loss (scaffold generation always reads the
+    // full node list regardless of collapse state), but confusing right
+    // after a confirm. Other paths (templates, LLM suggestions) keep the
+    // collapse-by-default behavior, where a big canvas benefits from it.
     setTimeout(() => {
       layoutCanvas();
-      setTimeout(() => collapseAllSquads(), 60);
+      if (!canvasIsRuleBased) {
+        setTimeout(() => collapseAllSquads(), 60);
+      }
     }, 50);
   };
 
@@ -375,12 +443,20 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
       {/* ── Project Info tab ───────────────────────── */}
       {tab === 'project' && (
         <>
-          {/* Template picker */}
+          {/* Template picker — disabled while a project is loaded so picking
+              a template can never silently overwrite in-progress work; only
+              re-enabled once Clear resets project_name back to empty. */}
           <div className="palette-templates" style={{ paddingTop: 12 }}>
             <div className="palette-project-label">Start from template</div>
+            {Boolean(project.project_name?.trim()) && (
+              <div style={{ fontSize: 11, color: '#8892a4', marginBottom: 6, lineHeight: 1.5 }}>
+                A project is loaded. Click <strong>Clear</strong> first to pick a different template.
+              </div>
+            )}
             <select
               className="palette-template-select"
               defaultValue=""
+              disabled={Boolean(project.project_name?.trim())}
               onChange={async (e) => {
                 const val = e.target.value;
                 e.target.value = '';
@@ -391,8 +467,13 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
                 setLastTemplate(t);
                 setLastTemplateId(t.id);
                 if (t.suggestion) setLastTemplateSuggestion(t.suggestion);
-                // Reset spec state when picking a template
+                // Reset spec/BPMN state when picking a template — a template
+                // build is neither, and leaving canvasIsRuleBased stale
+                // (true, from a prior BPMN import) would incorrectly skip
+                // the auto-collapse step below for a template canvas too.
                 setLastSpecFile(null);
+                setLastBpmnFile(null);
+                setCanvasIsRuleBased(false);
                 setSpecImported(false);
                 const updated = { ...project, project_name: t.name, domain: t.domain, description: t.description,
                   ...(t.vision       ? { vision:       t.vision }       : {}),

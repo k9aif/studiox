@@ -53,8 +53,10 @@ LLM_API_KEY=
 # Used only for document safety screening on upload.
 # Separate from the user-configured LLM above. Granite Guardian recommended.
 # Documents larger than GOVERNANCE_MAX_CHARS skip the LLM check (Layer 1 only).
+# Granite Guardian screens every Intake upload. Set false to turn it off.
+GUARDIAN_ENABLED=true
 GOVERNANCE_LLM_ENDPOINT=http://127.0.0.1:11434
-GOVERNANCE_LLM_MODEL=granite3-guardian:latest
+GOVERNANCE_LLM_MODEL=granite4.1-guardian:8b
 GOVERNANCE_MAX_CHARS=50000
 
 # ── Studio runtime ─────────────────────────────────────────────

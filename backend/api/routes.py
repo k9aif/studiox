@@ -3,6 +3,7 @@
 
 import os as _os
 import re
+import html as _html
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 
 # Set K9X_BLOCK_LOCAL=true in .env only for public-hosted instances.
@@ -22,10 +23,14 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import zipfile
+import io as _io
+import time as _time
+import uuid as _uuid
 from pathlib import Path
 
 from backend.services.scaffold_service import generate_scaffold
-from backend.services.bpmn_service import parse_bpmn, extract_process_name
+from backend.services.bpmn_service import parse_bpmn, extract_process_name, build_mapping_document
+from backend.services.spec_parsing_service import sanitize_suggestion
 
 router = APIRouter()
 
@@ -227,54 +232,11 @@ Return ONLY valid JSON. Every agent name in squads[].agents must have a matching
     return {"suggestion": default, "source": "default"}
 
 
-def _call_llm(endpoint: str, provider: str, model: str, api_key: str, prompt: str) -> str:
-    """Call the configured LLM and return the raw text response. Raises on failure."""
-    import requests as http
-    if provider == "ollama":
-        resp = http.post(
-            f"{endpoint}/api/generate",
-            json={"model": model, "prompt": prompt, "stream": False},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        return resp.json().get("response", "")
-    elif provider == "watsonx":
-        import requests as http
-        headers: dict = {"Content-Type": "application/json", "Accept": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        resp = http.post(
-            f"{endpoint}/chat/completions",
-            headers=headers,
-            json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 2048},
-            timeout=120,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-    elif provider in ("openai", "custom"):
-        headers: dict = {"Content-Type": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        resp = http.post(
-            f"{endpoint}/chat/completions",
-            headers=headers,
-            json={"model": model, "messages": [{"role": "user", "content": prompt}]},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-    elif provider == "anthropic":
-        resp = http.post(
-            f"{endpoint}/v1/messages",
-            headers={"Content-Type": "application/json", "x-api-key": api_key,
-                     "anthropic-version": "2023-06-01"},
-            json={"model": model, "max_tokens": 2048,
-                  "messages": [{"role": "user", "content": prompt}]},
-            timeout=60,
-        )
-        resp.raise_for_status()
-        return resp.json()["content"][0]["text"]
-    raise ValueError(f"Unknown provider: {provider}")
+# Moved to backend/services/llm_service.py so doc_narration_service.py can
+# share the exact same provider dispatch instead of hardcoding its own
+# Ollama-only call — kept as a local alias so every existing call site
+# below (_call_llm(...)) needs no change.
+from backend.services.llm_service import call_llm as _call_llm
 
 
 def _default_suggestion(project_name: str, domain: str) -> dict:
@@ -300,10 +262,17 @@ def _default_suggestion(project_name: str, domain: str) -> dict:
 # ── BPMN import ───────────────────────────────────────────────────────────────
 
 @router.post("/bpmn/import")
-async def bpmn_import(file: UploadFile = File(...), llm_config: Optional[str] = Form(None)):
+async def bpmn_import(file: UploadFile = File(...), llm_config: Optional[str] = Form(None), force_llm: Optional[str] = Form(None)):
     """
     Parse a BPMN 2.0 file or IBM BlueWorks Live ZIP export.
-    If llm_config JSON is provided, uses LLM to intelligently group tasks into squads.
+
+    Rule-based (deterministic) by default and only by default — a BPMN
+    document already carries everything needed (lanes, zones, HITL intent)
+    via explicit parsing, so there's no ambiguity for an LLM to usefully
+    resolve. The LLM regrouping path only runs when force_llm is explicitly
+    set alongside llm_config — never merely because a session happens to
+    have an LLM configured elsewhere in the app. See plan.md
+    "mapping-document-first" decision (no LLM for structured input).
     ZIP: skips .xsd and Glossaries.bpmn, parses the main process .bpmn.
     """
     import io as _io
@@ -347,14 +316,36 @@ async def bpmn_import(file: UploadFile = File(...), llm_config: Optional[str] = 
 
     process_name = extract_process_name(content)
     if not process_name:
-        # Many BPMN exports (Camunda default, some Blueworks diagrams) omit a
-        # name attribute on <process>/<definitions> — fall back to the
-        # uploaded filename so project_name is never left blank.
-        stem = re.sub(r"\.(bpmn|xml|zip)$", "", file.filename or "", flags=re.IGNORECASE)
-        process_name = re.sub(r"[_\-]+", " ", stem).strip().title() or "Imported Process"
+        # Real Process-Studio-exported BPMN files often have no name attribute
+        # at all on <process>/<definitions> (e.g. just id="Process_1") — found
+        # via the AP-invoice sample: extract_process_name() correctly returns
+        # None, but leaving project_name empty silently disables Generate
+        # Scaffold client-side ("Set a project name first") with no visible
+        # reason on this tab. Fall back to the uploaded filename so a fresh
+        # BPMN import always leaves project_name populated; the SA can still
+        # rename it (Project Info panel, or the Traceability tab doesn't
+        # cover this field — it's project-level, not per-component).
+        # Process Studio's own naming convention always appends "-bpmn" to
+        # the diagram filename (e.g. "accounts-payable-...-bpmn.bpmn") —
+        # strip it so it doesn't leak into project_name (and from there into
+        # app_folder/the scaffold zip's name: "..._bpmn_scaffold.zip" reads
+        # like a mistake, not a feature).
+        stem = Path(file.filename or "process").stem
+        stem = re.sub(r"[-_]?bpmn$", "", stem, flags=re.I)
+        process_name = re.sub(r"[-_]+", " ", stem).strip().title() or "Imported Process"
 
-    # ── LLM regrouping — if a session LLM config was provided ─────────────────
-    if llm_config:
+    # Built from the deterministic parse (base_suggestion), not whatever the
+    # LLM path below might return — this is the authoritative traceability
+    # data regardless of which suggestion (LLM-regrouped or rule-based) ends
+    # up on canvas. See plan.md mapping-document step 8: once "no LLM for
+    # structured input" is locked down, the LLM path won't fire for BPMN
+    # import at all and this divergence risk goes away.
+    mapping_document = build_mapping_document(base_suggestion)
+
+    # ── LLM regrouping — only when explicitly force_llm'd, never merely because
+    # a session LLM config happens to exist (plan.md: no LLM for structured
+    # input by default) ─────────────────────────────────────────────────────
+    if llm_config and force_llm:
         import json as _json, re as _re
         try:
             cfg = _json.loads(llm_config)
@@ -400,6 +391,7 @@ Every agent name in squads[].agents must have a matching entry in agents[]. Retu
                     if "agents" in llm_suggestion and "squads" in llm_suggestion:
                         return {
                             "suggestion": llm_suggestion,
+                            "mapping_document": mapping_document,
                             "process_name": process_name,
                             "source": "bpmn+llm",
                         }
@@ -408,8 +400,145 @@ Every agent name in squads[].agents must have a matching entry in agents[]. Retu
 
     return {
         "suggestion": base_suggestion,
+        "mapping_document": mapping_document,
         "process_name": process_name,
         "source": "bpmn",
+    }
+
+
+@router.post("/blueprint/import")
+async def blueprint_import(file: UploadFile = File(...)):
+    """
+    Parse an EAEF blueprint (.md/.txt/.html) — the governance layer a BPMN
+    structurally cannot encode (MCP tool register, agent definitions,
+    observability requirements, behavioral evals, HITL touchpoints).
+
+    Rule-based always, same as BPMN import — a blueprint's numbered
+    sections and pipe-delimited tables are exactly as structured as a BPMN
+    diagram, nothing for an LLM to usefully resolve. See
+    blueprint_service.py's module docstring.
+    """
+    fname = (file.filename or "").lower()
+    if not fname.endswith((".md", ".txt", ".html", ".htm")):
+        raise HTTPException(status_code=400, detail="Upload a .md, .txt, or .html blueprint file")
+
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+    content = raw.decode("utf-8", errors="replace")
+
+    if fname.endswith((".html", ".htm")):
+        # Simple tag-strip — the real sample .html export is the same EAEF
+        # content marked up, not a different document; no new dependency
+        # (BeautifulSoup etc.) needed for well-formed generator output.
+        content = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", content, flags=re.I | re.S)
+        content = re.sub(r"<[^>]+>", "\n", content)
+        content = _html.unescape(content)
+
+    governance_err = _governance_check(content)
+    if governance_err:
+        raise HTTPException(status_code=422, detail=governance_err)
+
+    from backend.services.blueprint_service import looks_like_blueprint, parse_blueprint, build_suggestion_from_blueprint
+
+    if not looks_like_blueprint(content):
+        raise HTTPException(
+            status_code=422,
+            detail="This doesn't look like an EAEF blueprint — none of the expected sections "
+                   "(Atomic Thinking Step Register, MCP Tool Register, Agent Definition Register, "
+                   "Observability Requirements, Behavioral Evals) were found.",
+        )
+
+    stem = Path(file.filename or "blueprint").stem
+    process_name = re.sub(r"[-_]+", " ", stem).strip().title() or "Imported Blueprint"
+
+    parsed = parse_blueprint(content)
+    suggestion = sanitize_suggestion(build_suggestion_from_blueprint(process_name, parsed))
+    mapping_document = build_mapping_document(suggestion)
+
+    return {
+        "suggestion": suggestion,
+        "parsed": parsed,
+        "mapping_document": mapping_document,
+        "counts": parsed["counts"],
+        "process_name": process_name,
+        "source": "blueprint",
+    }
+
+
+@router.post("/evals/import")
+async def evals_import(file: UploadFile = File(...)):
+    """
+    Parse Process Studio's companion Agent Evaluation Plan (filename suffix
+    "-evals.md") — Functional/Behavioral/Adversarial/Domain/Failure Mode/
+    HITL/Observability/Regression test-case tables. Rule-based, same as
+    BPMN/blueprint import — see evals_service.py's module docstring.
+
+    Unlike BPMN/blueprint, this never drives canvas generation — it has no
+    suggestion/mapping_document. The parsed rows are only used, later, to
+    generate tests/evals/*.py stubs in the scaffold (see
+    scaffold_service.py's _gen_eval_test_files()).
+    """
+    fname = (file.filename or "").lower()
+    if not fname.endswith((".md", ".txt")):
+        raise HTTPException(status_code=400, detail="Upload a .md or .txt eval plan file")
+
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+    content = raw.decode("utf-8", errors="replace")
+
+    governance_err = _governance_check(content)
+    if governance_err:
+        raise HTTPException(status_code=422, detail=governance_err)
+
+    from backend.services.evals_service import looks_like_evals, parse_evals
+
+    if not looks_like_evals(content):
+        raise HTTPException(
+            status_code=422,
+            detail="This doesn't look like an Agent Evaluation Plan — none of the expected "
+                   "sections (Functional Evals, Behavioral Evals, Adversarial Evals, Failure Mode "
+                   "& Fallback Testing, Human-in-the-Loop Validation, Observability Validation) "
+                   "were found.",
+        )
+
+    parsed = parse_evals(content)
+    return {
+        "rows": parsed["rows"],
+        "counts": parsed["counts"],
+        "total": parsed["total"],
+        "source": "evals",
+    }
+
+
+class CombineRequest(BaseModel):
+    project_name: str = ""
+    bpmn_parsed: dict
+    blueprint_parsed: dict
+
+
+@router.post("/intake/combine")
+def intake_combine(req: CombineRequest):
+    """
+    Join a staged BPMN parse + a staged blueprint parse into one suggestion
+    — BPMN gives canvas geometry, blueprint gives the governance layer,
+    joined on ATS/task identity (see blueprint_service.combine()). Only
+    used when BOTH are staged; a single staged input generates directly
+    from its own /api/bpmn/import or /api/blueprint/import result without
+    this endpoint.
+    """
+    from backend.services.blueprint_service import combine
+
+    result = combine(req.project_name, req.bpmn_parsed, req.blueprint_parsed)
+    suggestion = sanitize_suggestion(result["suggestion"])
+    mapping_document = build_mapping_document(suggestion)
+
+    return {
+        "suggestion": suggestion,
+        "mapping_document": mapping_document,
+        "warnings": result["warnings"],
+        "source": "bpmn+blueprint",
     }
 
 
@@ -421,15 +550,40 @@ class AgentDef(BaseModel):
     model: str = "general"
     pattern: str = "reasoning"
     description: str = ""
+    # GREEN/AMBER/RED, process_id: added along with build_mapping_document()
+    # (plan.md mapping-document work) — without these two fields, a real
+    # request through /api/generate silently dropped both (Pydantic ignores
+    # undeclared fields), even though bpmn_service.py has sent them since
+    # that work landed. Confirmed and fixed 2026-09-10 via a live HTTP test
+    # (sent adapters, got 0 back) that exposed this alongside the missing
+    # AdapterDef below.
+    zone: Optional[str] = None
+    process_id: Optional[str] = None
 
 class SquadDef(BaseModel):
     name: str
     agents: List[str]
+    zone: Optional[str] = None
+    process_id: Optional[str] = None
+
+class AdapterDef(BaseModel):
+    """Was entirely missing from this schema until 2026-09-10 — confirmed via
+    a live HTTP test that every real scaffold-generation request silently
+    dropped all adapter data (Pydantic ignores fields a model doesn't
+    declare). Every GREEN/deterministic step, and detailed-design.md's
+    matrix rows for them, were affected."""
+    name: str
+    adapter_type: str = "api_adapter"
+    description: str = ""
+    orchestrator: Optional[str] = None
+    zone: Optional[str] = None
+    process_id: Optional[str] = None
 
 class OrchestratorDef(BaseModel):
     name: str
     squads: List[str] = Field(default_factory=list)
     parallel: bool = False
+    process_id: Optional[str] = None
 
 class ScenarioDef(BaseModel):
     """A single 'best case' use-case scenario embedded in the generated scaffold.
@@ -455,20 +609,73 @@ class ProjectDef(BaseModel):
     orchestrators: List[OrchestratorDef] = Field(default_factory=list)
     squads: List[SquadDef] = Field(default_factory=list)
     agents: List[AgentDef] = Field(default_factory=list)
+    # Was entirely missing until 2026-09-10 — see AdapterDef above for the
+    # bug this fixes (every real /api/generate request silently dropped all
+    # adapter data).
+    adapters: List[AdapterDef] = Field(default_factory=list)
     llm_provider: str = ""
     llm_model: str = ""
+    # Ravi: "remove the wiring to the qwen model. Only when a user or myself
+    # sets up a LLM using the setup then it can be used" — the "LLM
+    # narration" feature (generate_rich_docs) needs the actual reachable
+    # endpoint/credentials, not just a display-only provider/model label,
+    # so it can call the SAME LLM the Setup tab configured rather than a
+    # separate hardwired default. Both empty (no LLM configured anywhere)
+    # means narration is skipped entirely — see scaffold_service.py.
+    llm_endpoint: str = ""
+    llm_api_key: str = ""
     generation_source: str = ""
     generation_scoring: Optional[dict] = None
     scenario: Optional[ScenarioDef] = None
+    # Which Process Studio input files fed this generation — set by
+    # IntakePanel.tsx's stage*File functions on the frontend, read by
+    # scaffold_service.py's _gen_manifest_md() to build MANIFEST.md's
+    # input-artifact -> output-artifact table.
+    source_bpmn_filename: str = ""
+    source_spec_filename: str = ""
+    source_evals_filename: str = ""
+    source_evals_case_count: Optional[int] = None
+    # Parsed eval-case rows (evals_service.parse_evals()'s "rows" list) —
+    # carried through so scaffold_service.py's _gen_eval_test_files() can
+    # generate tests/evals/*.py stubs, one per row, without re-parsing the
+    # original file server-side a second time.
+    source_evals_rows: List[dict] = Field(default_factory=list)
+    # Ravi: "so, we do not yet have MCP... that's the missing piece?
+    # scaffold for MCP." Parsed §1.7/§3.4 MCP tool rows from the blueprint
+    # (blueprint_service.py's _tool_from_row()) — was parsed correctly but
+    # dropped in build_suggestion_from_blueprint()/combine() before ever
+    # reaching this payload; both fixed to include it. Carried through so
+    # scaffold_service.py's _gen_mcp_tool_files() can generate one stub per
+    # tool without re-parsing the blueprint server-side a second time.
+    mcp_tools: List[dict] = Field(default_factory=list)
+    # Blueprint's own title/subtitle/Target Outcome/Process Reference +
+    # atomic-step stats (14 steps/64% deterministic/36% AI-powered) — feeds
+    # docs/main.html's cover section (see _gen_main_html).
+    header_meta: dict = Field(default_factory=dict)
+    # Opt-in LLM narration pass (doc_narration_service.py) — replaces
+    # README/MANIFEST/ARCHITECTURE/implementation-plan.md with two documents
+    # narrated by a local LLM from the same verified project data, matching
+    # IBM Process Studio's own house style. Off by default: it's slower
+    # (a 27B model call, not instant) and depends on a reachable LLM host —
+    # falls back to the plain deterministic docs if that call fails.
+    generate_rich_docs: bool = False
+    # Ravi: internal IBM hosting has no login of its own (SSO handled
+    # upstream by ICA) — everyone lands as the same "demo" identity, so
+    # this is what actually tells concurrent reviewers' work apart. A
+    # per-browser id (crypto.randomUUID(), persisted client-side — see
+    # store.ts's clientId), not a real user identity; purely so two
+    # people generating at once leave distinguishable traces (e.g. in the
+    # implementation doc's own metadata table below), not because any
+    # server-side state today could actually collide (generate_scaffold
+    # is a pure function of its argument — no shared mutable state to
+    # collide on in the first place).
+    client_id: str = ""
 
 
 _BINARY_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif")
 
 
-@router.post("/scaffold-preview")
-def scaffold_preview(project: ProjectDef):
-    """Return scaffold file tree as JSON without downloading a zip."""
-    zip_buf = generate_scaffold(project.model_dump())
+def _zip_file_listing(zip_buf) -> list:
     files = []
     with zipfile.ZipFile(zip_buf, "r") as zf:
         for name in sorted(zf.namelist()):
@@ -479,18 +686,170 @@ def scaffold_preview(project: ProjectDef):
                     files.append({"path": name, "content": _base64.b64encode(raw).decode("ascii"), "binary": True})
                 else:
                     files.append({"path": name, "content": raw.decode("utf-8", errors="replace"), "binary": False})
-    return {"files": files}
+    return files
+
+
+@router.post("/scaffold-preview")
+def scaffold_preview(project: ProjectDef):
+    """Return scaffold file tree as JSON without downloading a zip."""
+    zip_buf = generate_scaffold(project.model_dump())
+    return {"files": _zip_file_listing(zip_buf)}
+
+
+@router.get("/generate/preview/{token}")
+def generate_preview(token: str):
+    # Ravi: "the original studio does not use LLM. This one does. This is
+    # the difference" — and correctly so: with Rich Docs now always on
+    # (Studio.tsx), the old flow called /api/generate (runs narration once,
+    # ~60-70s) and then immediately called /api/scaffold-preview with the
+    # SAME payload — a completely independent generate_scaffold() call that
+    # reran the entire narration a second time just to list the files
+    # already sitting in the zip we just built. This reads the file listing
+    # straight out of that already-built, already-narrated zip (same
+    # _PENDING_ZIPS token the download uses) — zero extra LLM calls, zero
+    # extra generation work.
+    entry = _PENDING_ZIPS.get(token)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="This generation has expired. Generate the scaffold again.")
+    return {"files": _zip_file_listing(_io.BytesIO(entry["data"]))}
+
+
+
+# Ravi reported the scaffold zip repeatedly landing as a stuck
+# "<name>.zip.crdownload" even after confirming the browser's own save
+# prompt properly. The fetch()+res.blob()+URL.createObjectURL()+<a>.click()
+# blob path was an early suspect and got replaced below with a token+plain-
+# GET flow — but that turned out NOT to be the actual cause: a side-by-side
+# test against the original k9x_studio (identical machine/browser) showed
+# ITS blob-based download always completes fine, while this app's download
+# still got stuck even via a real GET. The one concrete code difference
+# found was the explicit Content-Length header this endpoint added (see
+# generate_download() below) — removed to match k9x_studio's own working
+# implementation, which never sets it. The token+GET split itself is kept
+# anyway since it's a genuine improvement (server-side archived copy,
+# re-downloadable from Generated Docs without a fresh generate call).
+_PENDING_ZIPS: dict = {}
+_PENDING_ZIP_TTL_S = 15 * 60
+
+
+def _purge_pending_zips() -> None:
+    cutoff = _time.time() - _PENDING_ZIP_TTL_S
+    for tok in [t for t, v in _PENDING_ZIPS.items() if v["created"] < cutoff]:
+        _PENDING_ZIPS.pop(tok, None)
+
+
+def _scaffold_filename(project_name: str) -> str:
+    safe_name = project_name.encode("ascii", "ignore").decode("ascii")
+    # Ravi: "multiple runs the same day a user would like to keep older
+    # version" — date+time prefix matching the app_folder inside the zip
+    # (scaffold_service.py), so this fallback filename (only used if the
+    # frontend's own a.download name — see Studio.tsx — doesn't apply)
+    # stays consistent and collision-free too.
+    from datetime import datetime as _datetime
+    date_stamp = _datetime.now().strftime("%y%m%d_%H%M%S")
+    return date_stamp + "_k9x_" + re.sub(r"[^a-z0-9]+", "_", safe_name.lower()).strip("_") + "_scaffold.zip"
+
+
+def _generated_archive_dir() -> "Path | None":
+    # Ravi: "perhaps we store the project artifacts there? and make it
+    # available?" — re: the K9X_PROJECTS_ROOT host volume already mounted
+    # by ubuntu/build-run.sh (-v .../k9x-studiox-ibm/projects:/k9x/projects)
+    # but otherwise unused by the browser-download generate flow. Every
+    # /api/generate call now also drops a durable copy under
+    # <K9X_PROJECTS_ROOT>/generated/ — a server-side audit trail that
+    # survives a browser refresh/crash, independent of the in-memory,
+    # time-limited _PENDING_ZIPS token above. No-ops locally where
+    # K9X_PROJECTS_ROOT isn't set (dev mode), same "never fail the export
+    # over a nice-to-have" precedent as the rich-docs .html export.
+    root = _os.environ.get("K9X_PROJECTS_ROOT", "").strip()
+    if not root:
+        return None
+    d = Path(root) / "generated"
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # Ravi's live PowerAI instance hit this: the -v host volume is
+        # created via `sudo mkdir -p` (build-run.sh) so it's root:root, but
+        # the container runs as USER 1001 (Containerfile) — mkdir here can
+        # legitimately fail on permissions. This whole archive is a
+        # best-effort convenience, never load-bearing for the actual
+        # download, so degrade to "no archive" rather than 500ing every
+        # /api/generate and /api/generated-archive call.
+        return None
+    return d
 
 
 @router.post("/generate")
 def generate(project: ProjectDef):
     zip_buf = generate_scaffold(project.model_dump())
-    safe_name = project.project_name.encode("ascii", "ignore").decode("ascii")
-    filename = re.sub(r"[^a-z0-9]+", "_", safe_name.lower()).strip("_") + "_scaffold.zip"
+    data = zip_buf.getvalue()
+    filename = _scaffold_filename(project.project_name)
+    _purge_pending_zips()
+    token = _uuid.uuid4().hex
+    _PENDING_ZIPS[token] = {"data": data, "filename": filename, "created": _time.time()}
+    try:
+        archive_dir = _generated_archive_dir()
+        if archive_dir is not None:
+            (archive_dir / filename).write_bytes(data)
+    except Exception:
+        pass  # archive is best-effort; never block the download over it
+    return {"token": token, "filename": filename, "size": len(data)}
+
+
+@router.get("/generated-archive")
+def list_generated_archive():
+    """Every scaffold zip ever generated on this server, newest first —
+    the durable copy under K9X_PROJECTS_ROOT/generated/, independent of any
+    one browser's session. Empty list if K9X_PROJECTS_ROOT isn't set."""
+    archive_dir = _generated_archive_dir()
+    if archive_dir is None:
+        return {"files": []}
+    files = []
+    for f in archive_dir.glob("*.zip"):
+        st = f.stat()
+        files.append({"name": f.name, "size": st.st_size, "mtime": st.st_mtime})
+    files.sort(key=lambda f: f["mtime"], reverse=True)
+    return {"files": files}
+
+
+@router.get("/generated-archive/download/{name}")
+def download_generated_archive(name: str):
+    archive_dir = _generated_archive_dir()
+    if archive_dir is None:
+        raise HTTPException(status_code=404, detail="No archive configured on this server.")
+    # Reject anything that isn't a bare filename in this one directory —
+    # no path traversal into the rest of K9X_PROJECTS_ROOT or beyond.
+    if "/" in name or "\\" in name or name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    path = (archive_dir / name).resolve()
+    if archive_dir.resolve() not in path.parents or not path.is_file():
+        raise HTTPException(status_code=404, detail="File not found.")
+    data = path.read_bytes()
     return StreamingResponse(
-        zip_buf,
+        _io.BytesIO(data),
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f"attachment; filename={name}"},
+    )
+
+
+@router.get("/generate/download/{token}")
+def generate_download(token: str):
+    entry = _PENDING_ZIPS.get(token)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="This download has expired. Generate the scaffold again.")
+    data = entry["data"]
+    # Ravi: side-by-side test against the original k9x_studio (same machine,
+    # same browser) proved its downloads always complete while this app's
+    # got stuck as .crdownload — and the one concrete difference found was
+    # this explicit Content-Length header (added earlier this session,
+    # believing it would help). k9x_studio's own working /generate never
+    # sets it, relying on Starlette's default chunked transfer-encoding
+    # (self-terminating — the browser knows it's done from the framing
+    # itself, not a byte count). Dropped to match.
+    return StreamingResponse(
+        _io.BytesIO(data),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={entry['filename']}"},
     )
 
 
@@ -726,6 +1085,102 @@ def list_models(req: LlmSessionConfig):
     return {"models": []}
 
 
+class GuardianCheckRequest(BaseModel):
+    filename: str = ""
+    content: str
+    llm_endpoint: str = ""
+    llm_provider: str = "ollama"
+    llm_model: str = ""
+    llm_api_key: str = ""
+
+
+def _guardian_config(req_endpoint: str = "", req_provider: str = "", req_model: str = "", req_api_key: str = ""):
+    """Server-side GOVERNANCE_LLM_ENDPOINT/GOVERNANCE_LLM_MODEL env vars win when
+    set — Ravi: "wire to this under the hood" — so Guardian works for every
+    upload without each reviewer configuring Setup themselves. Falls back to
+    whatever the Setup screen has configured (useful for local dev), and
+    finally to plain Ollama defaults."""
+    endpoint = (_GOVERNANCE_ENDPOINT or req_endpoint or "").strip().rstrip("/")
+    provider = "ollama" if _GOVERNANCE_ENDPOINT else (req_provider.strip() or "ollama")
+    model = (_GOVERNANCE_MODEL if _GOVERNANCE_ENDPOINT else req_model).strip() or _GOVERNANCE_MODEL
+    api_key = "" if _GOVERNANCE_ENDPOINT else req_api_key
+    if endpoint and not endpoint.startswith(("http://", "https://")):
+        endpoint = "http://" + endpoint
+    return endpoint, provider, model, api_key
+
+
+@router.post("/guardian/check")
+def guardian_check(req: GuardianCheckRequest):
+    """Mandatory content-safety screen — every staged Intake file (BPMN,
+    spec/blueprint, eval plan, Process Studio .html) is sent here before
+    it's accepted. Ravi: "studio has to use guardian mandatory." Fails
+    closed: no endpoint/model configured, or the model unreachable, both
+    block the upload rather than silently skipping the check."""
+    from backend.services.guardian_service import check_content_safety
+
+    if not _GUARDIAN_ENABLED:
+        return {"checked": False, "safe": True, "skipped": True,
+                "reason": "Guardian disabled (GUARDIAN_ENABLED=false)", "raw": ""}
+
+    endpoint, provider, model, api_key = _guardian_config(req.llm_endpoint, req.llm_provider, req.llm_model, req.llm_api_key)
+    if not endpoint or not model:
+        raise HTTPException(
+            status_code=400,
+            detail="Guardian safety check requires an LLM endpoint and model — configure one in Setup "
+                   f"(a Granite Guardian model, e.g. {_GOVERNANCE_MODEL}) before uploading files.",
+        )
+    if _is_local_blocked(endpoint):
+        raise HTTPException(status_code=400, detail="Local addresses are not allowed on this instance")
+
+    result = check_content_safety(endpoint, provider, model, api_key, req.content)
+    return result
+
+
+@router.get("/guardian/status")
+def guardian_status(endpoint: str = "", provider: str = "", model: str = "", api_key: str = ""):
+    """Backs the "Guardian Live" indicator in the Studio header — a quick
+    reachability probe, not a content check.
+
+    granite4.1-guardian:8b is a "thinking" model -- it emits a full
+    chain-of-thought before its <score> verdict even for a two-character
+    prompt (confirmed live 2026-09-21: ~11s total, of which load_duration
+    was ~0ms -- the model was already resident, all ~11s was genuine
+    generation time for 312 "thinking" tokens). The original 8s timeout
+    here predates that model (env_template.py's still-documented default
+    is the older, non-thinking granite3-guardian:latest) and was never
+    revisited when .env moved to granite4.1-guardian:8b -- every status
+    check timed out and reported Offline even though the model was
+    reachable and correct. Fixed two ways: options.num_predict caps the
+    response so the check doesn't need to wait for a full reasoning pass
+    (this is a reachability probe, not a real safety verdict -- it never
+    reads the response content), and the timeout has headroom above the
+    observed ~11s in case num_predict doesn't cut generation short enough
+    on some provider/model combos.
+    """
+    import requests as http
+
+    if not _GUARDIAN_ENABLED:
+        return {"enabled": False, "live": False, "model": "", "detail": "disabled (GUARDIAN_ENABLED=false)"}
+
+    gw_endpoint, gw_provider, gw_model, gw_api_key = _guardian_config(endpoint, provider, model, api_key)
+    if not gw_endpoint or not gw_model:
+        return {"live": False, "model": gw_model, "detail": "not configured"}
+    try:
+        if gw_provider == "ollama":
+            r = http.post(
+                f"{gw_endpoint}/api/generate",
+                json={"model": gw_model, "prompt": "hi", "stream": False, "options": {"num_predict": 8}},
+                timeout=20,
+            )
+            r.raise_for_status()
+        else:
+            r = http.get(f"{gw_endpoint}/models", headers={"Authorization": f"Bearer {gw_api_key}"} if gw_api_key else {}, timeout=20)
+            r.raise_for_status()
+        return {"live": True, "model": gw_model, "detail": "reachable"}
+    except Exception as e:
+        return {"live": False, "model": gw_model, "detail": str(e)}
+
+
 @router.get("/docs")
 def list_docs(folder: str = ""):
     import os
@@ -866,7 +1321,9 @@ _INJECTION = re.compile(
 
 _GOVERNANCE_MAX_CHARS = int(_os.environ.get("GOVERNANCE_MAX_CHARS", "50000"))
 _GOVERNANCE_ENDPOINT  = _os.environ.get("GOVERNANCE_LLM_ENDPOINT", "").strip().rstrip("/")
-_GOVERNANCE_MODEL     = _os.environ.get("GOVERNANCE_LLM_MODEL", "granite3-guardian:latest").strip()
+_GOVERNANCE_MODEL     = _os.environ.get("GOVERNANCE_LLM_MODEL", "granite4.1-guardian:8b").strip()
+# GUARDIAN_ENABLED=false in .env turns the Intake Guardian screen off (default: on).
+_GUARDIAN_ENABLED     = _os.environ.get("GUARDIAN_ENABLED", "true").strip().lower() not in ("0", "false", "no", "off")
 
 
 def _governance_check(content: str) -> Optional[str]:
@@ -910,6 +1367,21 @@ def _governance_check(content: str) -> Optional[str]:
         pass  # governance LLM unavailable — fail open, Layer 1 already passed
 
     return None
+
+
+@router.post("/mapping-document/from-project")
+def mapping_document_from_project(project: ProjectDef):
+    """
+    Rebuild the traceability matrix from a project payload — used by
+    "Import Implementation Plan" (Intake tab) to restore the matrix from
+    the state snapshot embedded in a downloaded implementation-plan.md,
+    without re-parsing any source document. Reuses build_mapping_document
+    directly (same function scaffold generation itself uses for
+    detailed-design.md's matrix) rather than a second implementation —
+    the matrix a re-imported project sees must be computed exactly the
+    same way as the one it was exported with.
+    """
+    return build_mapping_document(project.model_dump())
 
 
 @router.post("/spec/import")

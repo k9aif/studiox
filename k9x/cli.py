@@ -25,6 +25,7 @@ SATAN_PID_FILE = STATE_DIR / "satan.pid"
 SATAN_LOG_FILE = STATE_DIR / "satan.log"
 
 BUNDLED_GENERATOR_TEMPLATES = Path(__file__).resolve().parent / "_generator_templates"
+BUNDLED_STUDIO_APP = Path(__file__).resolve().parent / "_studio_app"
 
 DEFAULT_TEST_PROMPT = "Who is Elon Musk? Answer in one paragraph."
 
@@ -186,6 +187,11 @@ def _prepare_env() -> None:
 
     if BUNDLED_GENERATOR_TEMPLATES.is_dir():
         os.environ.setdefault("K9X_GENERATOR_TEMPLATES_DIR", str(BUNDLED_GENERATOR_TEMPLATES))
+
+    # pip-installed: Studio's own agents/squads/studio_core live in
+    # k9x/_studio_app — importable only while Studio runs.
+    if (BUNDLED_STUDIO_APP / "studio_core").is_dir() and str(BUNDLED_STUDIO_APP) not in sys.path:
+        sys.path.insert(0, str(BUNDLED_STUDIO_APP))
 
 
 def _run_foreground(host: str, port: int, no_browser: bool) -> int:

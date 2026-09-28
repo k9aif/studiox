@@ -9,6 +9,7 @@ from k9_aif_abb.k9_agents.validation import (
     ValidationLoopContext,
     ValidationLoopResult,
 )
+from k9_aif_abb.k9_security.vulnerability.shield_governance import ShieldGovernance
 
 
 class {{ class_name }}(K9ValidationLoopAgent):
@@ -16,7 +17,18 @@ class {{ class_name }}(K9ValidationLoopAgent):
     layer = "{{ app_name }} {{ class_name }} SBB"
 
     def __init__(self, config: Optional[Dict[str, Any]] = None, **kwargs):
-        super().__init__(config=config or {}, **kwargs)
+        config = config or {}
+        # k9x_Shield wired by default (see config/config.yaml's security.shield
+        # block) — pass governance=<your own object> to override, including
+        # governance=NoopGovernance() to disable checks for this agent.
+        if kwargs.get("governance") is None:
+            governance = ShieldGovernance(config=config)
+            if config.get("governance", {}).get("guardian", {}).get("enabled"):
+                from k9_aif_abb.k9_governance.profanity_governance import ProfanityGovernance
+                from k9_aif_abb.k9_governance.chained_governance import ChainedGovernance
+                governance = ChainedGovernance(governance, ProfanityGovernance(config=config))
+            kwargs["governance"] = governance
+        super().__init__(config=config, **kwargs)
 
     def generate_hypothesis(self, loop_ctx: ValidationLoopContext) -> str:
         """Form the next hypothesis to validate. Must return a string prompt."""
@@ -34,6 +46,16 @@ class {{ class_name }}(K9ValidationLoopAgent):
             f"  reasoning   : string  — brief explanation of your confidence score\n"
             f"  needs_more  : boolean — true if another iteration would improve confidence\n"
         )
+        # super().run_validation() is where the actual LLM call happens
+        # (K9ValidationLoopAgent's own implementation calls llm_invoke()) --
+        # this override only customizes the prompt. If you ever need a
+        # *separate* LLM call elsewhere in this class (outside the
+        # validation loop), always go through llm_invoke(), never
+        # ModelRouterFactory/router.invoke() directly:
+        #
+        #   from k9_aif_abb.k9_utils.llm_invoke import llm_invoke
+        #   from k9_aif_abb.k9_inference.models.inference_request import InferenceRequest
+        #   resp = llm_invoke(self.config, InferenceRequest(prompt=..., task_type=...))
         return super().run_validation(prompt, loop_ctx)
 
     def evaluate_observation(self, tool_result: Any, loop_ctx: ValidationLoopContext) -> Dict[str, Any]:

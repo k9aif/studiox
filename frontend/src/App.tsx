@@ -3,6 +3,7 @@ import { useStore } from './store';
 import { Studio } from './components/Studio';
 import { SetupScreen } from './components/SetupScreen';
 import { SplashScreen } from './components/SplashScreen';
+import { LandingPage } from './components/LandingPage';
 
 function App() {
   const { screen, setScreen } = useStore();
@@ -13,6 +14,7 @@ function App() {
     }
   }, []);
 
+  if (screen === 'landing') return <LandingPage />;
   if (screen === 'splash') return <SplashScreen />;
   if (screen === 'studio') return <Studio />;
   return <SetupScreen />;

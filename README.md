@@ -1,8 +1,8 @@
-# k9x_studio
+# K9X Studio
 
-**Visual Architecture Builder for K9-AIF Systems**
+**From process to governed multi-agent code.**
 
-k9x_studio is a browser-based drag-and-drop IDE for designing K9-AIF multi-agent systems. It reads the `k9_aif_abb` component library, lets architects compose systems visually on a canvas, and generates production-ready YAML configuration and Python scaffold.
+K9X Studio turns the process you already have (a BPMN diagram, a process specification, an agent evaluation plan) into a governed [K9-AIF](https://github.com/k9aif/k9-aif-framework) architecture and a runnable scaffold. It maps every process step onto the Router → Orchestrator → Squad → Agent hierarchy, lets you review that mapping in a traceability matrix and reshape it on a visual canvas, then generates the project with k9x_Shield, Zero Trust and human-in-the-loop hooks already wired in.
 
 Try it live: [studio.k9x.ai](https://studio.k9x.ai)
 
@@ -10,59 +10,69 @@ Try it live: [studio.k9x.ai](https://studio.k9x.ai)
 
 ## Installation
 
-Recommended:
-
 ```bash
 pip install k9x
-```
-
-Then start the studio:
-
-```bash
 k9x studio
 ```
 
-This opens a browser tab at `http://localhost:12999` by default. Useful flags:
+This opens a browser tab at `http://localhost:12999` (sign in with `demo` / `demo`). Useful flags:
 
 ```bash
 k9x studio --port 8080          # use a different port
 k9x studio --bg                 # run in the background, return immediately
 k9x studio --stop               # stop a background instance
 k9x config                      # write a starter .env with LLM provider settings
-k9x satan                       # start K9X Satan, the adversarial red-team harness
 k9x upgrade                     # pip install --upgrade k9x
 ```
 
-Run `k9x help` for the full command list. See [LLM Configuration](#llm-configuration)
-below for connecting a local or hosted model — the studio runs in demo mode
-without one.
+Run `k9x help` for the full command list.
+
+---
+
+## What you can import
+
+| Input | Formats | What it drives |
+|---|---|---|
+| **BPMN diagram** | `.bpmn`, `.xml`, `.zip` from any BPMN 2.0 tool (Camunda, Bizagi, Blueworks Live, IBM Process Studio, …) | Lanes become Orchestrators and Squads, tasks become Agents or Adapters |
+| **Process specification** | `.md`, `.txt`, `.html` spec or blueprint | Agents, tools, observability and behavioral rules; joins with the BPMN when both are staged |
+| **Agent evaluation plan** | `.md` with Functional / Behavioral / Adversarial … eval sections | One `tests/evals/*.py` stub per test case, plus framework coverage on the **Evals** tab |
+
+Any one input is enough; together they give the richest result.
+
+**IBM Process Studio.** Process Studio's BPMN, blueprint and Agent Evaluation Plan exports work in the tiles above, including its GREEN / AMBER / RED autonomy-zone colouring. An Enterprise App Kit (`.zip`) import is shown in its own collapsible **IBM Process Studio** group on the Intake tab and is marked *coming soon*.
 
 ---
 
 ## Workflow
 
 ```
-1. Project Setup
-   └── Name, author, domain, description
-
-2. Canvas Design (drag-and-drop)
-   ├── Palette (left): Router, Orchestrator, Squad, Agent, ...
-   ├── Canvas (center): drop nodes, draw connections
-   └── Inspector (right): configure selected node
-
-3. Generate Architecture  (LLM-powered when configured)
-   └── AI suggests Orchestrators, Squads, and Agents based on description
-
-4. Export Scaffold
-   └── Downloads ZIP: config/ + agents/ + squads/ + Python stubs
-       OR writes directly to k9_projects/<AppName>/
+1. Intake          Upload BPMN / spec / eval plan → pre-checks → Granite Guardian screen → Generate
+2. Traceability    Review and edit the Process → Implementation matrix → Confirm & Build Canvas
+3. Canvas          Rearrange Routers, Orchestrators, Squads, Agents, Adapters
+4. Generate        Generate Scaffold → download a ZIP, or browse it on the View Scaffold tab
 ```
+
+The **Evals** and **Traceability** tabs are always present and stay empty until an input that feeds them is staged. You can also start from a template or compose the canvas by hand.
+
+---
+
+## Granite Guardian screening
+
+Every file staged on the Intake tab is pre-checked and then screened by a Granite Guardian model before Studio uses it. Screening is **on by default**; turn it off in `.env`:
+
+```bash
+GUARDIAN_ENABLED=true                         # set to false to skip the Guardian screen
+GOVERNANCE_LLM_ENDPOINT=http://127.0.0.1:11434
+GOVERNANCE_LLM_MODEL=granite4.1-guardian:8b   # ollama pull granite4.1-guardian:8b
+```
+
+With screening on and no reachable Guardian model, uploads are blocked (the header shows **Guardian Offline**). With it off, the header shows **Guardian Off** and uploads skip the screen.
 
 ---
 
 ## LLM Configuration
 
-LLM is **optional but strongly recommended**. Without it the studio works in *demo mode* — templates and manual canvas composition are fully functional, but the **Generate Architecture** button produces a generic fallback instead of an AI-tailored suggestion.
+An LLM is **optional**. BPMN, spec and eval-plan import are rule-based and work without one. An LLM adds smarter squad grouping for unstructured specs, AI-suggested architectures from a free-text description, and optional narrated documentation.
 
 ### Why configure an LLM?
 
@@ -220,4 +230,3 @@ Open **http://localhost:8081**.
 - K9-AIF Framework: [github.com/k9aif/k9-aif-framework](https://github.com/k9aif/k9-aif-framework)
 - Live demo: [studio.k9x.ai](https://studio.k9x.ai)
 - Ecosystem: [k9x.ai/ecosystem](https://k9x.ai/ecosystem)
-# studiox

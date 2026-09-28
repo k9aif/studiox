@@ -1,18 +1,22 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
+  Panel,
   BackgroundVariant,
   useReactFlow,
+  useViewport,
 } from '@xyflow/react';
 import type { NodeMouseHandler, Connection, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { toJpeg } from 'html-to-image';
 
 import { useStore } from '../store';
 import { K9Node } from '../nodes/K9Node';
-import type { PaletteComponent, NodeData } from '../types';
+import type { PaletteComponent, NodeData, CanvasLayer } from '../types';
 import { VALID_TARGETS, RULE_HINT } from '../rules';
+import { computeLayerVisibleIds, computeColumnBands } from '../canvasLayers';
 
 const NODE_TYPES = { k9node: K9Node };
 
@@ -30,13 +34,62 @@ interface ContextMenu {
   nodeLabel: string;
 }
 
+const LAYER_TABS: { id: CanvasLayer; label: string }[] = [
+  { id: 'all',           label: 'All' },
+  { id: 'orchestrators', label: 'Orchestrators' },
+  { id: 'squads',        label: 'Squads' },
+  { id: 'adapters',      label: 'Adapters' },
+  { id: 'hil',           label: 'HIL' },
+];
+
 export function Canvas({ generating }: CanvasProps) {
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, setSelectedNode } = useStore();
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, setSelectedNode, canvasLayer, setCanvasLayer } = useStore();
   const [rejected, setRejected] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
+
+  // ── Sub-tab filter (Orchestrators/Squads/Adapters/HIL): a view over the
+  // same nodes/edges, never a second copy — see canvasLayers.ts. ──────────
+  const visibleIds = useMemo(
+    () => computeLayerVisibleIds(canvasLayer, nodes as any, edges),
+    [canvasLayer, nodes, edges]
+  );
+  const displayNodes = useMemo(
+    () => nodes.map((n) => (visibleIds.has(n.id) ? n : { ...n, hidden: true })),
+    [nodes, visibleIds]
+  );
+  const displayEdges = useMemo(
+    () => edges.map((e) => (visibleIds.has(e.source) && visibleIds.has(e.target) ? e : { ...e, hidden: true })),
+    [edges, visibleIds]
+  );
+  const columnBands = useMemo(() => computeColumnBands(), []);
+
+  useEffect(() => {
+    const t = setTimeout(() => fitView({ padding: 0.2, duration: 200, minZoom: 0.75 }), 50);
+    return () => clearTimeout(t);
+  }, [canvasLayer, fitView]);
+
+  const handleExportImage = useCallback(async () => {
+    const el = reactFlowWrapper.current?.querySelector('.react-flow__viewport') as HTMLElement | null;
+    if (!el) return;
+    setExporting(true);
+    try {
+      const dataUrl = await toJpeg(el, { quality: 0.95, backgroundColor: '#1e1e2e', pixelRatio: 2 });
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `k9x-canvas-${canvasLayer}-${Date.now()}.jpg`;
+      a.click();
+    } catch {
+      // Sandboxed viewers may block script-driven downloads — fail silently
+      // rather than throwing in the user's face; the button staying enabled
+      // is signal enough to retry.
+    } finally {
+      setExporting(false);
+    }
+  }, [canvasLayer]);
 
   // ── Connection validation ──────────────────────────────────
   const isValidConnection = useCallback(
@@ -367,8 +420,8 @@ export function Canvas({ generating }: CanvasProps) {
       onClick={() => contextMenu && setContextMenu(null)}
     >
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={displayNodes}
+        edges={displayEdges}
         nodeTypes={NODE_TYPES}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -380,7 +433,21 @@ export function Canvas({ generating }: CanvasProps) {
         onNodeContextMenu={onNodeContextMenu}
         isValidConnection={isValidConnection}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        // The 0.75 floor applies only to this AUTOMATIC initial-load fit and
+        // to the layer-switch effect below — never shrink past 75% just to
+        // cram a wide process onto one screen by default (Ravi: "25% shrink
+        // to the best... making it too small is useless"). It must NOT be
+        // the component's global minZoom (that was the bug Ravi found: "the
+        // bottom corner left square [[Controls]] fit-to-screen button ...
+        // only shows partial flow" — a global minZoom caps the Controls
+        // button's own fitView too, so an explicit "show me everything"
+        // click could never zoom out far enough for a wide diagram).
+        // Explicit user actions (this button, manual scroll-zoom) get the
+        // component's own low floor below and can always show the whole
+        // thing on request.
+        fitViewOptions={{ padding: 0.2, minZoom: 0.75 }}
+        minZoom={0.05}
+        maxZoom={2}
         defaultEdgeOptions={{
           animated: false,
           style: { stroke: '#6366f1', strokeWidth: 2 },
@@ -389,7 +456,40 @@ export function Canvas({ generating }: CanvasProps) {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#2a2a3a" />
+        <ColumnBands bands={columnBands} />
         <Controls style={{ background: '#1e1e2e', border: '1px solid #2a2a35', color: '#a0a0c0' }} />
+
+        <Panel position="top-left" style={{ display: 'flex', gap: 4, background: 'rgba(20,20,32,0.85)', border: '1px solid #2a2a35', borderRadius: 8, padding: 4 }}>
+          {LAYER_TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setCanvasLayer(t.id)}
+              style={{
+                padding: '5px 11px', fontSize: 11, fontWeight: 600, letterSpacing: '0.3px',
+                borderRadius: 5, border: 'none', cursor: 'pointer',
+                background: canvasLayer === t.id ? '#6366f1' : 'transparent',
+                color: canvasLayer === t.id ? '#fff' : '#8892a4',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </Panel>
+
+        <Panel position="top-right">
+          <button
+            onClick={handleExportImage}
+            disabled={exporting}
+            title="Download the current canvas view as a JPG"
+            style={{
+              padding: '7px 14px', fontSize: 12, fontWeight: 600, letterSpacing: '0.3px',
+              background: 'rgba(20,20,32,0.85)', border: '1px solid #2a2a35', borderRadius: 8,
+              color: '#c9cadb', cursor: exporting ? 'default' : 'pointer', opacity: exporting ? 0.6 : 1,
+            }}
+          >
+            {exporting ? '⟳ Exporting…' : '⬇ Save Image'}
+          </button>
+        </Panel>
       </ReactFlow>
 
       {/* Bottom-right watermark */}
@@ -432,6 +532,42 @@ export function Canvas({ generating }: CanvasProps) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Column backgrounds — "first column is Router, and so on" (Ravi). Synced to
+// pan/zoom via useViewport() rather than baked into node positions, so it
+// can never drift from where nodes actually are (layout.ts's LEVEL_X is the
+// single source for both). Purely decorative: pointer-events none, doesn't
+// participate in node selection/dragging/layout at all.
+function ColumnBands({ bands }: { bands: ReturnType<typeof computeColumnBands> }) {
+  const { x, zoom } = useViewport();
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      {bands.map((b) => (
+        <div
+          key={b.label}
+          style={{
+            position: 'absolute',
+            left: b.left * zoom + x,
+            top: 0,
+            width: b.width * zoom,
+            height: '100%',
+            background: `${b.color}0d`,
+            borderLeft: `1px solid ${b.color}22`,
+            borderRight: `1px solid ${b.color}22`,
+          }}
+        >
+          <div style={{
+            position: 'sticky', top: 8, textAlign: 'center',
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+            color: b.color, opacity: 0.55,
+          }}>
+            {b.label}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

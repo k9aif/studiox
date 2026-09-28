@@ -11,10 +11,13 @@ export function SetupPanel() {
       const saved = localStorage.getItem('k9x_llm');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { provider: parsed.provider ?? 'ollama', endpoint: parsed.endpoint ?? '', model: parsed.model ?? '', api_key: '' };
+        return {
+          provider: parsed.provider ?? 'ollama', endpoint: parsed.endpoint ?? '', model: parsed.model ?? '', api_key: '',
+          guardianModel: parsed.guardianModel ?? 'granite4.1-guardian:8b',
+        };
       }
     } catch { /* ignore */ }
-    return { provider: 'ollama', endpoint: 'http://localhost:11434', model: '', api_key: '' };
+    return { provider: 'ollama', endpoint: 'http://localhost:11434', model: '', api_key: '', guardianModel: 'granite4.1-guardian:8b' };
   };
 
   const defaultForm = llmConfig ?? getSavedConfig();
@@ -78,16 +81,41 @@ export function SetupPanel() {
   };
 
   const handleClear = () => {
-    const empty: LlmSessionConfig = { provider: 'ollama', endpoint: '', model: '', api_key: '' };
+    const empty: LlmSessionConfig = { provider: 'ollama', endpoint: '', model: '', api_key: '', guardianModel: 'granite4.1-guardian:8b' };
     setForm(empty); setLlmConfig(null);
     setConnected(false); setTestErr(''); setModels([]);
+  };
+
+  const [guardianTesting, setGuardianTesting] = useState(false);
+  const [guardianResult, setGuardianResult] = useState<{ ok: boolean; detail: string } | null>(null);
+  const handleTestGuardian = async () => {
+    setGuardianTesting(true); setGuardianResult(null);
+    try {
+      const res = await fetch('/api/guardian/check', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: 'setup-test.txt', content: 'This is a routine business process document about invoice approval steps.',
+          llm_endpoint: form.endpoint, llm_provider: form.provider, llm_model: form.guardianModel || '', llm_api_key: form.api_key,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? `Server error ${res.status}`);
+      setLlmConfig(form);
+      setGuardianResult({ ok: Boolean(data.safe), detail: data.checked ? `Guardian responded — verdict: ${data.safe ? 'SAFE' : 'UNSAFE'}` : (data.reason ?? 'unreachable') });
+      addLog(`✓ Guardian model reachable (${form.guardianModel})`);
+    } catch (err: any) {
+      setGuardianResult({ ok: false, detail: err.message ?? 'unreachable' });
+      addLog(`✕ Guardian check failed: ${err.message}`, 'error');
+    } finally { setGuardianTesting(false); }
   };
 
   return (
     <div style={{ maxWidth: 520, padding: '4px 0' }}>
       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>LLM Configuration</div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>
-        Configure your LLM for AI-powered architecture generation. Optional — the studio works without one using rule-based defaults.
+        Configure your LLM for AI-powered architecture generation and doc narration. Optional — the studio works
+        without one using rule-based defaults. <strong style={{ color: '#a78bfa' }}>Granite Guardian, below, is
+        different</strong> — it's a mandatory safety screen every Intake upload must pass before it's staged.
       </div>
 
       {/* .env upload */}
@@ -212,6 +240,38 @@ export function SetupPanel() {
             onClick={handleClear}>Clear</button>
         </div>
       )}
+
+      <div style={{
+        marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)',
+      }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+          🛡 Granite Guardian <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#8a3ffc', borderRadius: 4, padding: '2px 6px', letterSpacing: '0.04em' }}>MANDATORY</span>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+          Every file staged in Intake — BPMN, spec/blueprint, eval plan, or Process Studio document — is screened
+          by this model for prompt injection, malicious payloads, and unsafe content before K9X Studio will process
+          it. Runs on the same endpoint/provider/API key above, with its own model. Uploads are blocked while this
+          isn't configured and reachable.
+        </div>
+        <div className="intake-field" style={{ marginBottom: 12 }}>
+          <label className="intake-label">Guardian Model</label>
+          <input className="intake-input" placeholder="granite4.1-guardian:8b"
+            value={form.guardianModel ?? ''}
+            onChange={(e) => { const next = { ...form, guardianModel: e.target.value }; setForm(next); setGuardianResult(null); }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button className="intake-btn-flow" style={{ padding: '8px 24px' }}
+            onClick={handleTestGuardian} disabled={guardianTesting || !form.endpoint || !form.guardianModel}>
+            {guardianTesting ? '⟳ Testing…' : '🛡 Test Guardian'}
+          </button>
+          {guardianResult && (
+            <span style={{ fontSize: 12, color: guardianResult.ok ? '#10b981' : '#f87171' }}>
+              {guardianResult.ok ? '✓' : '✕'} {guardianResult.detail}
+            </span>
+          )}
+        </div>
+      </div>
 
       <div style={{ marginTop: 16, fontSize: 11, color: '#475569' }}>
         ⚠ LLM config is session-only — clears on page refresh

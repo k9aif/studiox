@@ -10,6 +10,7 @@ from k9_aif_abb.k9_agents.critic_actor import (
     CriticActorDisposition,
     CriticActorResult,
 )
+from k9_aif_abb.k9_security.vulnerability.shield_governance import ShieldGovernance
 
 
 class {{ class_name }}(K9CriticActorAgent):
@@ -17,12 +18,33 @@ class {{ class_name }}(K9CriticActorAgent):
     layer = "{{ app_name }} {{ class_name }} SBB"
 
     def __init__(self, config: Optional[Dict[str, Any]] = None, **kwargs):
-        super().__init__(config=config or {}, **kwargs)
+        config = config or {}
+        # k9x_Shield wired by default (see config/config.yaml's security.shield
+        # block) — pass governance=<your own object> to override, including
+        # governance=NoopGovernance() to disable checks for this agent.
+        if kwargs.get("governance") is None:
+            governance = ShieldGovernance(config=config)
+            if config.get("governance", {}).get("guardian", {}).get("enabled"):
+                from k9_aif_abb.k9_governance.profanity_governance import ProfanityGovernance
+                from k9_aif_abb.k9_governance.chained_governance import ChainedGovernance
+                governance = ChainedGovernance(governance, ProfanityGovernance(config=config))
+            kwargs["governance"] = governance
+        super().__init__(config=config, **kwargs)
 
     def generate(self, ctx: CriticActorContext) -> Any:
         """Generate the initial output (actor step). Passes a string prompt to inference."""
         payload_str = json.dumps(ctx.payload, indent=2, default=str)
         prompt = f"Process the following request and generate a response:\n\n{payload_str}"
+        # super().generate_with_prompt()/generate() is where the actual LLM
+        # call happens (K9CriticActorAgent's own implementation calls
+        # llm_invoke()) -- this override only builds the prompt. If you
+        # ever need a *separate* LLM call elsewhere in this class, always
+        # go through llm_invoke(), never ModelRouterFactory/router.invoke()
+        # directly:
+        #
+        #   from k9_aif_abb.k9_utils.llm_invoke import llm_invoke
+        #   from k9_aif_abb.k9_inference.models.inference_request import InferenceRequest
+        #   resp = llm_invoke(self.config, InferenceRequest(prompt=..., task_type=...))
         return super().generate_with_prompt(prompt, ctx) if hasattr(self, "generate_with_prompt") else super().generate(ctx)
 
     def critique(self, output: Any, ctx: CriticActorContext) -> Dict[str, Any]:
