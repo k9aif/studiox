@@ -24,7 +24,7 @@ class {{ class_name }}(K9CriticActorAgent):
         # governance=NoopGovernance() to disable checks for this agent.
         if kwargs.get("governance") is None:
             governance = ShieldGovernance(config=config)
-            if config.get("governance", {}).get("guardian", {}).get("enabled"):
+            if str(config.get("governance", {}).get("guardian", {}).get("enabled", "")).strip().lower() in ("1", "true", "yes", "on"):
                 from k9_aif_abb.k9_governance.profanity_governance import ProfanityGovernance
                 from k9_aif_abb.k9_governance.chained_governance import ChainedGovernance
                 governance = ChainedGovernance(governance, ProfanityGovernance(config=config))

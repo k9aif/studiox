@@ -2043,7 +2043,7 @@ def _gen_implementation_plan_md(project: dict, app_name: str, timestamp: str) ->
     if governance_note:
         lines += [
             "**Post-check — Governance:** k9x_Shield wired by default — see the",
-            "k9x_Shield & Granite Guardian section directly below for what's on, what's opt-in,",
+            "k9x_Shield & Granite Guardian section directly below for what's on",
             "and how to change either.",
             "",
         ]
@@ -2055,14 +2055,12 @@ def _gen_implementation_plan_md(project: dict, app_name: str, timestamp: str) ->
         "no LLM call. This is broader coverage than satan.k9x.ai's own demo target, which",
         "intentionally wires only 2 of the 13 checks to demonstrate what an unwired check misses.",
         "",
-        "**Off by default — Granite Guardian**, an additive semantic-LLM layer on top of Shield",
-        "(never a replacement — Shield keeps running regardless). To turn it on:",
-        "",
-        "1. Pull the model: `ollama pull granite4.1-guardian:8b` (or point the alias at whatever",
-        "   guardian model your deployment actually has).",
-        "2. Uncomment the `granite-guardian` entry under `inference.llm_factory.models` in",
-        "   `config/config.yaml`.",
-        "3. Set `governance.guardian.enabled: true` in the same file.",
+        "**Also on by default — Granite Guardian**, an additive semantic-LLM layer on top of Shield",
+        "(never a replacement — Shield keeps running regardless). Pull the model first:",
+        "`ollama pull granite4.1-guardian:8b`. It fails closed: if Guardian is unreachable,",
+        "agent calls are blocked. Configure it in `.env`: `K9_GUARDIAN_MODEL`,",
+        "`K9_GUARDIAN_ENABLED` (set `false` to turn it off), `K9_GUARDIAN_ON_UNAVAILABLE`",
+        "(`fail_closed` | `fail_open` | `inconclusive`).",
         "",
         "**To turn Shield off or narrow it** for this deployment, in `config/config.yaml`:",
         "`security.shield.enabled: false` disables it entirely; trimming the",
@@ -2733,6 +2731,15 @@ class AgentLoader:
             "# LLM — Ollama (default)",
             f'OLLAMA_BASE_URL="{ollama_base_url}"',
             "",
+            "# Intelligent Model Router — model tags (see .env.example)",
+            'K9_MODEL_GENERAL="llama3.2:1b"',
+            'K9_MODEL_REASONING="granite3-dense:2b"',
+            "",
+            "# Granite Guardian — standard, on by default",
+            'K9_GUARDIAN_ENABLED="true"',
+            'K9_GUARDIAN_MODEL="granite4.1-guardian:8b"',
+            'K9_GUARDIAN_ON_UNAVAILABLE="fail_closed"',
+            "",
             "# LLM — OpenAI (uncomment if using OpenAI backend in config.yaml)",
             '# OPENAI_API_KEY="sk-..."',
             "",
@@ -2769,6 +2776,30 @@ class AgentLoader:
             "",
             "# ── LLM — Ollama (default, local, no key needed) ─────────",
             'OLLAMA_BASE_URL=http://localhost:11434',
+            "",
+            "# ── Intelligent Model Router ─────────────────────────────",
+            "# config/config.yaml routes every agent call to one of two catalog",
+            "# entries by the agent's task type (inference.model_catalog):",
+            "#   general   — general, chat, summarization (BaseAgent steps)",
+            "#   reasoning — reasoning, analysis, extraction (validation-loop and",
+            "#               critic-actor steps)",
+            "# Set the Ollama tag for each here. Unset = small defaults",
+            "# (llama3.2:1b / granite3-dense:2b). Example two-model setup:",
+            "#   ollama pull qwen3.8:27b   # coding, chat, everyday work",
+            "#   ollama pull gemma4:31b    # dense reasoning, structured output",
+            "# Both on one GPU: if they don't fit in VRAM together, Ollama swaps",
+            "# them on each switch (check `ollama ps`; OLLAMA_MAX_LOADED_MODELS).",
+            'K9_MODEL_GENERAL=qwen3.8:27b',
+            'K9_MODEL_REASONING=gemma4:31b',
+            "",
+            "# ── Granite Guardian (standard) ──────────────────────────",
+            "# Semantic LLM screen on every agent call, on top of k9x_Shield.",
+            "#   ollama pull granite4.1-guardian:8b",
+            "# ON_UNAVAILABLE: fail_closed (block when Guardian is unreachable)",
+            "#   | fail_open (allow, log a warning) | inconclusive",
+            'K9_GUARDIAN_ENABLED=true',
+            'K9_GUARDIAN_MODEL=granite4.1-guardian:8b',
+            'K9_GUARDIAN_ON_UNAVAILABLE=fail_closed',
             "",
             "# ── LLM — OpenAI ─────────────────────────────────────────",
             "# Set backend: openai and api_key_env: OPENAI_API_KEY in config.yaml",
@@ -3014,10 +3045,16 @@ this folder — no sibling framework checkout, no project-nesting layout.
 - Ollama running at http://localhost:11434, with these models pulled:
 
   ```bash
-  ollama pull llama3.2:1b        # "general" model — used by BaseAgent steps
-  ollama pull granite3-dense:2b  # "reasoning" model — used by K9ValidationLoopAgent
-                                  # and K9CriticActorAgent steps
+  ollama pull llama3.2:1b              # "general" model (K9_MODEL_GENERAL) — BaseAgent steps
+  ollama pull granite3-dense:2b        # "reasoning" model (K9_MODEL_REASONING) — validation-loop
+                                        # and critic-actor steps
+  ollama pull granite4.1-guardian:8b   # Granite Guardian (K9_GUARDIAN_MODEL) — on by default
   ```
+
+  These are the small defaults. Set larger models in `.env` (see `.env.example`),
+  e.g. `K9_MODEL_GENERAL=qwen3.8:27b` and `K9_MODEL_REASONING=gemma4:31b`; the
+  Intelligent Model Router sends each agent call to `general` or `reasoning` by the
+  agent's task type (`inference.model_catalog` in `config/config.yaml`).
 
   If a model isn't pulled, Ollama returns an error that gets passed through
   as the agent's "response" text (e.g. `[WARN] Ollama HTTP 404 | model=...`)

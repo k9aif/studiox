@@ -489,3 +489,40 @@ def test_context_snapshots_match_framework(name):
     assert ours.read_text() == (FRAMEWORK_DIR / name).read_text(), (
         f"context/{name} differs from k9-aif-framework/{name} -- re-sync it"
     )
+
+
+def test_model_tags_and_guardian_come_from_env(tmp_path):
+    """.env drives the router's model tags and the Granite Guardian switch;
+    K9_GUARDIAN_ENABLED=false must really turn Guardian off (config values
+    arrive as strings, and "false" is truthy)."""
+    root = _generate_and_extract(tmp_path, SAMPLE_PROJECT)
+    env_example = (root / ".env.example").read_text()
+    assert "K9_MODEL_GENERAL=" in env_example and "K9_GUARDIAN_MODEL=granite4.1-guardian:8b" in env_example
+
+    agent_files = sorted((root / "agents" / "src").glob("*_agent.py"))
+    assert agent_files, "no agents generated"
+    script = (
+        "import importlib.util, sys\n"
+        "from pathlib import Path\n"
+        "sys.path.insert(0, '.')\n"
+        "from k9_aif_abb.k9_utils.config_loader import load_yaml\n"
+        "cfg = load_yaml(Path('config/config.yaml'))\n"
+        "m = cfg['inference']['llm_factory']['models']\n"
+        "print('GENERAL', m['general']['model']); print('REASONING', m['reasoning']['model'])\n"
+        "print('GUARDIAN_MODEL', cfg['governance']['guardian']['model'])\n"
+        f"spec = importlib.util.spec_from_file_location('a', {str(agent_files[0])!r})\n"
+        "mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)\n"
+        "cls = next(v for k, v in vars(mod).items() if isinstance(v, type) and k.endswith('Agent') and v.__module__ == 'a')\n"
+        "print('GOV', type(cls(config=cfg).governance).__name__)\n"
+    )
+    on = _run_in_scaffold(root, script, {"K9_MODEL_GENERAL": "qwen3.8:27b",
+                                         "K9_MODEL_REASONING": "gemma4:31b",
+                                         "K9_GUARDIAN_ENABLED": "true"})
+    assert "GENERAL qwen3.8:27b" in on.stdout, on.stdout + on.stderr
+    assert "REASONING gemma4:31b" in on.stdout
+    assert "GUARDIAN_MODEL granite4.1-guardian:8b" in on.stdout
+    assert "GOV ChainedGovernance" in on.stdout
+
+    off = _run_in_scaffold(root, script, {"K9_GUARDIAN_ENABLED": "false"})
+    assert "GENERAL llama3.2:1b" in off.stdout, off.stdout + off.stderr
+    assert "GOV ShieldGovernance" in off.stdout

@@ -35,18 +35,16 @@ inference:
     provider: ollama
     base_url: "${OLLAMA_BASE_URL:-http://localhost:11434}"
     models:
+      # Model tags come from .env (K9_MODEL_GENERAL / K9_MODEL_REASONING);
+      # the small defaults below run anywhere. See .env.example.
       general:
-        model: "llama3.2:1b"
+        model: "${K9_MODEL_GENERAL:-llama3.2:1b}"
         temperature: 0.3
         max_tokens: 2048
       reasoning:
-        model: "granite3-dense:2b"
+        model: "${K9_MODEL_REASONING:-granite3-dense:2b}"
         temperature: 0.2
         max_tokens: 4096
-      # granite-guardian:                    # uncomment to enable Granite Guardian
-      #   model: "granite3-guardian:2b"       # pull first: ollama pull granite3-guardian:2b
-      #   temperature: 0.0
-      #   max_tokens: 64
 
     # ── OpenAI ───────────────────────────────────────────────────────────
     # To enable: comment out the Ollama block above and uncomment this block.
@@ -112,13 +110,18 @@ inference:
         cost_tier: standard
 
 # Every generated agent's __init__ wires k9x_Shield in by default (see
-# security.shield below) — this block only adds Granite Guardian on top of
-# it, additive not a replacement. Off by default: requires a real pulled
-# model (uncomment inference.llm_factory.models.granite-guardian above).
+# security.shield below). Granite Guardian is standard too: a semantic LLM
+# screen added on top of Shield (additive, never a replacement). It calls
+# Ollama directly with the model below. Pull it first:
+#   ollama pull granite4.1-guardian:8b
+# fail_closed blocks an agent call when Guardian is unreachable; set
+# K9_GUARDIAN_ENABLED=false in .env to turn it off.
 governance:
   enabled: false
   guardian:
-    enabled: false
+    enabled: "${K9_GUARDIAN_ENABLED:-true}"
+    model: "${K9_GUARDIAN_MODEL:-granite4.1-guardian:8b}"
+    on_unavailable: "${K9_GUARDIAN_ON_UNAVAILABLE:-fail_closed}"
 
 # ── k9x_Shield — Chain of Vulnerability Tests ────────────────────────────────
 # Wired into every generated agent by default (see agents/*.py's __init__) —

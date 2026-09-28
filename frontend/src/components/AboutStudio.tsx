@@ -291,7 +291,7 @@ export function AboutStudio() {
       {/* Build info */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {[
-          ['Version',    '0.5.2'],
+          ['Version',    '0.5.3'],
           ['Created by', 'Ravi Natarajan & Claude Code'],
           ['Framework',  'K9-AIF · Architecture-First Agentic AI'],
           ['Website',    'k9x.ai'],
