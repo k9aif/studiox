@@ -71,53 +71,81 @@ score → `K9ValidationLoopAgent`; agent must plan and revise its own steps →
 
 ## Governance
 
-Every agent gets a governance pipeline via `require_governance()` at init.
-`K9_ENV=development|test` → `NoopGovernance` permitted (WARNING logged).
-`K9_ENV=production|staging` → `enforce_governance()` **raises**
-`PermissionError` if governance isn't configured. An agent that never calls
-`self.enforce_governance()` in `execute()` silently runs `NoopGovernance`
-even in production — the most common real bug in new agent code.
+**Governance by construction (1.15).** `BaseAgent.__init_subclass__` wraps
+every subclass's `execute()` (sync or async) when the class is defined, so
+on every call, with nothing for the agent to do:
 
-**`enforce_governance()` does not run any checks.** It only asserts that
-governance isn't `NoopGovernance` — a "did anyone configure real governance
-at all" guard. The methods that actually run checks are
-`apply_pre_governance(payload)` / `apply_post_governance(result)`
-(`BaseAgent`, and identically on `BaseOrchestrator`/`BaseRouter` — separate,
-duplicated methods, not inherited from one place), which call
-`self.governance.pre_process`/`post_process`. **Only the loop agents call
-them for you** (`BaseValidationLoopAgent`, `BaseCriticActorAgent` and their
-subclasses — see the Shield section below). `BaseAgent`, `BaseOrchestrator`
-and `BaseRouter` never do: a custom agent, every orchestrator and every
-router must call them itself, same as `enforce_governance()`. Calling only
-`enforce_governance()` gives zero content-level protection even though it
-looks like "governance is on."
+1. `assert_governed()` — `NoopGovernance` outside development/test raises
+   `PermissionError` before the agent's code runs (`K9_ENV` unset means
+   `production`);
+2. `governance.pre_process(payload)` — the agent sees the governed payload;
+3. the agent's own `execute()`;
+4. `governance.post_process(result["output"])` for a dict result with an
+   `output` key (other result fields — audit trail — untouched).
 
-**The hooks are `async`; `BaseAgent.execute()` and `execute_flow()` are
-sync.** Calling `self.apply_pre_governance(payload)` without awaiting it
-returns an un-run coroutine — no check runs, no error is raised. From sync
-code use `_run_coro_sync(self.apply_pre_governance(payload))` (the bridge
-the loop agents and `BaseOrchestrator` use; safe inside a running event
-loop, unlike `asyncio.run()`/`run_until_complete()`). Orchestrators also
-have a sync ingress wrapper, `apply_shield(payload)` →
-`{"allowed", "reason", "payload"}`.
+A `PermissionError` from governance (Shield BLOCK) propagates to the caller.
+**Overriding `execute()` does not bypass it** — the override is wrapped too.
+**`execute_stream()` is the second entry point** and is governed the same way:
+the request is checked before the first chunk, the complete reply when the
+stream ends (a streamed reply blocked at egress has already been sent, so the
+caller reports it as stopped). The default yields `execute()`'s output as one
+chunk; an agent that streams model output overrides it (async or sync
+generator) and is governed automatically. Run an agent only through
+`execute()` / `execute_stream()` — other public methods are not entry points.
+**Every model call is governed:** `llm_invoke()` / `llm_invoke_stream()` read a
+call-path mark (`k9_core/governance/call_context.py`) that agents' entry points
+and the adapters' `execute_flow()` set while they run. Inside, the caller's
+checks already cover the call; outside (orchestrator, service or script code),
+`llm_invoke()` runs the same `security.shield` checks itself and refuses in
+production without governance. Call models only through `llm_invoke()`.
+A subclass calling `super().execute()` is governed once (a contextvar guard).
+`BaseValidationLoopAgent` / `BaseCriticActorAgent` set
+`_governs_own_execute = True` (they run pre/post around the loop, on
+`result["output"]`) and get the assertion only. Tests:
+`tests/test_governance_by_construction.py`.
 
-`require_governance()` never fails at init: with no governance passed it
-returns `NoopGovernance` in every environment (WARNING in
-development/test, ERROR otherwise; `K9_ENV` unset means `production`). The
-hard fail happens only where `enforce_governance()` is called.
+**Where governance comes from.** `governance=` if passed; otherwise
+`governance_from_config(config)`: `security.shield.enabled: true` →
+`ShieldGovernance(config)`; `governance.guardian.enabled: true` →
+`GuardianGovernance` (Granite Guardian, `on_unavailable` default
+`fail_closed`); both → `ChainedGovernance(Shield, Guardian)`, Shield first.
+One config setting therefore governs every agent of an application.
+Nothing configured → `NoopGovernance` (fine in development/test, refused in
+production).
+
+**Adapters.** The CrewAI, LangGraph and Claude SDK orchestrator adapters
+run pre/post at their boundary and call `assert_governed()` at the top of
+`execute_flow()`.
+
+**Not wrapped:** orchestrator/router logic outside agents (call
+`apply_shield()` / `apply_zero_trust()` / `apply_pre_governance()` there), and
+`llm_invoke()` called outside an agent. `enforce_governance()` still exists
+(it is the same assertion) and is harmless to call.
+
+**The governance hooks on Orchestrator/Router are `async`.** From sync
+code use `_run_coro_sync(self.apply_pre_governance(payload))`, never
+`asyncio.run()` (fails inside a running event loop). Orchestrators also have
+a sync ingress wrapper, `apply_shield(payload)` → `{"allowed", "reason",
+"payload"}`. (BaseAgent's automatic wrapper calls the governance backend
+directly and resolves an awaitable result safely.)
+
+**Unit tests** default to `K9_ENV=test` (`k9_aif_abb/tests/conftest.py`);
+production behaviour is tested explicitly.
 
 ## Security / Vulnerability (k9x_Shield) and Zero Trust
 
 Two independent, non-overlapping security layers ship in the framework —
 know which one a question is actually about before answering it:
 
-**k9x_Shield** (`k9_security/vulnerability/`) — 13 concrete
+**k9x_Shield** (`k9_security/vulnerability/`) — 14 concrete
 `BaseVulnerabilityCheck` subclasses (`checks/`: `InputSizeCheck`,
 `PromptInjectionCheck`, `PIIBoundaryCheck`, `PIIRequestCheck`,
 `SemanticDriftCheck`, `ToolArgumentCheck`, `ToolAuthorizationCheck`,
 `ExecutionGuardCheck`, `HardcodedCredentialCheck`, `MemoryPoisoningCheck`,
 `SystemPromptLeakageCheck`, `OutputSanitizationCheck`,
-`RequestFrequencyCheck`), run in order by `VulnerabilityChain`
+`RequestFrequencyCheck`, `OutboundLinkCheck` (1.14, egress, opt-in:
+lookalike / brand-in-subdomain / user@host / IP / punycode links BLOCK,
+shorteners and non-allowlisted hosts FLAG)), run in order by `VulnerabilityChain`
 (`vulnerability_chain.py`), wrapped by `ShieldGovernance`
 (`shield_governance.py`) — a concrete `pre_process`/`post_process`
 implementation, i.e. a drop-in `governance=` value for any `BaseAgent`/
@@ -131,11 +159,11 @@ raises: `True` → treated as FLAG, `False` → treated as BLOCK.
 
 **Shield is off in the shipped configuration.** `k9_aif_abb/config/config.yaml`
 sets `security.shield.enabled: false` ("SBBs enable and configure in their
-own config.yaml"), while `ShieldGovernance`'s code fallback when the key is
-absent is `enabled=True`. So a solution that copies the framework config
-gets no Shield checks until it sets `security.shield.enabled: true` **and**
-passes `governance=ShieldGovernance(...)` to each component. Don't tell
-anyone Shield is on by default without checking which config is loaded.
+own config.yaml"). Since 1.15 a solution that sets `security.shield.enabled:
+true` (with check lists) in its config gets `ShieldGovernance` on every agent
+automatically (`governance_from_config`); orchestrators/routers still take
+`governance=ShieldGovernance(...)` explicitly. Don't tell anyone Shield is on
+by default without checking which config is loaded.
 
 **`ShieldGovernance(config)` runs only the checks listed** under
 `security.shield.ingress.checks` / `egress.checks`, and takes the *whole*
@@ -146,18 +174,8 @@ nothing (verified: a prompt-injection payload passes). Copy the check lists
 from the framework's `config.yaml`, and prove it with one injection test.
 
 **The checks are correct and well-tested** (`tests/test_shield_governance.py`).
-**Where the hooks are called for you (since 6b55f6b, shipped in 1.12.x):**
-`BaseValidationLoopAgent.execute()` and `BaseCriticActorAgent.execute()` —
-the two most commonly generated agent patterns, plus anything extending them
-(e.g. `K9PlanningLoopAgent`) — wrap `_execute_loop()` with real
-`apply_pre_governance`/`apply_post_governance` calls. Put loop logic in
-`_execute_loop()`; **overriding `execute()` itself bypasses governance.**
-
-**Where they are not:** a custom agent extending `BaseAgent` directly gets
-**zero enforcement** from `governance=ShieldGovernance(...)` unless its own
-`execute()` explicitly calls the hooks. Don't assume "this agent has
-`ShieldGovernance` wired" means anything is actually being checked — verify
-the hooks are called, not just that the object was constructed.
+Every agent runs them around `execute()` (governance by construction, above);
+the loop agents run them around `_execute_loop()` on `result["output"]`.
 
 **Zero Trust** (`k9_security/zero_trust/`) — a separate mechanism,
 identity/risk/authorization-based rather than pattern-matching-based:
@@ -178,6 +196,43 @@ one word defeats it). Treat Zero Trust and Shield as additive, not
 redundant: Zero Trust's real value is its authorization/risk-scoring/
 data-masking machinery (`RoleBasedAuthorizationGuard`,
 `SensitiveDataLossGuard`), not its compromise check.
+
+**Zero Trust identity (1.14, `k9_security/zero_trust/identity.py`).**
+Before 1.14 both `_zero_trust_context()`s read `principal_id`/`roles`/
+`tenant_id`/`trust_zone` from the payload — any caller (another agent
+included) could claim `roles: ["admin"]`. Now identity comes from a
+`BaseIdentityResolver`: `PayloadIdentityResolver` (that same legacy
+behaviour, **still the 1.x default**, warns once) or
+`SignedIdentityResolver` (`security.identity.mode: signed`): only a
+trusted in-process `ctx["identity"]` or an HMAC-signed `_k9_identity`
+stamp counts; self-declared fields are ignored; otherwise `anonymous`.
+`BaseRouter.admit(payload, credentials)` is the edge: `BaseAuthenticator`
+(OOB `ApiKeyAuthenticator`, keys from env via `security.auth.api_keys`;
+`OIDCAuthenticator` for any OIDC provider, IdP adapters `keycloak`
+(realm + client roles) / `entra_id` / `okta`, all built by
+`AuthenticatorFactory` from `security.auth.providers`; extra `k9-aif[oidc]`;
+`keycloak_demo.py` verified live)
+→ strip claims and any inbound stamp → sign with `$K9_IDENTITY_SECRET`
+(same value on every Router/Orchestrator process). Signed mode without the
+secret raises when Zero Trust first runs — deliberately, never a silent
+fallback to payload. Default flips to signed in 2.0.
+
+**Tool results are governed too (1.14, `k9_security/tool_result_guard.py`).**
+What a tool returns is untrusted model input (indirect prompt injection).
+`screen_tool_result()` runs it through `governance.pre_process` with the
+text under `"query"` (so Guardian reads it). The Claude Agent SDK adapter
+does this for every tool automatically (`govern_tool_results=True`;
+refused → error notice to Claude); CrewAI tools / LangGraph nodes use
+`@govern_tool_result(gov)` / `on_block="raise"`. `can_use_tool` still
+governs the outgoing call — the two gates are complementary.
+
+**Security capability catalog** (`k9_security/capabilities.yaml`): every
+security control above, mapped to OWASP LLM01-10 / ASI01-10, plus known gaps.
+**Update it in the same commit as any security control change** --
+`test_security_capabilities.py` fails on a missing Shield check or Guardian
+risk, a stale component path, or a `framework_version` that doesn't match
+`pyproject.toml` (bump both when releasing). K9X Sentinel
+(`k9x-ecosystem/k9x_sentinel`) judges new threats against it daily.
 
 **k9x_satan** (`k9x-ecosystem/k9x_satan`) is the reference implementation
 proving these layers actually contain a real attack end-to-end — read its
@@ -222,11 +277,24 @@ under the factory's cache key — exactly what the EOC does with
 `EOCModelRouter` (`examples/K9X_Enterprise_Insurance_OperationsCenter/api/app.py`).
 Agents are unaffected either way.
 
+**`K9ModelRouter` learns only from graded evidence.** Rules (capability
++3, latency/cost tier +2, `default_model`) decide until
+`record_feedback(prompt, alias, quality)` has supplied graded outcomes;
+then a k-NN quality predictor over similar prompts can overrule them by
+`learning.margin` points (`k9_inference/learning/`). Before 1.13 the
+router stored sessions/decisions/affinity but never read them back --
+don't describe older versions as adaptive. Runtime calls record only
+success/latency (circuit breaker), not quality: something must grade.
+A `confidential` request is hard-restricted to confidential-capable models
+(before 1.13 a +3 capability match could beat the +2 confidential score).
+
 ## Everything is provisioned through factories
 
 Never instantiate directly in application code: `LLMFactory`,
 `ModelRouterFactory`, `AgentRegistry`, `OrchestratorRegistry`,
-`SecretManagerFactory`, `CacheFactory`, `ObjectStorageFactory`. Every factory
+`SecretManagerFactory`, `CacheFactory`, `ObjectStorageFactory`,
+`AuthenticatorFactory` (1.14: `api_key`/`oidc`/`keycloak`/`entra_id`/`okta`;
+solutions `register()` their own `BaseAuthenticator`). Every factory
 `create(config)` has a zero-config default (env secrets, in-memory cache,
 local storage) — no config key required for the common case. Adding a new
 provider to any of these: `SKILLS.md` Skill 11.
@@ -434,8 +502,8 @@ Nothing is ever wired *in front of* the Router. Below `confidence_threshold`
 `messaging`, `security.shield`.
 
 **Persistence.** `RoutingStateStore` (`k9_storage/routing_state_store.py`)
-holds `sessions`, `session_turns`, `routing_decisions`, `context_artifacts`
-and `hil_pending` — SQLite auto-created, PostgreSQL by reflection;
+holds `sessions`, `session_turns`, `routing_decisions`, `context_artifacts`,
+`hil_pending` and `routing_outcomes` (learned-routing evidence, 1.13) — SQLite auto-created, PostgreSQL by reflection;
 `postgres.schema` must match the real schema or reflection misses tables.
 
 **Sessions.** `BaseOrchestrator` wires a session manager only when
