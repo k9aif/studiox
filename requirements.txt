@@ -1,4 +1,4 @@
-k9-aif[s3,mcp]>=1.12.4
+k9-aif[s3,mcp]>=1.15.0
 fastapi>=0.111.0
 uvicorn[standard]>=0.30.0
 pydantic>=2.0

@@ -11,9 +11,6 @@ from k9_aif_abb.k9_orchestrators.registry.orchestrator_registry import Orchestra
 from k9_aif_abb.k9_security.vulnerability.shield_governance import ShieldGovernance
 from k9_aif_abb.k9_squad.squad_loader import SquadLoader
 
-{% for agent_name in agent_names %}
-from agents.src.{{ agent_name | to_snake }} import {{ agent_name }}
-{% endfor %}
 
 log = logging.getLogger(__name__)
 
@@ -58,12 +55,15 @@ class {{ orchestrator_name }}(BaseOrchestrator):
         agents_yaml_dir = project_root / "agents" / "yaml"
         agent_loader = AgentLoader(agents_yaml_dir)
 
+        # Agents are named, never imported: each class resolves from its agent
+        # YAML's class + module (three-layer decoupling; k9aif inspect K9-DEC-001).
         agent_registry = AgentRegistry()
-        for name, cls in [
+        for name in [
 {% for agent_name in agent_names %}
-            ("{{ agent_name }}", {{ agent_name }}),
+            "{{ agent_name }}",
 {% endfor %}
         ]:
+            cls = agent_loader.resolve_class(name)
             agent_registry.register(
                 name,
                 lambda c=cls, n=name: c(config=agent_loader.merge_with_global(n, self.config)),

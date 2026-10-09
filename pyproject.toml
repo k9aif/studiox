@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "k9x"
-version = "0.5.4"
+version = "0.5.5"
 description = "K9X Studio — turn BPMN, process specs and agent evaluation plans (including IBM Process Studio artifacts) into governed K9-AIF scaffolds"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 
 dependencies = [
-    "k9-aif[s3,mcp]>=1.12.4",
+    "k9-aif[s3,mcp]>=1.15.0",
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.0",

@@ -526,3 +526,21 @@ def test_model_tags_and_guardian_come_from_env(tmp_path):
     off = _run_in_scaffold(root, script, {"K9_GUARDIAN_ENABLED": "false"})
     assert "GENERAL llama3.2:1b" in off.stdout, off.stdout + off.stderr
     assert "GOV ShieldGovernance" in off.stdout
+
+
+def test_every_scaffold_is_inspected_and_compliant(tmp_path):
+    """Studio inspects each scaffold it generates (k9aif inspect, k9-aif >= 1.15)
+    and ships the report as docs/COMPLIANCE.md. A generated scaffold must never
+    have a critical finding or a violation: no .env without a .gitignore, no
+    orchestrator importing agent classes, Shield on."""
+    from backend.services.scaffold_service import generate_scaffold, inspect_scaffold
+    pytest.importorskip("k9_aif_abb.k9_inspect")
+    buf = generate_scaffold(SAMPLE_PROJECT)
+    report = inspect_scaffold(buf)
+    bad = [f"{f.rule_id} {f.file}:{f.line} {f.message}" for f in report.findings
+           if f.severity.value in ("critical", "violation")]
+    assert not bad, bad
+    with zipfile.ZipFile(buf) as zf:
+        compliance = [n for n in zf.namelist() if n.endswith("docs/COMPLIANCE.md")]
+        assert compliance, "docs/COMPLIANCE.md missing"
+        assert "COMPLIANT" in zf.read(compliance[0]).decode()

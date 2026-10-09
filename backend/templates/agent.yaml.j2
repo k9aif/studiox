@@ -4,6 +4,7 @@
 
 name: {{ agent.name }}
 class: {{ agent.name }}
+module: agents.src.{{ agent.name | to_snake }}
 
 description: >
   {{ agent.description if agent.description else agent.name + ' — update with domain-specific description.' }}
