@@ -565,3 +565,10 @@ def test_multi_agent_squads_enable_synthesis(tmp_path):
     base_squad = pytest.importorskip("k9_aif_abb.k9_squad.base_squad")
     if hasattr(base_squad, "synthesis_config"):
         assert base_squad.synthesis_config(per_squad["squads"]["TriageSquad"])["mode"] == "auto"
+
+
+def test_env_example_documents_squad_synthesis(tmp_path):
+    """.env.example shows where squad synthesis is set (squads YAML, not env)."""
+    root = _generate_and_extract(tmp_path, SAMPLE_PROJECT)
+    env = (root / ".env.example").read_text()
+    assert "synthesis: auto" in env and "Not an environment variable" in env
