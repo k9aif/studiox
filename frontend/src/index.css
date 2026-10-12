@@ -2717,3 +2717,27 @@ html, body, #root {
   border-color: rgba(255, 209, 102, 0.5);
   box-shadow: 0 0 10px rgba(255, 209, 102, 0.35);
 }
+
+/* "Built on the K9-AIF framework" card — same look as das.k9x.ai.
+   Product colours: HIL = orange, Sentinel = teal, Satan = red. */
+.landing-built-wrap { width: 100%; max-width: 1040px; padding: 0 24px 40px; }
+.landing-built-on {
+  border: 1px solid rgba(242, 179, 61, 0.28); border-radius: 12px; padding: 22px 24px;
+  background: linear-gradient(160deg, rgba(242, 179, 61, 0.07), rgba(20, 32, 58, 0.6));
+  font-size: 15px; line-height: 1.7;
+}
+.landing-built-on h2 { color: #f2b33d; font-size: 22px; margin: 0 0 6px; letter-spacing: -0.3px; }
+.landing-built-on p { color: #aab5c8; margin: 12px 0 0; max-width: 760px; }
+.landing-built-on b { color: #c9d1de; font-weight: 600; }
+.landing-built-on .keyline { border-left: 2px solid rgba(242, 179, 61, 0.45); padding-left: 12px; }
+.landing-built-on .keyline b { color: #e9c77a; }
+.landing-built-on .keyline b.plain { color: #c9d1de; }
+.landing-built-on b.p-hil, .landing-built-chips .chip.p-hil { color: #f0a46b; }
+.landing-built-on b.p-sentinel, .landing-built-chips .chip.p-sentinel { color: #5fd4c3; }
+.landing-built-on b.p-satan, .landing-built-chips .chip.p-satan { color: #e5534b; }
+.landing-built-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.landing-built-chips .chip {
+  font: 600 12px var(--font-mono); border: 1px solid #24324f; border-radius: 6px;
+  padding: 4px 10px; color: #d3dae6; text-decoration: none;
+}
+.landing-built-chips .chip:hover { border-color: #f2b33d; color: #f2b33d; }

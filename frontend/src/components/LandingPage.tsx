@@ -197,6 +197,24 @@ export function LandingPage() {
         ))}
       </div>
 
+      {/* Same "Built on the K9-AIF framework" card as das.k9x.ai, with the
+          DAS-specific phrases made Studio-specific. */}
+      <div className="landing-built-wrap">
+        <div className="landing-built-on">
+          <h2>Built on the K9-AIF framework</h2>
+          <p><b>K9-AIF (Agentic Integration Framework)</b> is an architecture-first framework for building governed, secure, and enterprise-scale AI applications. Built on OOA/OOD principles and TOGAF-aligned, it brings consistency, governance, and auditability to agentic systems from day one. Every Router, Orchestrator, Squad and Agent in a scaffold K9X Studio generates extends a K9-AIF Architecture Building Block, so governance, human review and auditability are inherited, not hand-built per application.</p>
+          <p className="keyline"><b>Security checks that keep pace with new attacks.</b> AI is now used to attack applications that are themselves built with AI: instructions hidden in documents, agents impersonating other agents, poisoned tool results. K9-AIF tracks these attack techniques as they are published, for example in the OWASP Top 10 for LLM Applications, and adds matching checks to the framework's governance pipeline. Solutions built on K9-AIF pick up the new checks with a framework upgrade, without rewriting their own agents. That is why <b className="plain">K9X Sentinel</b> was introduced: every day it reads newly published attacks and checks each one against the framework's security capabilities, so gaps are found and closed early.</p>
+          <p>The <b>K9X ecosystem</b> brings the framework to life with core components, including <b className="p-hil">K9X HIL</b> (human-in-the-loop decisions for the AMBER/RED steps your generated agents escalate), <b className="p-sentinel">K9X Sentinel</b> (above) and <b className="p-satan">K9X Satan</b> (an adversarial harness that fires attacks at a pipeline to prove its defences hold).</p>
+          <div className="landing-built-chips">
+            <a className="chip" href="https://k9x.ai" target="_blank" rel="noopener noreferrer">k9x.ai ↗</a>
+            <a className="chip p-hil" href="https://hil.k9x.ai" target="_blank" rel="noopener noreferrer">K9X HIL ↗</a>
+            <a className="chip p-sentinel" href="https://sentinel.k9x.ai" target="_blank" rel="noopener noreferrer">K9X Sentinel ↗</a>
+            <a className="chip p-satan" href="https://satan.k9x.ai" target="_blank" rel="noopener noreferrer">K9X Satan ↗</a>
+            <a className="chip" href="https://github.com/k9aif/k9-aif-framework" target="_blank" rel="noopener noreferrer">Framework source ↗</a>
+          </div>
+        </div>
+      </div>
+
       <div className="landing-footer">
         K9-AIF Framework · <a href="https://k9x.ai" target="_blank" rel="noopener noreferrer">k9x.ai</a>
       </div>
