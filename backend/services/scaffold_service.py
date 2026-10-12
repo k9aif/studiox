@@ -418,10 +418,11 @@ def _mcp_tool_display_name(text: str) -> str:
     return m.group(2).strip() if m else (text or "").strip()
 
 
-# k9-aif release every generated scaffold pins: 1.15.0 (governance by
+# k9-aif release every generated scaffold pins: 1.16.0 (squad coordinator
+# synthesis, governance by
 # construction, Shield and Guardian from config, conformance rules for
 # `k9aif inspect`). Never pin 1.12.3 (broken on MCP SDK 2.x).
-K9AIF_VERSION = "1.15.0"
+K9AIF_VERSION = "1.16.0"
 
 
 def _k9aif_requirement(project: dict) -> str:
@@ -2549,6 +2550,12 @@ def sample_payload():
             squad_yaml += "    agents:\n"
             for a in squad["agents"]:
                 squad_yaml += f"      - {a}\n"
+            # Squad coordinator (k9-aif 1.16): with 2+ agents, later agents get a
+            # digest of upstream results from the framework's OOB
+            # K9ContextSynthesizerAgent once they exceed max_context_chars.
+            # Below that, behaviour is unchanged. No generated synthesizer class.
+            if len(squad["agents"]) > 1:
+                squad_yaml += "    synthesis: auto\n"
             squad_yaml += "    flow:\n"
             for a in squad["agents"]:
                 squad_yaml += f"      - agent: {a}\n"
@@ -2578,6 +2585,8 @@ class {squad['name']}(BaseSquad):
             all_squads_yaml += "    agents:\n"
             for a in squad["agents"]:
                 all_squads_yaml += f"      - {a}\n"
+            if len(squad["agents"]) > 1:
+                all_squads_yaml += "    synthesis: auto\n"
             all_squads_yaml += "    flow:\n"
             for a in squad["agents"]:
                 all_squads_yaml += f"      - agent: {a}\n"

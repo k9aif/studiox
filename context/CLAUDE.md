@@ -41,6 +41,14 @@ Cardinality: Router 1→N Orchestrators, Orchestrator 1→N Squads
 (`execute_squads(..., parallel=True/False)`), Squad 1→N Agents (sequential
 `flow`).
 
+**Squad context (1.16).** Each step gets the full accumulated context unless
+the step sets `context_keys` (scoping) or the squad sets `synthesis:`
+(`off` default | `auto` | `always`): the squad coordinator then hands the step a
+digest (`squad_digest`) from `K9ContextSynthesizerAgent` (a governed
+`BaseAgent`) instead of the upstream outputs; full outputs stay in the
+squad's results, each digest is logged in `squad_synthesis`. Recipe: `SKILLS.md`
+Skill 4. Tests: `tests/test_squad_synthesis.py`.
+
 ## LLM calls — one path only
 
 Agents never call `OllamaLLM`/`LLMFactory` **or `ModelRouterFactory`/

@@ -544,3 +544,24 @@ def test_every_scaffold_is_inspected_and_compliant(tmp_path):
         compliance = [n for n in zf.namelist() if n.endswith("docs/COMPLIANCE.md")]
         assert compliance, "docs/COMPLIANCE.md missing"
         assert "COMPLIANT" in zf.read(compliance[0]).decode()
+
+
+def test_multi_agent_squads_enable_synthesis(tmp_path):
+    """Squads with 2+ agents get ``synthesis: auto`` (k9-aif 1.16 squad
+    coordinator, OOB K9ContextSynthesizerAgent); single-agent squads have no
+    upstream results to digest, so they leave it out."""
+    import yaml
+
+    multi = _generate_and_extract(tmp_path / "multi", SAMPLE_PROJECT)
+    per_squad = yaml.safe_load((multi / "squads" / "yaml" / "triage_squad.yaml").read_text())
+    combined = yaml.safe_load((multi / "config" / "squads.yaml").read_text())
+    assert per_squad["squads"]["TriageSquad"]["synthesis"] == "auto"
+    assert combined["squads"]["TriageSquad"]["synthesis"] == "auto"
+
+    single = _generate_and_extract(tmp_path / "single", CRITIC_ACTOR_PROJECT)
+    combined = yaml.safe_load((single / "config" / "squads.yaml").read_text())
+    assert "synthesis" not in combined["squads"]["WorthinessSquad"]
+
+    base_squad = pytest.importorskip("k9_aif_abb.k9_squad.base_squad")
+    if hasattr(base_squad, "synthesis_config"):
+        assert base_squad.synthesis_config(per_squad["squads"]["TriageSquad"])["mode"] == "auto"

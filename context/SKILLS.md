@@ -323,6 +323,27 @@ squads:
         result_key: audit
 ```
 
+### Bounding squad context (1.16)
+
+Each step receives the full accumulated context by default, so prompts grow with every step. Two controls:
+
+- **`context_keys`** on a step (deterministic scoping): the agent sees only the named upstream result keys plus the original payload.
+- **`synthesis:`** on the squad (squad coordinator): the upstream results a step would receive are replaced by a digest (`squad_digest`, with `squad_digest_keys`) written by `K9ContextSynthesizerAgent`, an ordinary governed `BaseAgent`.
+
+```yaml
+squads:
+  MySquad:
+    synthesis: auto                 # off (default) | auto | always
+    # or: synthesis: {mode: auto, max_context_chars: 24000, agent: MySynthesizerAgent}
+    flow:
+      - agent: AgentOne
+      - agent: AgentTwo
+      - agent: AuditAgent
+        synthesis: false            # this step always gets the full results
+```
+
+`auto` engages only once the upstream results exceed `max_context_chars` (default 24000, about 6k tokens); `always` digests whenever there are upstream results. Steps with `context_keys` are never synthesized. The squad's return value keeps every full output, and `squad_synthesis` records each digest (step, source keys, sizes) for audit. A downstream agent reads `squad_digest` when present, so write agents that accept either form. Synthesizer token budget: `squad_synthesis.max_tokens` in the app config.
+
 ### Agent YAML
 
 Agent YAML describes behavior only — no squad references, no routing fields.
