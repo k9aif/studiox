@@ -378,7 +378,17 @@ export const useStore = create<StudioStore>()(
       generatedDocs: [], scaffoldFiles: [], hasGeneratedScaffold: false,
     })),
 
-  setScreen: (screen) => set({ screen }),
+  // The address bar tracks the two bookmarkable screens: "/" is the
+  // landing page, "/studio" the app. Splash and setup are transient
+  // fallback UI and leave the URL alone. Centralized here so every
+  // setScreen('studio') / setScreen('landing') caller gets it.
+  setScreen: (screen) => {
+    const path = screen === 'studio' ? '/studio' : screen === 'landing' ? '/' : null;
+    if (path && window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+    set({ screen });
+  },
   setProject: (project) => set({ project }),
 
   addNode: (node) =>
