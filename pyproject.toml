@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 
 dependencies = [
-    "k9-aif[s3,mcp]>=1.16.0",
+    "k9-aif[s3,mcp]>=1.18.1",
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.0",
@@ -58,7 +58,6 @@ packages = [
 [tool.setuptools.package-data]
 backend = ["templates/*.j2", "templates/*.css", "templates/*.js"]
 frontend = ["dist/**/*"]
-k9x = ["_generator_templates/*.j2"]
 "k9x._studio_app.agents" = ["yaml/*.yaml"]
 "k9x._studio_app.squads" = ["yaml/*.yaml"]
 "k9x._studio_app.context" = ["*.md"]

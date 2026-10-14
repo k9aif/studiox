@@ -418,11 +418,12 @@ def _mcp_tool_display_name(text: str) -> str:
     return m.group(2).strip() if m else (text or "").strip()
 
 
-# k9-aif release every generated scaffold pins: 1.16.0 (squad coordinator
-# synthesis, governance by
-# construction, Shield and Guardian from config, conformance rules for
-# `k9aif inspect`). Never pin 1.12.3 (broken on MCP SDK 2.x).
-K9AIF_VERSION = "1.16.0"
+# k9-aif release every generated scaffold pins: 1.18.1 (the squad layer --
+# SquadLoader.from_agents, so generated orchestrators know only squads --
+# plus squad coordinator synthesis, governance by construction, Shield and
+# Guardian from config, conformance rules for `k9aif inspect`). Never pin
+# 1.12.3 (broken on MCP SDK 2.x).
+K9AIF_VERSION = "1.18.1"
 
 
 def _k9aif_requirement(project: dict) -> str:
@@ -2609,14 +2610,8 @@ class {squad['name']}(BaseSquad):
             # whole project silently wires it to an unrelated one. See
             # plan.md "Known bugs" for what this replaced.
 
-            # Collect agents across all squads owned by this orchestrator
-            all_agent_names = []
-            for sq_name in orch_squads:
-                for sq in squads:
-                    if sq["name"] == sq_name:
-                        all_agent_names.extend(sq["agents"])
-                        break
-            all_agent_names = list(dict.fromkeys(all_agent_names))
+            # No agent list here: the orchestrator knows only its squads; the
+            # squad layer builds each squad's agents from its YAML (K9-DEC-002).
 
             orch_code = _render("orchestrator.py.j2", {
                 "app_name": app_name,
@@ -2635,7 +2630,6 @@ class {squad['name']}(BaseSquad):
                 # multi-word squad name, i.e. nearly all of them.
                 "squad_files": {sq: to_snake(sq) for sq in orch_squads},
                 "parallel": parallel,
-                "agent_names": all_agent_names,
                 "timestamp": timestamp,
             })
             add(f"{app_folder}/orchestrators/{to_snake(orch_name)}.py", orch_code)

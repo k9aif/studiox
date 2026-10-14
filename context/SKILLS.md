@@ -103,22 +103,23 @@ class MyAgent(BaseAgent):
         return result
 ```
 
-### Step 3: Register in `_load_squad()`
+### Step 3: Give the agent YAML a `module:` — nothing to register
 
-Agents are not registered with the orchestrator — they are registered into `AgentRegistry` inside `_load_squad()` so `SquadLoader` can wire them into the Squad. The orchestrator only holds the assembled Squad.
+Agents are never registered in (or imported by) an orchestrator. The squad
+layer builds them: `SquadLoader.from_agents(agents_dir, config)` — built once
+at the app entry point — resolves every agent a squad YAML names through the
+agent YAML's `class:` + `module:`.
 
-```python
-from examples.<App>.agents.src.my_agent import MyAgent
-
-for name, cls in [
-    ...
-    ("MyAgent", MyAgent),          # add here
-]:
-    agent_registry.register(
-        name,
-        lambda c=cls, n=name: c(config=agent_loader.merge_with_global(n, self.config)),
-    )
+```yaml
+# agents/yaml/my_agent.yaml
+class: MyAgent
+module: myapp.agents.src.my_agent
+role: ...
 ```
+
+Adding the agent to a squad's YAML (Step 4) is the whole wiring. The
+orchestrator does not change — if it had to, the layers would be coupled
+(k9_inspect K9-DEC-002).
 
 ### Step 4: Add to the squad YAML flow
 
@@ -290,11 +291,12 @@ Each layer in the execution hierarchy knows only what is **below** it. Nothing r
 
 | Layer | Knows about | Does NOT know about |
 |---|---|---|
-| **Orchestrator** | Its squad ID (loads it via `_load_squad()`) | Routers, other orchestrators |
+| **Orchestrator** | Its squads: YAML file + squad id (`self.squads.load_one(...)`) | Agents (names, classes, registries), routers, other orchestrators |
 | **Squad** | Its agents and flow steps | Orchestrators |
 | **Agent** | Its own behavior (role, goal, model) | Squads, routing, next agent |
 
 This means:
+- The orchestrator **never names an agent** — no `AGENTS = (...)` list, no `AgentRegistry` / `AgentLoader`. If a squad's agents change, the orchestrator is unaffected.
 - Squad YAML has **no** `orchestrator:` field — the orchestrator is the caller, not a peer
 - Agent YAML has **no** `squad:` or `routing:` fields — agents are squad-agnostic, reusable across squads
 
@@ -376,11 +378,30 @@ governance:
   post_process: false
 ```
 
-### Wire it in `_load_squad()`
+### Wire it: entry point builds the squad layer, orchestrator loads by id
+
+A squad is YAML; `BaseSquad` runs it. Squad-level behaviour (e.g. a check
+before every step) goes in **one** common `<App>Squad(BaseSquad)` for the
+application — the loader instantiates it once per squad, with that squad's
+agents from its YAML.
 
 ```python
-loader = SquadLoader(agent_registry)
-squad = loader.load_one(squads_yaml_path, "MySquad")
+# app entry point (once)
+from k9_aif_abb.k9_squad.squad_loader import SquadLoader
+squads = SquadLoader.from_agents(agents_yaml_dir, config=config,
+                                 squad_cls=MyAppSquad,            # optional
+                                 agent_kwargs={"monitor": monitor})  # optional
+orch = MyOrchestrator(config=config, squads=squads)
+
+# inside the orchestrator: squad file + id, nothing else
+squad = self.squads.load_one(squads_yaml_path, "MySquad", config=run_config)
+result = squad.execute(payload)
+
+# optional squad-level behaviour
+class MyAppSquad(BaseSquad):
+    def before_step(self, agent_name, context):
+        if job_withdrawn(context.get("job_id")):
+            raise JobWithdrawn(agent_name)
 ```
 
 ---
@@ -580,10 +601,10 @@ And add `environment_tier` to catalog entries in `config.yaml`.
 
 ## Skill 9 — Agent config: what comes from YAML vs global config
 
-When `_load_squad()` constructs an agent it calls:
+When the squad layer (`SquadLoader.from_agents`) constructs an agent it calls:
 
 ```python
-agent_loader.merge_with_global("MyAgent", self.config)
+agent_loader.merge_with_global("MyAgent", config)   # config = loader's, or load_one(config=...)
 ```
 
 This produces one merged dict passed as `agent.config`. Merge rule: **agent YAML wins on key collision**.

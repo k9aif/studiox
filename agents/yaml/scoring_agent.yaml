@@ -1,5 +1,6 @@
 name: ScoringAgent
 class: ScoringAgent
+module: agents.src.scoring_agent
 
 description: >
   Builds the rule-based (zone-derived) canvas suggestion, scores it against

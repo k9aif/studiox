@@ -11,6 +11,7 @@ from pathlib import Path
 
 from k9_aif_abb.k9_factories.llm_factory import LLMFactory
 from k9_aif_abb.k9_factories.model_router_factory import ModelRouterFactory
+from k9_aif_abb.k9_squad.squad_loader import SquadLoader
 from k9_aif_abb.k9_utils.config_loader import load_yaml
 {% for orch in orchestrators %}
 from orchestrators.{{ orch.name | to_snake }} import {{ orch.name }}
@@ -183,8 +184,12 @@ def main():
 
     log.info("=== {{ app_name }} starting ===")
 
+    # The squad layer, built once: orchestrators load squads by YAML file and id
+    # through it; it builds the agents each squad's YAML names (Squad Layer pattern).
+    squads = SquadLoader.from_agents(Path(__file__).resolve().parent / "agents" / "yaml", config=config)
+
 {% for orch in orchestrators %}
-    orch_{{ loop.index }} = {{ orch.name }}(config=config)
+    orch_{{ loop.index }} = {{ orch.name }}(config=config, squads=squads)
 {% endfor %}
 
     scenario = load_scenario(SCENARIO_PATH)

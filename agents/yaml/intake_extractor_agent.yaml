@@ -1,5 +1,6 @@
 name: IntakeExtractorAgent
 class: IntakeExtractorAgent
+module: agents.src.intake_extractor_agent
 
 description: >
   [sub-agent, spawned by SpecParserAgent] Extracts project intake fields

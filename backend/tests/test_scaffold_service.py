@@ -227,8 +227,10 @@ def test_multi_squad_orchestrators_load_independently(tmp_path):
         "from orchestrators.triage_orchestrator import TriageOrchestrator\n"
         "from orchestrators.resolution_orchestrator import ResolutionOrchestrator\n"
         "config = yaml.safe_load(open(project_root / 'config' / 'config.yaml'))\n"
+        "from k9_aif_abb.k9_squad.squad_loader import SquadLoader\n"
+        "squads = SquadLoader.from_agents(project_root / 'agents' / 'yaml', config=config)\n"
         "for cls, squad_id in ((TriageOrchestrator, 'TriageSquad'), (ResolutionOrchestrator, 'ResolutionSquad')):\n"
-        "    orch = cls(config=config)\n"
+        "    orch = cls(config=config, squads=squads)\n"
         "    squad = orch._load_squad(squad_id)\n"
         "    assert squad is not None, f'{cls.__name__} failed to load {squad_id}'\n"
         "print('squads loaded ok')\n"
@@ -249,6 +251,21 @@ def test_multi_squad_orchestrators_load_independently(tmp_path):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "squads loaded ok" in result.stdout
+
+
+def test_generated_orchestrators_know_only_squads(tmp_path):
+    """Squad Layer pattern (k9-aif 1.18.1, k9aif inspect K9-DEC-002): a generated
+    orchestrator names no agent and builds no agent registry; main.py builds the
+    squad layer once and passes it to every orchestrator."""
+    import re
+    project_root = _generate_and_extract(tmp_path, MULTI_SQUAD_PROJECT)
+    for orch_file in (project_root / "orchestrators").glob("*_orchestrator.py"):
+        code = orch_file.read_text()
+        assert not re.search(r"AgentRegistry|AgentLoader|register_into", code), orch_file.name
+        assert not re.search(r"[\"'][A-Z]\w*Agent[\"']", code), orch_file.name
+        assert "self.squads.load_one(" in code
+    main = (project_root / "main.py").read_text()
+    assert "SquadLoader.from_agents(" in main and "squads=squads" in main
 
 
 def test_critic_actor_agent_signatures_match_base(tmp_path):

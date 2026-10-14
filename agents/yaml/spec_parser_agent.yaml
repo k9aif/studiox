@@ -1,5 +1,6 @@
 name: SpecParserAgent
 class: SpecParserAgent
+module: agents.src.spec_parser_agent
 
 description: >
   Extracts structure from an uploaded project spec document by spawning

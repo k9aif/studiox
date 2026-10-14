@@ -69,11 +69,6 @@ GOVERNANCE_MAX_CHARS=50000
 # K9X_STUDIO_USER=demo
 # K9X_STUDIO_PASSWORD=demo
 
-# Generator templates used when exporting a scaffold. k9x studio sets this
-# automatically to its bundled copy — override only if you have a local
-# k9-aif-framework checkout with newer templates.
-# K9X_GENERATOR_TEMPLATES_DIR=/path/to/k9-aif-framework/generator/templates
-
 # Set to 'true' only on public-hosted instances to block localhost LLM endpoints
 K9X_BLOCK_LOCAL=false
 

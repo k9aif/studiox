@@ -1,5 +1,6 @@
 name: ZoneMappingAgent
 class: ZoneMappingAgent
+module: agents.src.zone_mapping_agent
 
 description: >
   [sub-agent, spawned by SpecParserAgent] Independently parses the agent

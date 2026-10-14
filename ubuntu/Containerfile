@@ -8,8 +8,8 @@
 #
 # Build context is this project's own directory -- everything this
 # Containerfile copies comes from ${STUDIO_DIR} (this project itself,
-# including its own k9x/_generator_templates/, scaffold_service.py's
-# canonical BaseAgent/Squad/etc. templates). No sibling-repo checkout
+# including scaffold_service.py's canonical BaseAgent/Squad/etc.
+# templates in backend/templates/). No sibling-repo checkout
 # needed at build time. STUDIO_DIR still exists as a build-arg (defaults
 # to "." — build-run.sh passes it explicitly) rather than this file
 # hardcoding a path, since it's still useful if this project is ever built
@@ -55,8 +55,7 @@ COPY ${STUDIO_DIR}/ .
 COPY --from=frontend-build /build/frontend/dist /app/frontend/dist
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    K9X_GENERATOR_TEMPLATES_DIR=/app/k9x/_generator_templates
+    PYTHONUNBUFFERED=1
 
 EXPOSE 8090
 

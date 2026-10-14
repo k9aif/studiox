@@ -5,11 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from k9_aif_abb.k9_agents.registry.agent_registry import AgentRegistry
 from k9_aif_abb.k9_core.orchestration.base_orchestrator import BaseOrchestrator
-from k9_aif_abb.k9_orchestrators.registry.orchestrator_registry import OrchestratorRegistry
 from k9_aif_abb.k9_security.vulnerability.shield_governance import ShieldGovernance
-from k9_aif_abb.k9_squad.squad_loader import SquadLoader
 
 
 log = logging.getLogger(__name__)
@@ -36,45 +33,25 @@ _SQUAD_FILES = {
 
 
 class {{ orchestrator_name }}(BaseOrchestrator):
+    """Knows only squads (Squad Layer pattern, k9aif inspect K9-DEC-002): it loads its
+    squads by YAML file and id through ``squads`` -- the squad layer main.py builds once.
+    The agents each squad needs are named in that squad's YAML and built by the squad
+    layer, so changing a squad's agents never changes this file."""
 
     layer = "{{ app_name }} {{ orchestrator_name }} SBB"
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None, **kwargs) -> None:
+    def __init__(self, config: Optional[Dict[str, Any]] = None, squads=None, **kwargs) -> None:
         config = config or {}
         # k9x_Shield on the orchestrator too (config/config.yaml's
         # security.shield block) -- checks the payload at the flow's entry,
         # before any squad runs. Pass governance=<your own object> to override.
         if kwargs.get("governance") is None:
             kwargs["governance"] = ShieldGovernance(config=config)
-        super().__init__(config=config, **kwargs)
+        super().__init__(config=config, squads=squads, **kwargs)
 
     def _load_squad(self, squad_id: str):
-        from utils.agent_loader import AgentLoader
-
-        project_root = Path(__file__).resolve().parent.parent
-        agents_yaml_dir = project_root / "agents" / "yaml"
-        agent_loader = AgentLoader(agents_yaml_dir)
-
-        # Agents are named, never imported: each class resolves from its agent
-        # YAML's class + module (three-layer decoupling; k9aif inspect K9-DEC-001).
-        agent_registry = AgentRegistry()
-        for name in [
-{% for agent_name in agent_names %}
-            "{{ agent_name }}",
-{% endfor %}
-        ]:
-            cls = agent_loader.resolve_class(name)
-            agent_registry.register(
-                name,
-                lambda c=cls, n=name: c(config=agent_loader.merge_with_global(n, self.config)),
-            )
-
-        orchestrator_registry = OrchestratorRegistry()
-        orchestrator_registry.register("{{ orchestrator_name }}", {{ orchestrator_name }})
-
-        loader = SquadLoader(agent_registry, orchestrator_registry)
-        squad_yaml_path = project_root / "squads" / "yaml" / f"{_SQUAD_FILES[squad_id]}.yaml"
-        return loader.load_one(str(squad_yaml_path), squad_id)
+        squads_dir = Path(__file__).resolve().parent.parent / "squads" / "yaml"
+        return self.squads.load_one(squads_dir / f"{_SQUAD_FILES[squad_id]}.yaml", squad_id)
 
     def execute_flow(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         log.info("[%s] Executing flow", self.layer)

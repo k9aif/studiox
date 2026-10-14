@@ -1,5 +1,6 @@
 name: GovernanceAgent
 class: GovernanceAgent
+module: agents.src.governance_agent
 
 description: >
   Screens an uploaded project specification document for unsafe content

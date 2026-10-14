@@ -1,5 +1,6 @@
 name: LLMGroupingAgent
 class: LLMGroupingAgent
+module: agents.src.llm_grouping_agent
 
 description: >
   Asks the user-configured LLM to group the extracted agents into logical

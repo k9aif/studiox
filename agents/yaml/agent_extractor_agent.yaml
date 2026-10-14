@@ -1,5 +1,6 @@
 name: AgentExtractorAgent
 class: AgentExtractorAgent
+module: agents.src.agent_extractor_agent
 
 description: >
   [sub-agent, spawned by SpecParserAgent] Extracts the Agent Definition

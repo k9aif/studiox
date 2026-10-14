@@ -30,12 +30,39 @@ Event → K9EventRouter → known event_type → domain topic
 domain topic → Orchestrator → 1+ Squads → 1+ Agents → LLM
 ```
 
-**Three-layer decoupling — never violate:** each layer knows only the layer
-directly below it. Router imports/references Orchestrators only, never
-Squads or Agents. Orchestrator imports Squads only, never Agents. Squad YAML
-has no `orchestrator:` field; Agent YAML has no `squad:`/`routing:` fields.
-Agent registration happens in the app entry point, not inside the
-orchestrator.
+**Three-layer decoupling — never violate:** each layer *knows* only the layer
+directly below it — not just "doesn't import" it. Router references
+Orchestrators only, never Squads or Agents. **An Orchestrator knows only
+Squads:** it loads a squad by YAML file and squad id, and never names,
+imports, registers or builds an Agent — no agent-name lists (`AGENTS = (...)`),
+no `AgentRegistry`/`AgentLoader` in an orchestrator module. Test: *if a
+squad's agents change, the orchestrator is unaffected* (only the squad YAML
+and the agent's own YAML/class change). Squad YAML has no `orchestrator:`
+field; Agent YAML has no `squad:`/`routing:` fields.
+
+**The squad-layer pattern (1.18.1):**
+
+- Squads are **YAML** (`agents:`, `flow:`, `synthesis:`); `BaseSquad` runs
+  any of them — a squad needs no `.py` of its own.
+- At most **one common `<App>Squad(BaseSquad)`** per application, for
+  squad-level behaviour (`before_step(agent_name, context)`, e.g. stop a
+  withdrawn job). The loader instantiates it once **per squad**, with that
+  squad's agents from its YAML.
+- `SquadLoader.from_agents(agents_dir, config, squad_cls=<App>Squad,
+  agent_kwargs=...)` is built **once at the app entry point** and passed to
+  every orchestrator as `squads=`. It resolves each agent the squad YAML names
+  through `AgentLoader` (`class:` + `module:` in the agent YAML).
+- In the orchestrator: `self.squads.load_one(squad_yaml, squad_id,
+  config=run_config)` — nothing else. `config=` carries a per-run override
+  (e.g. a relaxed governance check) without the orchestrator knowing which
+  agents it reaches.
+
+Enforced: k9_inspect **K9-DEC-002** (orchestrator names or builds agents →
+violation; K9-DEC-001 only catches imports), and
+`tests/test_orchestrator_knows_only_squads.py`. Before 1.18.1 the framework's
+own `AgentLoader` docstring and the EOC taught registering agents inside the
+orchestrator; registering by name (1.15) removed the imports but kept the
+coupling — don't copy that pattern from older code.
 
 Cardinality: Router 1→N Orchestrators, Orchestrator 1→N Squads
 (`execute_squads(..., parallel=True/False)`), Squad 1→N Agents (sequential
@@ -145,7 +172,7 @@ production behaviour is tested explicitly.
 Two independent, non-overlapping security layers ship in the framework —
 know which one a question is actually about before answering it:
 
-**k9x_Shield** (`k9_security/vulnerability/`) — 14 concrete
+**k9x_Shield** (`k9_security/vulnerability/`) — 15 concrete
 `BaseVulnerabilityCheck` subclasses (`checks/`: `InputSizeCheck`,
 `PromptInjectionCheck`, `PIIBoundaryCheck`, `PIIRequestCheck`,
 `SemanticDriftCheck`, `ToolArgumentCheck`, `ToolAuthorizationCheck`,
@@ -153,7 +180,8 @@ know which one a question is actually about before answering it:
 `SystemPromptLeakageCheck`, `OutputSanitizationCheck`,
 `RequestFrequencyCheck`, `OutboundLinkCheck` (1.14, egress, opt-in:
 lookalike / brand-in-subdomain / user@host / IP / punycode links BLOCK,
-shorteners and non-allowlisted hosts FLAG)), run in order by `VulnerabilityChain`
+shorteners and non-allowlisted hosts FLAG), `PaymentDiversionCheck` (1.16.1, ingress:
+payment redirection + review bypass + concealment, any two block)), run in order by `VulnerabilityChain`
 (`vulnerability_chain.py`), wrapped by `ShieldGovernance`
 (`shield_governance.py`) — a concrete `pre_process`/`post_process`
 implementation, i.e. a drop-in `governance=` value for any `BaseAgent`/
@@ -271,6 +299,38 @@ result as a dict (FastMCP's `{"result": ...}` wrapper removed) and raises
 `NotImplementedError` — don't build on it. Serving tools:
 `k9_mcp/servers/BaseMCPServer` (`handle_request`) is the ABB for a tool you
 implement yourself; it defines no network transport of its own.
+
+## Live context from streams (1.17)
+
+`k9_core/streams` + `k9_streams`: events (`EventEnvelope`) arrive on a
+`BaseEventFabric` (`KafkaEventFabric`), pass a `GovernanceEventGate`
+(application governance; BLOCK → `state.quarantine()`, content never
+applied), and projections (`BaseContextProjection.updates()` →
+`ContextUpdate`) fold them into `BaseContextState` (`InMemoryContextState`):
+latest value per entity with `as_of`/`age_seconds`/`stale`/source.
+Raw source messages become envelopes through a per-topic `BaseEnvelopeMapper` (`streams.mappers`: `auto` default, `debezium`, `log_line`, `native`; `ContextIngest.ingest_raw()` for non-Kafka sources). `ContextIngest` wires it. Agents get it two ways: `BaseOrchestrator(
+context_state=...)` injects `live_context` for `payload["live_context_refs"]`
+in `execute_squads()`; `ContextMCPServer` serves `get_current`/
+`recent_changes`/`query` over MCP. Agents never subscribe to Kafka.
+`StreamsFactory.create_gate()` refuses ungoverned streams in production.
+Recipe: Developer Guide 15.7. Tests: `tests/test_context_fabric.py`.
+Reference app: `k9x-ecosystem/k9x_streams`.
+
+## k9x Origin (1.18)
+
+`k9_origin`: built in like Shield. Agents make one call, `get_current(entity, id)`
+(plus `recent_changes`, `query`); `K9Origin` resolves: per-agent scope →
+request Shield → live state → read-through to the system of record on a miss
+→ verify for `verify_before` steps → flags (quarantined, in_review, conflict)
+→ answer Shield. Answers are facts (`as_of`, `version`, `source`, flags); Origin
+makes no business decisions — `K9RulesAgent` (+ `K9RulesAdapter` /
+`RestRulesAdapter`) decides and raises `RequiresHIL`. Config:
+`config/origin.yaml` (`OriginConfig`); build with `OriginFactory.create`;
+orchestrators take `origin=`; `OriginMCPServer` serves it. Live state applies
+events by source order (shared `merge_update`); `RedisContextState` for
+clusters (`volatile-lru`, quarantine pinned). Design:
+`docs/roadmap/k9x-origin-design.md`. Tests: `test_k9x_origin.py`,
+`test_redis_context_state.py` (needs `K9_TEST_REDIS_URL`).
 
 ## Model routers
 

@@ -1,5 +1,6 @@
 name: CanvasBuilderAgent
 class: CanvasBuilderAgent
+module: agents.src.canvas_builder_agent
 
 description: >
   Packages the winning suggestion, intake fields, source label and scoring
