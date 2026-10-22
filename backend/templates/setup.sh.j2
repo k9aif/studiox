@@ -10,7 +10,8 @@
 # This scaffold is self-contained — setup.sh and run.sh work directly from
 # this folder, with no project-nesting layout from the canonical generator.
 # The k9-aif-framework itself comes from PyPI (see requirements.txt) — no
-# local checkout or K9_FRAMEWORK_PATH needed.
+# local checkout needed. Framework contributors only: K9_FRAMEWORK_PATH=<checkout>
+# ./setup.sh installs that checkout in editable mode instead (unreleased changes).
 
 set -euo pipefail
 
@@ -176,6 +177,16 @@ python3 -m pip install --upgrade pip setuptools wheel
 if [ -f "$SCRIPT_DIR/requirements.txt" ]; then
   echo "Installing project requirements (including k9-aif)..."
   python3 -m pip install -r "$SCRIPT_DIR/requirements.txt"
+fi
+
+# Opt-in for framework contributors: test this scaffold against a local, unreleased checkout.
+if [ -n "${K9_FRAMEWORK_PATH:-}" ]; then
+  if [ -d "$K9_FRAMEWORK_PATH/k9_aif_abb" ]; then
+    echo "K9_FRAMEWORK_PATH set: installing the local framework checkout (editable): $K9_FRAMEWORK_PATH"
+    python3 -m pip install -e "$K9_FRAMEWORK_PATH"
+  else
+    echo "K9_FRAMEWORK_PATH=$K9_FRAMEWORK_PATH has no k9_aif_abb/ folder; keeping k9-aif from PyPI" >&2
+  fi
 fi
 
 # ---------------------------------------------------------------------------

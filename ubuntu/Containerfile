@@ -48,7 +48,10 @@ USER root
 
 WORKDIR /app
 COPY ${STUDIO_DIR}/requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip \
+# Set by build-run.sh to the latest k9-aif on PyPI: a new release invalidates this layer.
+ARG K9AIF_LATEST=unknown
+RUN echo "k9-aif latest at build: ${K9AIF_LATEST}" \
+ && pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt
 
 COPY ${STUDIO_DIR}/ .

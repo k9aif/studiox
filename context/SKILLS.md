@@ -185,14 +185,27 @@ llm_invoke(config, req)
   → RouteDecision + complexity/governance scores persisted to routing state store (SQLite or PostgreSQL)
 ```
 
-**If the LLM is unreachable**, `llm_invoke` raises `RuntimeError` — it never silently returns empty output. Handle it:
+**If the LLM is unreachable**, `llm_invoke` raises `RuntimeError` — it never silently returns empty output.
+**Let it propagate** (CLAUDE.md "Failures propagate"): the squad stops and re-raises, and the orchestrator
+records the failure for a retry. Don't return `"[WARN] ..."` output in its place; the next agent would run
+on it. Catch only to add context, then re-raise:
 
 ```python
 try:
     resp = llm_invoke(self.config, req)
 except RuntimeError as exc:
-    self.logger.error("[%s] LLM unavailable: %s", self.layer, exc)
-    return {"agent": "MyAgent", "output": "[WARN] LLM unavailable", "confidence": 0.0}
+    raise RuntimeError(f"{self.layer}: {exc}") from exc     # optional; llm_invoke already names the agent
+
+# The orchestrator owns the try/except that records it:
+def execute_flow(self, payload):
+    try:
+        results = self.execute_squads([squad], payload)
+    except RequiresHIL as exc:
+        return self.handle_requires_hil(exc, payload)
+    except Exception as exc:
+        self._record_failure(payload, exc)                   # SBB method: status error, step, reason
+        raise
+    return {"status": "completed", **results}
 ```
 
 ---
@@ -460,6 +473,7 @@ In an orchestrator's `execute_flow()`, use the sync wrapper
 No LLM or database needed — mock `llm_invoke` and test `execute()` directly.
 
 ```python
+import pytest
 from unittest.mock import patch, MagicMock
 from examples.<App>.agents.src.my_agent import MyAgent
 from k9_aif_abb.k9_inference.models.inference_response import InferenceResponse
@@ -490,13 +504,12 @@ def test_execute_returns_output():
     assert "output" in result
 
 
-def test_execute_handles_llm_unavailable():
+def test_llm_unavailable_propagates():
     with patch("examples.<App>.agents.src.my_agent.llm_invoke",
                side_effect=RuntimeError("LLM backend unavailable")):
         agent = _make_agent()
-        result = agent.execute({"claim_id": "C001"})
-
-    assert "[WARN]" in result["output"]
+        with pytest.raises(RuntimeError, match="LLM backend unavailable"):
+            agent.execute({"claim_id": "C001"})
 ```
 
 ---
@@ -779,7 +792,7 @@ class StrictPlanningAgent(K9PlanningLoopAgent):
         return super().should_continue(observation, loop_ctx)
 ```
 
-Config keys are the same as `K9ValidationLoopAgent` (`role`, `goal`, `model`, `max_iterations`, `confidence_threshold`, `finalize_on_max_iterations`, `escalate_on_tool_error`) — no new YAML keys are required. `remaining_steps`/`notes` are runtime state, not config.
+Config keys are the same as `K9ValidationLoopAgent` (`role`, `goal`, `model`, `max_iterations`, `confidence_threshold`, `finalize_on_max_iterations`, `on_tool_error`) — no new YAML keys are required. `remaining_steps`/`notes` are runtime state, not config.
 
 `_to_dict()` output includes two additional top-level keys for **every** `BaseValidationLoopAgent` subclass (additive — existing agents simply report empty defaults):
 

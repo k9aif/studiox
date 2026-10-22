@@ -88,7 +88,7 @@ resp = llm_invoke(self.config, InferenceRequest(prompt=..., task_type=...))
 ```
 
 `llm_invoke` raises `RuntimeError` on failure — it never silently returns
-empty output; catch and handle explicitly. It also retries on an empty
+empty output (see "Failures propagate" below for who handles it). It also retries on an empty
 response (a hybrid-reasoning model burning its whole token budget on
 invisible "thinking" and returning 0 chars is a real, observed failure
 mode) and emits the `LLMCall` trace event — both silently lost if an agent
@@ -97,6 +97,39 @@ calls `router.invoke()` directly instead. Found live in k9chat's
 (2026-09-21) — `check-llm-invoke.sh` (see Hooks below) now catches this
 automatically on every write/edit. Full chain + adding a new provider:
 `SKILLS.md` Skills 2 and 13.
+
+## Failures propagate: Agent → Squad → Orchestrator
+
+**Property:** every failure of an agent (a model call, a tool, a parse) reaches
+a layer that records it and decides what happens next. No layer turns a failure
+into ordinary output that the flow carries on with. **Test: make one agent's
+model call raise; the flow must end as a recorded failure, and no later agent
+or package may run on the missing result.**
+
+| Layer | try/except? | What it does with a failure |
+|---|---|---|
+| Agent | Only to add context or release a resource, then **re-raise** | Never returns `"[WARN] ..."`, `{"reason": "validation_failed"}` or empty output in place of a result |
+| Squad | `BaseSquad.execute()` logs the failed step and **re-raises** | Stops the flow; later steps don't run |
+| Orchestrator | **Required** around its squad runs (`execute_flow()`) | Records the failure (status `error`, which step, why) so it can be retried; re-raises or returns the error status |
+| Process entry point (consumer loop, API) | **Required** | Publishes/returns the error; the process keeps serving |
+
+- `PermissionError` (Shield/Guardian BLOCK) and `RequiresHIL` propagate the
+  same way and are caught by the orchestrator for their own handling.
+- **No silent handlers:** `except ...: pass` or a handler that neither
+  re-raises nor logs and records is a defect. Degrading on purpose (an
+  optional retriever is down) must log a warning saying what was skipped.
+- **Partial results only where they are a product:** a side report may keep
+  what succeeded and mark the rest "not scored" (example: a quality grader
+  keeps its deterministic checks when the judge model is down). Never for an
+  agent inside a squad flow.
+- **Loop agents (1.18.2):** `BaseValidationLoopAgent` records a
+  `run_validation()` exception as a step and **re-raises** it
+  (`on_tool_error: raise`, the default). `on_tool_error: escalate` routes it
+  to a person; `on_tool_error: fail` returns a FAIL result
+  (`{"reason": "validation_failed"}`), only for a loop whose FAIL is itself a
+  product, never inside a squad flow. Before 1.18.2 FAIL was the default and
+  apps overrode `fail()` to re-raise (DAS `utils/loop_errors.py`); that
+  override is no longer needed. Test: `test_squad_stops_when_loop_tool_fails`.
 
 **BaseAgent vs K9ValidationLoopAgent vs K9PlanningLoopAgent** — the
 generator/scaffold defaults every agent to one-shot `BaseAgent`. Ask per
@@ -514,6 +547,8 @@ this automatically today; get it wrong and replies are silently dropped
 | `check-governance.sh` | `*.py` under `examples/` | warns if `NoopGovernance` appears |
 | `check-init-docstring.sh` | any `__init__.py` | warns if module docstring missing |
 | `check-llm-invoke.sh` | `*.py` under `examples/` or `k9_projects/` | warns if `router.invoke()`/`ModelRouterFactory.get_router()` appears outside `llm_invoke.py` |
+| `check-readme-links.sh` | `README.md` | blocks relative links and images (README is the PyPI long description; PyPI 404s them) |
+| `check-orchestrator-squads.sh` | `*.py` orchestrators | blocks an orchestrator that names, imports or builds agents (K9-DEC-002) |
 
 ## Commands
 

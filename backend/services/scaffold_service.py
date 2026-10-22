@@ -418,16 +418,49 @@ def _mcp_tool_display_name(text: str) -> str:
     return m.group(2).strip() if m else (text or "").strip()
 
 
-# k9-aif release every generated scaffold pins: 1.18.1 (the squad layer --
-# SquadLoader.from_agents, so generated orchestrators know only squads --
-# plus squad coordinator synthesis, governance by construction, Shield and
-# Guardian from config, conformance rules for `k9aif inspect`). Never pin
-# 1.12.3 (broken on MCP SDK 2.x).
-K9AIF_VERSION = "1.18.1"
+# Oldest k9-aif the generated templates work with: 1.18.7 (the squad layer --
+# SquadLoader.from_agents, so generated orchestrators know only squads -- plus
+# squad coordinator synthesis, governance by construction, Shield and Guardian
+# from config, and the 31 conformance rules `k9aif inspect` runs on COMPLIANCE.md).
+# A scaffold pins the LATEST release (k9aif_version()), never older than this,
+# so a new framework release needs no Studio edit. Never pin 1.12.3 (broken on
+# MCP SDK 2.x).
+K9AIF_VERSION = "1.18.7"
+
+_K9AIF_LATEST: dict = {}
+
+
+def _vkey(v: str) -> tuple:
+    return tuple(int(x) for x in re.findall(r"\d+", v)[:3])
+
+
+def k9aif_version() -> str:
+    """The k9-aif release a new scaffold pins: the latest on PyPI, or Studio's
+    own installed k9-aif when PyPI can't be reached (offline install, or
+    K9X_STUDIO_OFFLINE=1), never older than K9AIF_VERSION. Looked up once
+    per process."""
+    if "v" not in _K9AIF_LATEST:
+        found = []
+        if not _os.environ.get("K9X_STUDIO_OFFLINE"):
+            try:
+                import json
+                import urllib.request
+                with urllib.request.urlopen("https://pypi.org/pypi/k9-aif/json", timeout=3) as resp:
+                    found.append(str(json.load(resp)["info"]["version"]))
+            except Exception:
+                pass
+        if not found:
+            try:
+                from importlib.metadata import version as _installed
+                found.append(_installed("k9-aif"))
+            except Exception:
+                pass
+        _K9AIF_LATEST["v"] = max([K9AIF_VERSION, *found], key=_vkey)
+    return _K9AIF_LATEST["v"]
 
 
 def _k9aif_requirement(project: dict) -> str:
-    """`k9-aif[extras]==K9AIF_VERSION` -- `mcp` always (the generated MCP
+    """`k9-aif[extras]==k9aif_version()` -- `mcp` always (the generated MCP
     clients need it), plus the extras the project's platform selections
     need."""
     def picked(key: str) -> str:
@@ -444,7 +477,7 @@ def _k9aif_requirement(project: dict) -> str:
         extras.append("ibm-cos")
     elif storage:
         extras.append("s3")
-    return f"k9-aif[{','.join(extras)}]=={K9AIF_VERSION}"
+    return f"k9-aif[{','.join(extras)}]=={k9aif_version()}"
 
 
 def _gen_mcp_tool_files(project: dict, app_name: str, timestamp: str) -> dict[str, str]:
@@ -622,6 +655,86 @@ def _gen_architecture_md(project: dict, app_name: str, timestamp: str) -> str:
     return "\n".join(lines) + "\n" + _doc_end_footer(timestamp)
 
 
+# Copied unchanged from k9-aif-framework/.claude/hooks/ (self-contained: no paths).
+_HOOK_CHECK_ORCHESTRATOR_SQUADS_SH = r'''#!/bin/bash
+# PostToolUse: an orchestrator knows only squads (k9_inspect K9-DEC-002).
+# Added 2026-10-14 after DAS and the EOC were found naming agents in their
+# orchestrators (AGENTS = (...) tuples, AgentRegistry/AgentLoader built inside
+# _load_squad()). Registering by name (1.15) had removed the imports, so
+# K9-DEC-001 and the old "imports Squads only" wording both passed it.
+# Exit 2 = the edit is reported back as a violation to fix.
+INPUT=$(cat)
+FILE=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" <<< "$INPUT" 2>/dev/null)
+
+[[ "$FILE" != *.py ]] && exit 0
+[[ ! -f "$FILE" ]] && exit 0
+[[ "$FILE" == */tests/* || "$(basename "$FILE")" == test_* ]] && exit 0
+
+FINDINGS=$(python3 - "$FILE" <<'PY'
+import ast, re, sys
+path = sys.argv[1]
+try:
+    tree = ast.parse(open(path).read())
+except Exception:
+    sys.exit(0)
+classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+def base(b):
+    return b.id if isinstance(b, ast.Name) else b.attr if isinstance(b, ast.Attribute) else ""
+orch = [c for c in classes if any(base(b).endswith("Orchestrator") for b in c.bases)]
+others = [c for c in classes if c not in orch]
+if not orch or others and any(any(base(b).endswith(("Agent", "Squad", "Router")) for b in c.bases) for c in others):
+    sys.exit(0)        # not an orchestrator module (or an entry point mixing layers on purpose)
+out = []
+machinery = {"AgentRegistry", "AgentLoader", "register_into"}
+for n in ast.walk(tree):
+    name = (n.id if isinstance(n, ast.Name) else n.attr if isinstance(n, ast.Attribute) else
+            n.module.split(".")[-1] if isinstance(n, ast.ImportFrom) and n.module else "")
+    if isinstance(n, ast.ImportFrom):
+        for a in n.names:
+            if a.name in machinery:
+                out.append(f"{getattr(n, 'lineno', 0)}: builds agents ({a.name})")
+    elif name in machinery:
+        out.append(f"{getattr(n, 'lineno', 0)}: builds agents ({name})")
+    if isinstance(n, ast.Constant) and isinstance(n.value, str) and re.fullmatch(r"[A-Z]\w*Agent", n.value):
+        out.append(f"{n.lineno}: names agent {n.value!r}")
+print("\n".join(sorted(set(out), key=lambda s: int(s.split(':')[0]))))
+PY
+)
+if [ -n "$FINDINGS" ]; then
+  echo "✖ K9-DEC-002: an orchestrator knows only squads. Load squads with self.squads.load_one(squad_yaml, squad_id); the squad layer (SquadLoader.from_agents at the entry point) builds the agents each squad YAML names. In $FILE:" >&2
+  echo "$FINDINGS" >&2
+  exit 2
+fi
+exit 0
+'''
+
+# K9-AIF conformance gate: a merge that breaks a rule at or above `violation` fails.
+_CI_INSPECT_WORKFLOW = '''name: K9-AIF inspect
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the pinned k9-aif
+        run: pip install "$(grep -E '^k9-aif' requirements.txt)"
+      - name: Conformance and security rules (fails on critical or violation)
+        run: k9aif inspect . --fail-on violation --markdown inspect-report.md
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k9aif-inspect-report
+          path: inspect-report.md
+'''
+
 # ── .claude/ hooks shipped into every generated scaffold ──────────────────
 # Ported from k9-aif-framework/.claude/ so the embedded CLAUDE.md's own
 # Hooks table describes something that actually exists here (see
@@ -695,6 +808,17 @@ _CLAUDE_HOOKS_SETTINGS_JSON = """{
             "command": ".claude/hooks/check-llm-invoke.sh",
             "timeout": 10,
             "statusMessage": "Checking llm_invoke usage..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-orchestrator-squads.sh",
+            "timeout": 10,
+            "statusMessage": "Checking the orchestrator knows only squads..."
           }
         ]
       }
@@ -2935,6 +3059,10 @@ pyyaml>=6.0
         add(f"{app_folder}/.claude/hooks/check-governance.sh", _HOOK_CHECK_GOVERNANCE_SH)
         add(f"{app_folder}/.claude/hooks/check-llm-invoke.sh", _HOOK_CHECK_LLM_INVOKE_SH)
         add(f"{app_folder}/.claude/hooks/run-evals.sh", _HOOK_RUN_EVALS_SH)
+        add(f"{app_folder}/.claude/hooks/check-orchestrator-squads.sh", _HOOK_CHECK_ORCHESTRATOR_SQUADS_SH)
+
+        # ── CI gate: k9aif inspect on every push / pull request ───────
+        add(f"{app_folder}/.github/workflows/k9aif-inspect.yml", _CI_INSPECT_WORKFLOW)
 
         # ── .vscode/extensions.json ──────────────────────────────────
         # VS Code prompts to install any recommended extension not already
@@ -2968,15 +3096,22 @@ layouts — neither applies here; ignore any reference to them.
 
 **The Hooks table below describes this scaffold's own `.claude/settings.json`**
 (also included here, with relative paths so it works wherever this is
-unzipped) — three hooks are unmodified from the framework
-(`check-python.sh`, `check-yaml.sh`, `check-init-docstring.sh`), but three are
+unzipped) — four hooks are unmodified from the framework
+(`check-python.sh`, `check-yaml.sh`, `check-init-docstring.sh`,
+`check-orchestrator-squads.sh`), but three are
 adapted for what actually exists in a scaffold rather than a framework
 checkout: `check-governance.sh` and `check-llm-invoke.sh` scan `agents/`
 here, not `examples/`/`k9_projects/` (this project has neither directory);
 and `run-evals.sh` replaces the framework's own `run-abb-tests.sh` —
 there's no `k9_aif_abb/tests/` to run (`k9-aif` installs from PyPI with no
 test files packaged), so it runs this project's own `tests/evals/`
-instead, when present.
+instead, when present. (`check-readme-links.sh` is framework-only: it guards
+the framework's PyPI page.)
+
+**CI gate.** `.github/workflows/k9aif-inspect.yml` runs `k9aif inspect . --fail-on violation`
+on every push and pull request: a change that breaks a conformance or security rule
+(critical or violation) fails the build. `docs/COMPLIANCE.md` is the same inspection, run
+when Studio generated this project.
 
 ---
 

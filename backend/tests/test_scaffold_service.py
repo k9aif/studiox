@@ -371,7 +371,8 @@ def _run_in_scaffold(project_root, script, extra_env=None):
 
 
 def test_requirements_pin_framework_with_extras(tmp_path):
-    from backend.services.scaffold_service import K9AIF_VERSION
+    from backend.services.scaffold_service import k9aif_version
+    K9AIF_VERSION = k9aif_version()
 
     root = _generate_and_extract(tmp_path, SAMPLE_PROJECT)
     reqs = (root / "requirements.txt").read_text()

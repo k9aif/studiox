@@ -126,9 +126,13 @@ governance:
 # ── k9x_Shield — Chain of Vulnerability Tests ────────────────────────────────
 # Wired into every generated agent by default (see agents/*.py's __init__) —
 # not just documented here. Dual-gate: ingress chain runs before the LLM,
-# egress chain runs after the LLM and before any tool executes. All 13
-# checks run both directions by default; narrow this list, or set
-# enabled: false, to reduce coverage for this deployment. strict: true
+# egress chain runs after the LLM and before any tool executes. The 13
+# general checks run both directions; PaymentDiversionCheck (ingress: payment
+# redirection, review bypass, concealment) and OutboundLinkCheck (egress:
+# phishing, IP-literal, punycode and payment-lure links; add your own domains
+# under check_config.OutboundLinkCheck.allowed_domains) run one way. Narrow
+# these lists, or set enabled: false, to reduce coverage for this deployment;
+# `k9aif inspect` (docs/COMPLIANCE.md) reports what a narrowed list misses. strict: true
 # promotes FLAG → BLOCK. Per-check tuning (thresholds, block_on_match: false
 # to downgrade a specific check to FLAG-only): check_config below.
 security:
@@ -150,6 +154,7 @@ security:
         - OutputSanitizationCheck
         - RequestFrequencyCheck
         - PIIRequestCheck
+        - PaymentDiversionCheck
     egress:
       checks:
         - InputSizeCheck
@@ -165,6 +170,7 @@ security:
         - OutputSanitizationCheck
         - RequestFrequencyCheck
         - PIIRequestCheck
+        - OutboundLinkCheck
 
 monitoring:
   console: true

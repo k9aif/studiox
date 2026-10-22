@@ -35,8 +35,14 @@ case "$cmd" in
   build)
     echo "Building $IMAGE (context: $AI_DIR, project dir: $STUDIO_REL_PATH) ..."
     cd "$AI_DIR"
+    # Latest k9-aif on PyPI: a new release changes this value and re-runs the pip layer (otherwise
+    # cached), so Studio generates and inspects with the newest framework without editing a file.
+    K9AIF_LATEST=$(curl -fsS --max-time 5 https://pypi.org/pypi/k9-aif/json 2>/dev/null \
+      | python3 -c "import json,sys; print(json.load(sys.stdin)['info']['version'])" 2>/dev/null || echo unknown)
+    echo "k9-aif latest on PyPI: $K9AIF_LATEST"
     sudo podman build -t "$IMAGE" \
       --build-arg "STUDIO_DIR=$STUDIO_REL_PATH" \
+      --build-arg "K9AIF_LATEST=$K9AIF_LATEST" \
       -f "$STUDIO_REL_PATH/ubuntu/Containerfile" .
     echo "Build complete: $IMAGE"
     ;;
