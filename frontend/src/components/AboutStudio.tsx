@@ -1,4 +1,12 @@
+import { useEffect, useState } from 'react'
+
+type StudioVersion = { version: string; commit: string; built: string; k9_aif_installed: string | null; scaffold_pins: string }
+
 export function AboutStudio() {
+  const [ver, setVer] = useState<StudioVersion | null>(null)
+  useEffect(() => {
+    fetch('/api/version').then(r => (r.ok ? r.json() : null)).then(setVer).catch(() => setVer(null))
+  }, [])
   return (
     <div style={{ maxWidth: 640, padding: '4px 0' }}>
       <div style={{ marginBottom: 32 }}>
@@ -8,6 +16,16 @@ export function AboutStudio() {
         <div style={{ fontSize: 14, color: '#6366f1', fontStyle: 'italic', marginBottom: 16 }}>
           Not just agents — architecture.
         </div>
+        {ver && (
+          <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16, lineHeight: 1.7 }}>
+            Version <strong style={{ color: '#c8d0de' }}>{ver.version}</strong>
+            {' · '}build <strong style={{ color: '#c8d0de' }}>{ver.commit}</strong>
+            {' · '}deployed {ver.built}
+            <br />
+            Scaffolds pin <strong style={{ color: '#c8d0de' }}>k9-aif {ver.scaffold_pins}</strong>
+            {ver.k9_aif_installed && <> · inspected with k9-aif {ver.k9_aif_installed}</>}
+          </div>
+        )}
         <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.8 }}>
           K9X Studio is a visual drag-and-drop workbench for designing K9-AIF compliant
           multi-agent architectures. Upload a <strong style={{ color: '#c8d0de' }}>BPMN

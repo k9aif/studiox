@@ -43,8 +43,10 @@ case "$cmd" in
     sudo podman build -t "$IMAGE" \
       --build-arg "STUDIO_DIR=$STUDIO_REL_PATH" \
       --build-arg "K9AIF_LATEST=$K9AIF_LATEST" \
+      --build-arg "STUDIO_COMMIT=$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+      --build-arg "STUDIO_BUILT=$(date +%Y-%m-%d)" \
       -f "$STUDIO_REL_PATH/ubuntu/Containerfile" .
-    echo "Build complete: $IMAGE"
+    echo "Build complete: $IMAGE · Studio $(grep -m1 '^version' "$PROJECT_DIR/pyproject.toml" | cut -d'"' -f2) · build $(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null)"
     ;;
 
   start)

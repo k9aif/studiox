@@ -1248,6 +1248,46 @@ def health():
     return {"status": "ok", "service": "k9x_studio"}
 
 
+def _studio_version() -> str:
+    """Studio's release number: pyproject.toml (the k9x package version), else the installed k9x."""
+    try:
+        text = (Path(__file__).resolve().parents[2] / "pyproject.toml").read_text()
+        m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.M)
+        if m:
+            return m.group(1)
+    except OSError:
+        pass
+    try:
+        from importlib.metadata import version as _v
+        return _v("k9x")
+    except Exception:
+        return "dev"
+
+
+@router.get("/version")
+def version():
+    """What is running (About): Studio version, build commit and date (stamped by build-run.sh,
+    else read from git), the k9-aif Studio inspects with, and the k9-aif a new scaffold pins."""
+    import subprocess
+    commit = _os.environ.get("STUDIO_COMMIT", "").strip()
+    if not commit or commit == "unknown":
+        try:
+            commit = subprocess.run(["git", "-C", str(Path(__file__).resolve().parents[2]), "rev-parse", "--short",
+                                     "HEAD"], capture_output=True, text=True, timeout=3).stdout.strip()
+        except Exception:
+            commit = ""
+    built = _os.environ.get("STUDIO_BUILT", "").strip()
+    try:
+        from importlib.metadata import version as _v
+        k9aif = _v("k9-aif")
+    except Exception:
+        k9aif = None
+    from backend.services.scaffold_service import k9aif_version
+    return {"version": _studio_version(), "commit": commit or "unknown",
+            "built": built if built and built != "unknown" else "local run",
+            "k9_aif_installed": k9aif, "scaffold_pins": k9aif_version()}
+
+
 # ── Work Intake Form ──────────────────────────────────────────────────────────
 
 class WIFRequest(BaseModel):

@@ -57,8 +57,13 @@ RUN echo "k9-aif latest at build: ${K9AIF_LATEST}" \
 COPY ${STUDIO_DIR}/ .
 COPY --from=frontend-build /build/frontend/dist /app/frontend/dist
 
+# What is running (About, /api/version): set by build-run.sh.
+ARG STUDIO_COMMIT=unknown
+ARG STUDIO_BUILT=unknown
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    STUDIO_COMMIT=$STUDIO_COMMIT \
+    STUDIO_BUILT=$STUDIO_BUILT
 
 EXPOSE 8090
 
