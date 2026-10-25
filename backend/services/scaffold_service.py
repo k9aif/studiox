@@ -428,6 +428,10 @@ def _mcp_tool_display_name(text: str) -> str:
 K9AIF_VERSION = "1.18.7"
 
 _K9AIF_LATEST: dict = {}
+# How long a looked-up version is reused. A hosted Studio runs for weeks: looked up once per process,
+# it kept pinning the release that was current when it started (studio.k9x.ai pinned 1.18.7 after
+# 1.20.0 shipped).
+K9AIF_LOOKUP_TTL_SECONDS = 3600
 
 
 def _vkey(v: str) -> tuple:
@@ -437,9 +441,11 @@ def _vkey(v: str) -> tuple:
 def k9aif_version() -> str:
     """The k9-aif release a new scaffold pins: the latest on PyPI, or Studio's
     own installed k9-aif when PyPI can't be reached (offline install, or
-    K9X_STUDIO_OFFLINE=1), never older than K9AIF_VERSION. Looked up once
-    per process."""
-    if "v" not in _K9AIF_LATEST:
+    K9X_STUDIO_OFFLINE=1), never older than K9AIF_VERSION. Looked up again
+    after K9AIF_LOOKUP_TTL_SECONDS, so a long-running Studio follows new
+    releases."""
+    import time
+    if "v" not in _K9AIF_LATEST or time.monotonic() - _K9AIF_LATEST["at"] > K9AIF_LOOKUP_TTL_SECONDS:
         found = []
         if not _os.environ.get("K9X_STUDIO_OFFLINE"):
             try:
@@ -448,14 +454,15 @@ def k9aif_version() -> str:
                 with urllib.request.urlopen("https://pypi.org/pypi/k9-aif/json", timeout=3) as resp:
                     found.append(str(json.load(resp)["info"]["version"]))
             except Exception:
-                pass
+                logger.warning("k9-aif version lookup on PyPI failed; scaffolds pin the installed or floor version")
         if not found:
             try:
                 from importlib.metadata import version as _installed
                 found.append(_installed("k9-aif"))
             except Exception:
                 pass
-        _K9AIF_LATEST["v"] = max([K9AIF_VERSION, *found], key=_vkey)
+        _K9AIF_LATEST["v"] = max([K9AIF_VERSION, *found, _K9AIF_LATEST.get("v", K9AIF_VERSION)], key=_vkey)
+        _K9AIF_LATEST["at"] = time.monotonic()
     return _K9AIF_LATEST["v"]
 
 

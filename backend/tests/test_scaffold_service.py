@@ -590,3 +590,40 @@ def test_env_example_documents_squad_synthesis(tmp_path):
     root = _generate_and_extract(tmp_path, SAMPLE_PROJECT)
     env = (root / ".env.example").read_text()
     assert "synthesis: auto" in env and "Not an environment variable" in env
+
+
+def test_k9aif_pin_follows_new_releases(monkeypatch):
+    """A long-running Studio picks up a new k9-aif release after the lookup TTL
+    (studio.k9x.ai kept pinning 1.18.7, looked up once at start, after 1.20.0 shipped)."""
+    import io, json, time
+    import backend.services.scaffold_service as ss
+
+    latest = {"v": "1.19.0"}
+    def fake_urlopen(url, timeout=0):
+        return io.BytesIO(json.dumps({"info": {"version": latest["v"]}}).encode())
+    clock = {"t": 1000.0}
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr(time, "monotonic", lambda: clock["t"])
+    monkeypatch.delenv("K9X_STUDIO_OFFLINE", raising=False)
+    monkeypatch.setattr(ss, "_K9AIF_LATEST", {})
+
+    assert ss.k9aif_version() == "1.19.0"
+    latest["v"] = "1.20.0"
+    clock["t"] += 60
+    assert ss.k9aif_version() == "1.19.0"          # within the TTL: cached
+    clock["t"] += ss.K9AIF_LOOKUP_TTL_SECONDS
+    assert ss.k9aif_version() == "1.20.0"          # after it: the new release
+
+
+def test_k9aif_pin_never_goes_backwards_when_pypi_is_down(monkeypatch):
+    import time
+    import backend.services.scaffold_service as ss
+
+    def down(url, timeout=0):
+        raise OSError("no network")
+    clock = {"t": 1000.0}
+    monkeypatch.setattr("urllib.request.urlopen", down)
+    monkeypatch.setattr(time, "monotonic", lambda: clock["t"])
+    monkeypatch.setattr(ss, "_K9AIF_LATEST", {"v": "1.20.0", "at": 0.0})
+    clock["t"] += ss.K9AIF_LOOKUP_TTL_SECONDS + 1
+    assert ss.k9aif_version() == "1.20.0"
