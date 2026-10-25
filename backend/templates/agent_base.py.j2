@@ -51,11 +51,9 @@ class {{ class_name }}(BaseAgent):
             metadata={"agent": "{{ class_name }}"},
         )
 
-        try:
-            resp = llm_invoke(self.config, req)
-        except RuntimeError as exc:
-            self.logger.error("[%s] LLM unavailable: %s", self.layer, exc)
-            return {"agent": "{{ class_name }}", "output": "[WARN] LLM unavailable", "confidence": 0.0}
+        # A failed model call raises RuntimeError and travels up: the squad stops and the
+        # orchestrator records it. Never return a stand-in "[WARN]" result (K9-LLM-002).
+        resp = llm_invoke(self.config, req)
 
         self.publish_event({"type": "{{ class_name }}Completed", "agent": "{{ class_name }}"})
 
