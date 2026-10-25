@@ -14,6 +14,16 @@ implementation extending an ABB, in `examples/<App>/` or `k9_projects/<App>/`.
 Liskov Substitution and Open/Closed are non-negotiable — new capability
 extends a `Base<Concern>` contract, never edits one.
 
+**K9-AIF alone is enough to build a complete application.** No other agent
+framework is needed: Router → Orchestrator → Squad → Agent, governance,
+inference, persistence, messaging and HIL are all here (DAS, K9X SATAN,
+Sentinel and HIL depend on nothing else). Never add CrewAI, LangGraph or
+similar to a new project by default. If an application already has a
+CrewAI crew or LangGraph graph, keep it unchanged and wrap it with the
+orchestrator adapter (`k9_adapters/crewai/`, `k9_adapters/langgraph/`,
+`k9_adapters/claude_agent_sdk/`), which adds K9-AIF governance at its
+boundary.
+
 Diagrams default to PlantUML. BPMN swim lanes: horizontal bands top-to-bottom,
 labels left, activities left-to-right within a lane.
 
@@ -223,8 +233,11 @@ implementation, i.e. a drop-in `governance=` value for any `BaseAgent`/
 raise is the only block signal; there is no return-value sentinel. A `FLAG`
 under `strict=False` (the common config) just logs and lets the payload
 through unmodified — `ShieldGovernance` never mutates a passing payload.
-`fail_open` (default `True`) controls what happens if a check itself
-raises: `True` → treated as FLAG, `False` → treated as BLOCK.
+`fail_open` controls what happens if a check itself raises: `True` →
+treated as FLAG, `False` → treated as BLOCK. Unset, it follows `K9_ENV`
+(1.19.0): `False` (fail closed) in production, `True` in development/test;
+an explicit value wins. Before 1.19.0 it was always `True`, so an input that
+made a check throw passed that check unscreened.
 
 **Shield is off in the shipped configuration.** `k9_aif_abb/config/config.yaml`
 sets `security.shield.enabled: false` ("SBBs enable and configure in their
@@ -354,7 +367,8 @@ Reference app: `k9x-ecosystem/k9x_streams`.
 `k9_origin`: built in like Shield. Agents make one call, `get_current(entity, id)`
 (plus `recent_changes`, `query`); `K9Origin` resolves: per-agent scope →
 request Shield → live state → read-through to the system of record on a miss
-→ verify for `verify_before` steps → flags (quarantined, in_review, conflict)
+→ verify for `verify_before` steps → flags (quarantined, in_review, conflict,
+verification_failed when the system of record could not be reached: 1.19.0)
 → answer Shield. Answers are facts (`as_of`, `version`, `source`, flags); Origin
 makes no business decisions — `K9RulesAgent` (+ `K9RulesAdapter` /
 `RestRulesAdapter`) decides and raises `RequiresHIL`. Config:
@@ -364,6 +378,15 @@ events by source order (shared `merge_update`); `RedisContextState` for
 clusters (`volatile-lru`, quarantine pinned). Design:
 `docs/roadmap/k9x-origin-design.md`. Tests: `test_k9x_origin.py`,
 `test_redis_context_state.py` (needs `K9_TEST_REDIS_URL`).
+
+**1.19.0 behaviour (review fixes):** `llm_invoke()` retries are configurable
+(`inference.retry`: `attempts`, `delay_seconds` 60 for an empty reply,
+`unreachable_delay_seconds` 5 when the server can't be reached). Origin
+answers carry `source_unavailable` when a read-through fails (distinct from
+not found). Critic-actor agents re-raise a `critique()` failure by default
+(`on_critic_error`). `K9EventRouter`/`IntentOrchestrator` raise without a
+message bus. `MonitorFactory.create(config)` uses `config["monitors"]`;
+`PersistenceFactory.create()` raises instead of returning `None`.
 
 ## Model routers
 
@@ -400,6 +423,24 @@ solutions `register()` their own `BaseAuthenticator`). Every factory
 local storage) — no config key required for the common case. Adding a new
 provider to any of these: `SKILLS.md` Skill 11.
 
+**Factories are static and hold one configuration per process** (one
+application per process; a multi-role app runs each role as its own process
+with the same config). The same `inference` config again is a no-op, a config
+without an `inference` section uses the process's, a *different* one raises
+`ConfigConflictError` (before 1.18.8 the first config silently won, and a
+second app or an agent's own `inference:` got the first app's models).
+`LLMFactory` resolves a backend **per alias** (`models.<alias>.backend`, then
+`llm_factory.backend`, then `ollama`; alias connection keys override the
+factory's) and `ModelRouterFactory` refuses a catalog `provider` that differs
+from the backend serving its `llm_ref`. Messaging: in production an unreachable
+broker raises `MessagingUnavailableError` from `K9EventBus` (and
+`MessageFactory`/`BaseComponent` let it through) instead of running on a bus
+that drops events; dev/test degrade with a warning. Each app sets its own
+`messaging.topic`/`group_id` (the defaults `k9aif-events`/`k9aif-core` warn).
+Tests reset with `k9_aif_abb.k9_factories.reset_all()` (autouse in
+`tests/conftest.py`). Developer Guide 17.7; tests:
+`test_factory_process_safety.py`.
+
 ## Kafka ownership
 
 Only the **Router** (domain topics) and **Orchestrator** (results /
@@ -423,6 +464,17 @@ flow from completing normally, which produces exactly the outcome
 while a human is still being asked to review it. See the HIL section below
 for the full mechanism (signal shape, Orchestrator-side halt + state
 persistence, Router-side resume).
+
+**Large events (1.20).** An event over `max_event_bytes` (512 KB) is stored in
+object storage (`object_storage` config; bucket `messaging.large_events.bucket`,
+default `k9aif-large-events`, objects under `large-events/` expire after
+`ttl_days`, default 30) and sent as a link (`k9_large_event`); the bus's
+consumers fetch it back and check its sha256, so callbacks get the original
+event. Production without `object_storage` raises `LargeEventError`; a failed
+upload raises and nothing is sent. Before 1.20 the event was replaced by
+`{"truncated": true}`. Send errors raise to the caller. Documents the Router
+stores itself (`store_document()` → `document_uri`) are unchanged.
+Tests: `tests/test_large_events.py`.
 
 ## HIL (Human-in-the-Loop)
 
@@ -594,8 +646,9 @@ publishes to `intent.in`; `IntentOrchestrator` (`k9_orchestrators/`) runs
 `IntentSquad` (`k9_squad/`) with a `BaseIntentAgent` (OOB `K9IntentAgent`:
 `intent_map` lookup → LLM via `llm_invoke` → `fallback_intent()`) and
 re-publishes to the domain topic, or returns a "please clarify" response.
-Nothing is ever wired *in front of* the Router. Below `confidence_threshold`
-(default 0.5) `IntentSquad.on_low_confidence()` fires.
+Nothing is ever wired *in front of* the Router. Below `routing.confidence_threshold`
+(default 0.6, one constant for both since 1.19.0) `IntentSquad.on_low_confidence()` fires and
+`IntentOrchestrator` asks for clarification.
 
 **Config.** Two levels: the framework's `k9_aif_abb/config/config.yaml`
 (test defaults: Ollama, SQLite, Shield off) and each solution's own

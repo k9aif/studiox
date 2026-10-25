@@ -30,9 +30,22 @@ _ROUTES = {
 }
 
 
+# Studio's own agents are K9-AIF agents, so governance by construction applies to them: with nothing
+# configured they refuse to run in production (K9_ENV unset), which broke spec import for pip users.
+# An uploaded spec is untrusted input, so screen it for prompt injection on the way in. Size is left
+# to the upload limit (specs are larger than InputSizeCheck's chat-sized default).
+_STUDIO_SHIELD: Dict[str, Any] = {
+    "shield": {
+        "enabled": True,
+        "ingress": {"checks": ["PromptInjectionCheck"]},
+        "egress": {"checks": []},
+    }
+}
+
+
 @lru_cache(maxsize=1)
 def get_router() -> K9EventRouter:
-    config: Dict[str, Any] = {"llm": get_llm_config()}
+    config: Dict[str, Any] = {"llm": get_llm_config(), "security": _STUDIO_SHIELD}
     router = K9EventRouter(config=config)
     # The squad layer, built once: orchestrators load squads by YAML file and id
     # through it; it builds the agents each squad's YAML names (class + module).

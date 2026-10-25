@@ -1446,12 +1446,16 @@ async def spec_import(file: UploadFile = File(...), llm_config: Optional[str] = 
         raise HTTPException(status_code=400, detail="Document too large (max 2MB)")
 
     from studio_core.router.router_factory import route_event
-    result = route_event("spec_import", {
-        "content": content,
-        "filename": file.filename,
-        "llm_config": llm_config,
-        "force_llm": force_llm,
-    })
+    try:
+        result = route_event("spec_import", {
+            "content": content,
+            "filename": file.filename,
+            "llm_config": llm_config,
+            "force_llm": force_llm,
+        })
+    except PermissionError as exc:
+        # k9x_Shield refused the document (e.g. a prompt injection): the same answer as a blocked screen
+        raise HTTPException(status_code=422, detail=f"[BLOCKED] {exc}")
 
     if result.get("status") == "blocked":
         raise HTTPException(status_code=422, detail=result.get("reason"))
