@@ -865,7 +865,7 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   type="button"
-                  className={`intake-upload-btn${projectBusy ? ' intake-upload-btn--busy' : ''}`}
+                  className={`intake-upload-btn intake-upload-btn--project${projectBusy ? ' intake-upload-btn--busy' : ''}`}
                   style={{ flex: 1, justifyContent: 'center' }}
                   disabled={projectBusy || !repoUrl.trim()}
                   onClick={() => importK9aifProject({ url: repoUrl.trim() })}
@@ -873,7 +873,7 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
                   <span>{projectBusy ? '⟳ Reading…' : 'Import'}</span>
                 </button>
                 <label
-                  className={`intake-upload-btn${projectBusy ? ' intake-upload-btn--disabled' : ''}`}
+                  className={`intake-upload-btn intake-upload-btn--project${projectBusy ? ' intake-upload-btn--disabled' : ''}`}
                   style={{ flex: 1, justifyContent: 'center' }}
                   title="A .zip of the project folder"
                 >
