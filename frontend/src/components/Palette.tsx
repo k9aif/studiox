@@ -4,10 +4,11 @@ import { useStore } from '../store';
 import { VALID_TARGETS, VALID_NEXT_LABEL } from '../rules';
 import { PROJECT_TEMPLATES } from '../templates';
 import type { ProjectTemplate } from '../templates';
+import { openImportedRecord, SHARED_CHANGED_EVENT } from '../importedProject';
 
 const COMPONENT_COLORS: Record<string, string> = {
   intent_squad: '#06b6d4',
-  router: '#6366f1', orchestrator: '#8b5cf6', hil_orchestrator: '#14b8a6', squad: '#0ea5e9',
+  router: '#6366f1', orchestrator: '#8b5cf6', hil_orchestrator: '#14b8a6', hil_gate: '#14b8a6', squad: '#0ea5e9',
   agent: '#10b981', validation_loop: '#f59e0b', critic_actor: '#ef4444', guard: '#64748b',
   // Adapters — muted tones to signal "deterministic / non-agentic"
   messaging_adapter: '#8a5a1a',
@@ -22,7 +23,7 @@ const ABB_MAP: Record<string, string> = {
 };
 const ICONS: Record<string, string> = {
   intent_squad: '⊕',
-  router: '⇄', orchestrator: '◈', hil_orchestrator: '◇', squad: '◫', agent: '◉',
+  router: '⇄', orchestrator: '◈', hil_orchestrator: '◇', hil_gate: '◆', squad: '◫', agent: '◉',
   validation_loop: '↻', critic_actor: '⇌', guard: '⊛',
   // Adapters
   messaging_adapter: '⊜',
@@ -53,6 +54,90 @@ type PaletteTab = 'components' | 'project';
 
 function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
+// K9-AIF applications imported from GitHub by any visitor (shared on the
+// Studio server): click to open one on the canvas, read only.
+function SharedApplications() {
+  const project = useStore((s) => s.project);
+  const addLog = useStore((s) => s.addLog);
+  const [items, setItems] = useState<any[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = () => fetch('/api/k9aif-project/shared')
+      .then((r) => (r.ok ? r.json() : { projects: [] }))
+      .then((d) => setItems(d.projects ?? []))
+      .catch(() => setItems([]));
+    load();
+    window.addEventListener(SHARED_CHANGED_EVENT, load);
+    return () => window.removeEventListener(SHARED_CHANGED_EVENT, load);
+  }, []);
+
+  // Same guard as the template picker: never replace work in progress.
+  const locked = Boolean(project.project_name?.trim()) && !project.imported_from;
+
+  const open = async (id: string) => {
+    if (locked || busy) return;
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/k9aif-project/shared/${encodeURIComponent(id)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? `Server error ${res.status}`);
+      openImportedRecord(data);
+    } catch (err: any) {
+      addLog(`Could not open ${id}: ${err.message ?? 'unknown'}`, 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="palette-templates" style={{ paddingTop: 12 }}>
+      <div className="palette-project-label">K9-AIF applications</div>
+      {items.length === 0 && (
+        <div style={{ fontSize: 11, color: '#8892a4', lineHeight: 1.5 }}>
+          None yet. Import one from Intake → Import K9-AIF Project.
+        </div>
+      )}
+      {locked && items.length > 0 && (
+        <div style={{ fontSize: 11, color: '#8892a4', marginBottom: 6, lineHeight: 1.5 }}>
+          A project is loaded. Click <strong>Clear</strong> first to open one.
+        </div>
+      )}
+      {items.map((it) => {
+        const active = project.imported_from?.repo === it.repo;
+        return (
+          <div
+            key={it.id}
+            onClick={() => open(it.id)}
+            title={locked ? 'Clear the current project first' : `Open ${it.name} on the canvas`}
+            style={{
+              padding: '6px 8px', marginBottom: 4, borderRadius: 5, fontSize: 12, lineHeight: 1.45,
+              cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.5 : 1,
+              border: `1px solid ${active ? '#14b8a6' : 'rgba(148,163,184,0.25)'}`,
+            }}
+          >
+            <div style={{ fontWeight: 600, color: '#14b8a6' }}>{busy === it.id ? '⟳ ' : ''}{it.name}</div>
+            <div style={{ color: '#8892a4', fontSize: 11 }}>
+              {it.repo}{it.commit_short ? ` @ ${it.commit_short}` : ''}
+            </div>
+            {it.counts && (
+              <div style={{ color: '#8892a4', fontSize: 11 }}>
+                {it.counts.orchestrators} orch · {it.counts.squads} squads · {it.counts.agents} agents · {it.counts.gates} gates
+              </div>
+            )}
+            {it.live_url && (
+              <a href={it.live_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                 style={{ fontSize: 11, color: '#93c5fd' }}>
+                Live: {String(it.live_url).replace(/^https:\/\//, '')}
+              </a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
@@ -146,8 +231,9 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
     resetCanvasNodesForRebuild();
     const cx = 480;
     const routerId = uid2();
+    // An imported K9-AIF project names its own router (e.g. DasRouter)
     addNode({ id: routerId, type: 'k9node', position: { x: cx - 90, y: 60 },
-      data: { label: 'K9EventRouter', componentType: 'router' as ComponentType, color: COMPONENT_COLORS.router, abbClass: 'K9EventRouter', description: 'Routes events by event_type' } });
+      data: { label: suggestion.router ?? 'K9EventRouter', componentType: 'router' as ComponentType, color: COMPONENT_COLORS.router, abbClass: 'K9EventRouter', description: 'Routes events by event_type' } });
 
     const kafkaId = 'system-kafka';
     addNode({ id: kafkaId, type: 'k9node', position: { x: cx + 160, y: 60 },
@@ -165,6 +251,10 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
     const squadByName: Record<string, any> = {};
     (suggestion.squads ?? []).forEach((sq: any) => { squadByName[sq.name] = sq; });
     const claimedSquadNames = new Set<string>();
+    // A squad several orchestrators run (an imported project's shared
+    // GateReadiness/PackageAssembly squads) is one node with an edge from
+    // each, not a copy per orchestrator.
+    const squadNodeByName: Record<string, string> = {};
 
     suggestion.orchestrators?.forEach((o: any, oi: number) => {
       const orchId = uid2();
@@ -191,9 +281,14 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
       }
       orchSquads.forEach((sq: any) => claimedSquadNames.add(sq.name));
       orchSquads.forEach((sq: any) => {
+        if (squadNodeByName[sq.name]) {
+          onConnect({ source: orchId, target: squadNodeByName[sq.name], sourceHandle: 's-right', targetHandle: 't-left' });
+          return;
+        }
         const squadId = uid2();
+        squadNodeByName[sq.name] = squadId;
         addNode({ id: squadId, type: 'k9node', position: { x: orchX - 20, y: 400 },
-          data: { label: sq.name, componentType: 'squad' as ComponentType, color: COMPONENT_COLORS.squad, abbClass: 'BaseSquad', description: `Squad: ${sq.name}`, zone: sq.zone } });
+          data: { label: sq.name, componentType: 'squad' as ComponentType, color: COMPONENT_COLORS.squad, abbClass: 'BaseSquad', description: sq.description || `Squad: ${sq.name}`, zone: sq.zone } });
         onConnect({ source: orchId, target: squadId, sourceHandle: 's-right', targetHandle: 't-left' });
 
         const count = (sq.agents ?? []).length;
@@ -210,6 +305,27 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
           onConnect({ source: squadId, target: agId, sourceHandle: 's-right', targetHandle: 't-left' });
         });
       });
+    });
+
+    // HIL gates of an imported project (its process model): the orchestrator
+    // that prepares the package → gate, and gate → the orchestrator its
+    // approval starts. Teal, like the HIL Orchestrator.
+    (suggestion.gates ?? []).forEach((g: any, gi: number) => {
+      const gateId = uid2();
+      const parts = [
+        g.authority ? `Decides: ${g.authority}` : '',
+        g.parallel ? 'Parallel, never blocks the flow' : (g.blocking ? 'Blocking' : 'Non-blocking'),
+        g.criteria_count ? `${g.criteria_count} entry criteria` : '',
+        g.hil_location ? `K9X HIL: ${g.hil_location}` : '',
+        g.starts_run ? `Approval starts the ${g.starts_run} run` : 'Records the decision; starts no run',
+      ].filter(Boolean);
+      addNode({ id: gateId, type: 'k9node', position: { x: cx + 400, y: 220 + gi * 100 },
+        data: { label: g.title || g.id, componentType: 'hil_gate' as ComponentType, color: COMPONENT_COLORS.hil_gate,
+          abbClass: 'K9X HIL gate', description: parts.join(' · ') } });
+      const prep = g.orchestrator ? orchNameToId[g.orchestrator] : undefined;
+      if (prep) onConnect({ source: prep, target: gateId, sourceHandle: 's-right', targetHandle: 't-left' });
+      const next = g.starts_orchestrator ? orchNameToId[g.starts_orchestrator] : undefined;
+      if (next) onConnect({ source: gateId, target: next, sourceHandle: 's-right', targetHandle: 't-left' });
     });
 
     // Place integration adapters — wired from their orchestrator (or Router if none)
@@ -443,6 +559,7 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
       {/* ── Project Info tab ───────────────────────── */}
       {tab === 'project' && (
         <>
+          <SharedApplications />
           {/* Template picker — disabled while a project is loaded so picking
               a template can never silently overwrite in-progress work; only
               re-enabled once Clear resets project_name back to empty. */}

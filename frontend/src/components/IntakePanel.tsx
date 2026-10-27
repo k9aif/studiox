@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { K9Meter, useClimbingProgress } from './K9Meter';
 import { Icon } from './Icons';
+import { openImportedRecord, SHARED_CHANGED_EVENT } from '../importedProject';
 
 function Section({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -45,6 +46,33 @@ export function IntakePanel({ onSwitchTab }: { onSwitchTab?: (tab: string) => vo
   const { project, setProject, nodes, generating, setGenerating, llmConfig, addLog, setLlmActive, addGeneratedDoc, setPendingCanvasSuggestion, pendingMappingDocument, setPendingMappingDocument, setMappingDocumentConfirmed, specImported, setSpecImported, clearCanvas, clearProject, setLastSpecFile, setLastBpmnFile, canvasIsRuleBased, setCanvasIsRuleBased, setGenResult, setLastTemplateId, setLastTemplateSuggestion, stagedBpmn, setStagedBpmn, stagedBlueprint, setStagedBlueprint, stagedEvals, setStagedEvals } = useStore();
   const [wifBusy, setWifBusy] = useState(false);
   const [specBusy, setSpecBusy] = useState(false);
+  const [repoUrl, setRepoUrl] = useState('');
+  const [projectBusy, setProjectBusy] = useState(false);
+  const [liveUrl, setLiveUrl] = useState('');
+
+  // Import K9-AIF project: draw an existing application from its own code
+  // (squad/agent YAML, orchestrators, router, process-model gates). Read only,
+  // rule-based; the canvas replaces the current one and offers no scaffold.
+  const importK9aifProject = async (opts: { url?: string; file?: File }) => {
+    if (projectBusy) return;
+    setProjectBusy(true);
+    try {
+      const fd = new FormData();
+      if (opts.url) fd.append('repo_url', opts.url);
+      else if (opts.file) fd.append('file', opts.file);
+      if (liveUrl.trim()) fd.append('live_url', liveUrl.trim());
+      const res = await fetch('/api/k9aif-project/import', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? `Server error ${res.status}`);
+      openImportedRecord(data);
+      if (data.id) window.dispatchEvent(new Event(SHARED_CHANGED_EVENT));
+      onSwitchTab?.('canvas');
+    } catch (err: any) {
+      addLog(`K9-AIF project import failed: ${err.message ?? 'unknown'}`, 'error');
+    } finally {
+      setProjectBusy(false);
+    }
+  };
   const [specError, setSpecError] = useState('');
   const [specFileName, setSpecFileName] = useState('');
   const [stagingError, setStagingError] = useState('');
@@ -694,8 +722,10 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
       {canvasIsRuleBased && nodes.length > 0 && (
         <div className="intake-source-banner">
           <span>
-            ✨ Current process is based on an imported BPMN file
-            {project.project_name ? <> — <strong>{project.project_name}</strong></> : null}.
+            {project.imported_from
+              ? <>✨ Current canvas is the existing K9-AIF application <strong>{project.project_name}</strong>, read from {project.imported_from.repo ?? project.imported_from.filename}{project.imported_from.commit_short ? <> @ <code>{project.imported_from.commit_short}</code></> : null}.</>
+              : <>✨ Current process is based on an imported BPMN file
+                {project.project_name ? <> — <strong>{project.project_name}</strong></> : null}.</>}
           </span>
           <button className="intake-source-banner-clear" onClick={() => { clearProject(); addLog('Intake cleared — ready for new project'); }}>
             Clear
@@ -802,6 +832,65 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
                 />
               </label>
               <TileCheckBadge slot="evals" />
+            </div>
+
+            <div className="intake-import-tile">
+              <div className="intake-import-tile-icon" style={{ background: 'rgba(20,184,166,0.12)', color: '#14b8a6' }}>
+                <Icon kind="architecture" size={16} />
+              </div>
+              <div className="intake-import-tile-title">Import K9-AIF Project</div>
+              <div className="intake-import-tile-hint">
+                An application already built on K9-AIF: public GitHub URL or .zip. Draws it from its own code; changes nothing.
+                GitHub imports are listed for every visitor under Project Info.
+              </div>
+              <input
+                type="url"
+                value={repoUrl}
+                placeholder="https://github.com/owner/repo"
+                onChange={(e) => setRepoUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && repoUrl.trim()) importK9aifProject({ url: repoUrl.trim() }); }}
+                disabled={projectBusy}
+                style={{ width: '100%', marginBottom: 6, padding: '6px 8px', fontSize: 12, borderRadius: 4,
+                  border: '1px solid #334155', background: 'transparent', color: 'inherit', boxSizing: 'border-box' }}
+              />
+              <input
+                type="url"
+                value={liveUrl}
+                placeholder="Live site, optional (https://….k9x.ai)"
+                onChange={(e) => setLiveUrl(e.target.value)}
+                disabled={projectBusy}
+                style={{ width: '100%', marginBottom: 6, padding: '6px 8px', fontSize: 12, borderRadius: 4,
+                  border: '1px solid #334155', background: 'transparent', color: 'inherit', boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  className={`intake-upload-btn${projectBusy ? ' intake-upload-btn--busy' : ''}`}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                  disabled={projectBusy || !repoUrl.trim()}
+                  onClick={() => importK9aifProject({ url: repoUrl.trim() })}
+                >
+                  <span>{projectBusy ? '⟳ Reading…' : 'Import'}</span>
+                </button>
+                <label
+                  className={`intake-upload-btn${projectBusy ? ' intake-upload-btn--disabled' : ''}`}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                  title="A .zip of the project folder"
+                >
+                  <span>⬆ .zip</span>
+                  <input
+                    type="file"
+                    accept=".zip"
+                    style={{ display: 'none' }}
+                    disabled={projectBusy}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) await importK9aifProject({ file });
+                    }}
+                  />
+                </label>
+              </div>
             </div>
           </div>
 

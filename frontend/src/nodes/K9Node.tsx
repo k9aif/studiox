@@ -8,6 +8,7 @@ const ICONS: Record<string, string> = {
   router: '⇄',
   orchestrator: '◈',
   hil_orchestrator: '◇',
+  hil_gate: '◆',
   squad: '◫',
   agent: '◉',
   validation_loop: '↻',

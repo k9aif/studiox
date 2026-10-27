@@ -18,7 +18,8 @@ import { ScaffoldView } from './ScaffoldView';
 import { ScaffoldDoneOverlay } from './ScaffoldDoneOverlay';
 import { ClassDiagramView } from './ClassDiagramView';
 import { ArchGuidePanel } from './ArchGuidePanel';
-import type { NodeData, ProjectMeta } from '../types';
+import { downloadArchitectureDocument } from '../importedProject';
+import type { NodeData, ProjectMeta, ImportedFrom } from '../types';
 
 type CenterTab = 'about' | 'setup' | 'intake' | 'mapping' | 'evals' | 'canvas' | 'classdiagram' | 'flow' | 'docs' | 'scaffold' | 'archguide';
 
@@ -102,6 +103,44 @@ export function buildProjectPayload(
     generation_source:   llmConfig?.model ? 'llm' : 'rule-based',
     generation_scoring:  null,
   };
+}
+
+function alertLog(e: any) {
+  useStore.getState().addLog(`Architecture document failed: ${e?.message ?? 'unknown'}`, 'error');
+}
+
+function ImportedFromBadge({ source }: { source: ImportedFrom }) {
+  const where = source.kind === 'github' ? source.repo : source.filename;
+  return (
+    <div
+      style={{
+        position: 'absolute', bottom: 16, right: 16, zIndex: 10, maxWidth: 380,
+        padding: '8px 12px', fontSize: 12, lineHeight: 1.5,
+        background: 'rgba(10,14,24,0.92)', border: '1px solid rgba(20,184,166,0.4)', borderRadius: 6, color: '#cbd5e1',
+      }}
+    >
+      <div style={{ fontWeight: 600, color: '#14b8a6' }}>Imported K9-AIF application</div>
+      <div>
+        {source.url ? <a href={source.url} target="_blank" rel="noreferrer" style={{ color: '#93c5fd' }}>{where}</a> : where}
+        {source.commit_short && <> @ <code>{source.commit_short}</code></>}
+        {source.commit_date && <> · {source.commit_date.slice(0, 10)}</>}
+      </div>
+      {source.process_model && <div>Process model {source.process_model}</div>}
+      {source.live_url && (
+        <div>Live: <a href={source.live_url} target="_blank" rel="noreferrer" style={{ color: '#93c5fd' }}>{source.live_url.replace(/^https:\/\//, '')}</a></div>
+      )}
+      <div style={{ color: '#94a3b8' }}>Drawn from its own code; re-import to refresh. No scaffold: the application already exists.</div>
+      {source.record && (
+        <button
+          onClick={() => downloadArchitectureDocument(source.record).catch((e) => alertLog(e))}
+          style={{ marginTop: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, background: 'transparent',
+            border: '1px solid #14b8a6', color: '#14b8a6', borderRadius: 5, cursor: 'pointer' }}
+        >
+          ⬇ Download architecture document
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function Studio() {
@@ -643,6 +682,13 @@ export function Studio() {
                       ⟳ Regenerate
                     </button>
                   )}
+                  {/* An imported K9-AIF project is a view of an application that
+                      already exists: no scaffold to generate, so the source it
+                      was read from takes the scaffold controls' place. */}
+                  {project.imported_from && (
+                    <ImportedFromBadge source={project.imported_from} />
+                  )}
+                  {!project.imported_from && (<>
                   <div
                     title={
                       hasLlmConfigured
@@ -682,6 +728,7 @@ export function Studio() {
                       ? (richDocs ? '⟳ Narrating (may take a minute)…' : '⟳ Generating…')
                       : (hasGeneratedScaffold ? '↻ Regenerate Scaffold' : '⬇ Generate Scaffold')}
                   </button>
+                  </>)}
                 </div>
               </>
             )}

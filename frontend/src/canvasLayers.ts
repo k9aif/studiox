@@ -51,7 +51,16 @@ export function computeLayerVisibleIds(layer: CanvasLayer, nodes: Node<NodeData>
 
   if (layer === 'hil') {
     const hil = nodes.find((n) => n.data.componentType === 'hil_orchestrator');
-    return hil ? bfsConnected(hil.id, edges) : new Set();
+    const visible = hil ? bfsConnected(hil.id, edges) : new Set<string>();
+    // Gates of an imported project, with the orchestrators they connect
+    for (const g of nodes.filter((n) => n.data.componentType === 'hil_gate')) {
+      visible.add(g.id);
+      edges.forEach((e) => {
+        if (e.source === g.id) visible.add(e.target);
+        if (e.target === g.id) visible.add(e.source);
+      });
+    }
+    return visible;
   }
 
   const visible = new Set<string>();

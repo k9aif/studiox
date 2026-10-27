@@ -18,6 +18,7 @@ export const LEVEL_X: Record<string, number> = {
   orchestrator:    550,
   hil_orchestrator: 550,   // same column as Orchestrator — it is one, just event-driven (studio_rules.md §4)
   squad:          1000,
+  hil_gate:       1000,   // beside the squads of the orchestrator that prepares its package
   // Adapters get their own explicit column between Squad and Agent — this
   // was previously an unnamed fallback (`?? 980`, same value), now named so
   // the canvas-column backgrounds (Canvas.tsx) can be computed from this
@@ -56,6 +57,12 @@ export function applyHierarchyLayout(
     if (!src || !tgt) return;
     if ((src.data as NodeData).system || (tgt.data as NodeData).system) return;
     if (AGENT_TYPES.has((tgt.data as NodeData).componentType)) return;
+    // A gate's "approval starts" edge points back to an orchestrator: flow,
+    // not hierarchy, so it is not a layout parent.
+    if ((src.data as NodeData).componentType === 'hil_gate') return;
+    // A squad shared by several orchestrators (imported projects) is placed
+    // under the first one that runs it; the other edges still draw.
+    if (hasParent.has(e.target)) return;
     children[e.source] = children[e.source] ?? [];
     if (!children[e.source].includes(e.target)) {
       children[e.source].push(e.target);
@@ -124,11 +131,17 @@ export function applyHierarchyLayout(
     }
   });
 
-  Object.entries(squadAgentMap).forEach(([squadId, agentIds]) => {
-    if (!pos[squadId]) return;
+  // Top to bottom, each squad's agent stack starts below the previous one, so
+  // stacks of neighbouring squads (larger imported projects) never overlap.
+  let agentFloor = -Infinity;
+  Object.entries(squadAgentMap)
+    .filter(([squadId]) => pos[squadId])
+    .sort(([a], [b]) => pos[a].y - pos[b].y)
+    .forEach(([squadId, agentIds]) => {
     const squadCY = pos[squadId].y + NODE_H / 2;
     const totalH  = agentIds.length * NODE_H + (agentIds.length - 1) * V_GAP;
-    const startY  = squadCY - totalH / 2;
+    const startY  = Math.max(squadCY - totalH / 2, agentFloor);
+    agentFloor = startY + totalH + V_GAP;
     agentIds.forEach((agId, i) => {
       pos[agId] = {
         x: LEVEL_X.agent,

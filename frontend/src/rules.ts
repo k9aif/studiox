@@ -11,8 +11,10 @@ export const VALID_TARGETS: Record<ComponentType, ComponentType[]> = {
   // Router can go agentic (→ Orchestrator) OR straight to a deterministic adapter
   router:            ['orchestrator', ...ADAPTER_TYPES],
   // Orchestrator can mix agentic squads with deterministic adapter steps
-  orchestrator:      ['squad', ...ADAPTER_TYPES],
+  orchestrator:      ['squad', 'hil_gate', ...ADAPTER_TYPES],
   hil_orchestrator:  ['squad', ...ADAPTER_TYPES],
+  // A gate's approval starts the next orchestrator's run (imported projects)
+  hil_gate:          ['orchestrator'],
   squad:             ['agent', 'validation_loop', 'critic_actor', 'guard'],
   agent:             [],
   validation_loop:   [],
@@ -35,6 +37,7 @@ export const RULE_HINT: Record<ComponentType, string> = {
   router:            'Router → Orchestrator (agentic) or directly to an Adapter (deterministic)',
   orchestrator:      'Orchestrator → Squads (agentic) and/or Adapters (deterministic)',
   hil_orchestrator:  'HIL Orchestrator → 1 or more Squads (event-driven, no Router)',
+  hil_gate:          'HIL gate: a person decides; approval starts the next Orchestrator',
   squad:             'Squad → Agent / ValidationLoop / CriticActor / Guard',
   agent:             'Agents have no outgoing connections',
   validation_loop:   'ValidationLoop has no outgoing connections',
@@ -56,6 +59,7 @@ export const VALID_NEXT_LABEL: Record<ComponentType, string> = {
   router:            'Orchestrator or any Adapter',
   orchestrator:      '1+ Squads and/or Adapters',
   hil_orchestrator:  '1+ Squads',
+  hil_gate:          'Orchestrator (the run its approval starts)',
   squad:             'Agent, Validation Loop, Critic-Actor, Guard',
   agent:             '—',
   validation_loop:   '—',

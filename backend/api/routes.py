@@ -468,6 +468,81 @@ async def blueprint_import(file: UploadFile = File(...)):
     }
 
 
+@router.post("/k9aif-project/import")
+async def k9aif_project_import(file: Optional[UploadFile] = File(None), repo_url: Optional[str] = Form(None),
+                              live_url: Optional[str] = Form(None)):
+    """
+    Draw an EXISTING K9-AIF application on the canvas: a public GitHub
+    repository URL or a .zip of the project. Reads squad/agent YAML, the
+    orchestrator and router sources and, when present, the process model's
+    HIL gates (k9aif_project_service.py). Rule-based always: the canvas shows
+    what the code says, nothing an LLM inferred.
+    """
+    from backend.services.k9aif_project_service import (
+        ProjectImportError, allowed_live_url, files_from_github, files_from_zip, parse_k9aif_project, save_shared,
+    )
+
+    try:
+        if repo_url and repo_url.strip():
+            files, source = files_from_github(repo_url.strip())
+        elif file is not None:
+            fname = (file.filename or "").lower()
+            if not fname.endswith(".zip"):
+                raise HTTPException(status_code=400, detail="Upload a .zip of the project, or give a GitHub URL")
+            raw = await file.read()
+            if len(raw) > 50 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail="File too large (max 50MB)")
+            files = files_from_zip(raw)
+            source = {"kind": "zip", "name": Path(file.filename or "project").stem, "filename": file.filename}
+        else:
+            raise HTTPException(status_code=400, detail="Give a GitHub repository URL or upload a .zip")
+        record = parse_k9aif_project(files, source)
+        record["live_url"] = allowed_live_url(live_url or "", _LIVE_URL_HOSTS)
+        if live_url and live_url.strip() and not record["live_url"]:
+            record["warnings"].append(f"Live-site link not kept: only https on {_LIVE_URL_HOSTS}")
+        # GitHub imports are public code: shared, so every visitor sees them in
+        # the left pane. A .zip may be private and is never stored.
+        if source.get("kind") == "github":
+            record["id"] = save_shared(_PROJECTS_ROOT(), record)
+        return record
+    except ProjectImportError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+_LIVE_URL_HOSTS = _os.environ.get("K9X_LIVE_URL_HOSTS", "k9x.ai")
+
+
+def _PROJECTS_ROOT() -> str:
+    return _os.environ.get("K9X_PROJECTS_ROOT", ".") or "."
+
+
+@router.get("/k9aif-project/shared")
+def k9aif_project_shared():
+    """Every K9-AIF application imported from GitHub, for the left pane."""
+    from backend.services.k9aif_project_service import list_shared
+    return {"projects": list_shared(_PROJECTS_ROOT())}
+
+
+@router.get("/k9aif-project/shared/{pid}")
+def k9aif_project_shared_one(pid: str):
+    from backend.services.k9aif_project_service import ProjectImportError, load_shared
+    try:
+        return load_shared(_PROJECTS_ROOT(), pid)
+    except ProjectImportError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/k9aif-project/document")
+def k9aif_project_document(record: dict):
+    """The imported application's architecture as a Markdown document (flow
+    diagram, orchestrators, gates, squads and agents), from the import itself."""
+    from fastapi.responses import Response
+    from backend.services.k9aif_project_service import architecture_markdown
+    name = re.sub(r"[^\w.-]+", "-", str(record.get("process_name") or "k9aif-project")).strip("-") or "k9aif-project"
+    return Response(architecture_markdown(record), media_type="text/markdown; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}-architecture.md"'})
+
+
 @router.post("/evals/import")
 async def evals_import(file: UploadFile = File(...)):
     """

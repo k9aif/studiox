@@ -3,6 +3,9 @@ export type ComponentType =
   | 'router'
   | 'orchestrator'
   | 'hil_orchestrator'
+  // A human decision gate of an imported K9-AIF application (its process
+  // model's HIL gates); drawn from the code, never dragged from the palette.
+  | 'hil_gate'
   | 'squad'
   | 'agent'
   | 'validation_loop'
@@ -119,6 +122,24 @@ export interface ProjectMeta {
   // section. Set by IntakePanel.tsx from combine()'s response whenever a
   // blueprint doc was staged.
   header_meta?: Record<string, string | number>;
+  // Set when the canvas is an existing K9-AIF application read by
+  // "Import K9-AIF project" (k9aif_project_service.py): where it came from.
+  // An imported canvas offers no scaffold; the application already exists.
+  imported_from?: ImportedFrom;
+}
+
+export interface ImportedFrom {
+  kind: 'github' | 'zip';
+  repo?: string;
+  url?: string;
+  filename?: string;
+  commit_short?: string;
+  commit_date?: string;
+  process_model?: string;
+  live_url?: string;
+  // The full import (k9aif_project_service.py's record): the architecture
+  // document is generated from it, so it survives a page refresh.
+  record?: any;
 }
 
 export interface ProjectScenario {

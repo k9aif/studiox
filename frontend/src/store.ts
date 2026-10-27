@@ -448,8 +448,12 @@ export const useStore = create<StudioStore>()(
         (n) => (n.id === conn.source || n.id === conn.target) &&
                (n.data as NodeData).componentType === 'hil_orchestrator'
       );
-      const edgeColor = isHil ? '#14b8a6' : isSystem ? '#475569' : '#6366f1';
-      const edgeStyle = isSystem || isHil
+      const isGate = s.nodes.some(
+        (n) => (n.id === conn.source || n.id === conn.target) &&
+               (n.data as NodeData).componentType === 'hil_gate'
+      );
+      const edgeColor = isHil || isGate ? '#14b8a6' : isSystem ? '#475569' : '#6366f1';
+      const edgeStyle = isSystem || isHil || isGate
         ? { stroke: edgeColor, strokeWidth: 1.5, strokeDasharray: '6 4' }
         : { stroke: edgeColor, strokeWidth: 2 };
       return {
