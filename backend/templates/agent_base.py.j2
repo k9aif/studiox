@@ -55,7 +55,7 @@ class {{ class_name }}(BaseAgent):
         # orchestrator records it. Never return a stand-in "[WARN]" result (K9-LLM-002).
         resp = llm_invoke(self.config, req)
 
-        self.publish_event({"type": "{{ class_name }}Completed", "agent": "{{ class_name }}"})
+        self.notify_monitor({"type": "{{ class_name }}Completed", "agent": "{{ class_name }}"})
 
         result = {
             "agent": "{{ class_name }}",

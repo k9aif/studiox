@@ -32,7 +32,7 @@ class SpecParserAgent(K9SubAgentSpawner):
             "agents_raw": agents_result.get("agents_raw", []),
             "zone_groups": zones_result.get("zone_groups", {"green": [], "ai": []}),
         }
-        self.publish_event({
+        self.notify_monitor({
             "type": "SpecParsed",
             "agent": "SpecParserAgent",
             "agent_count": len(result["agents_raw"]),

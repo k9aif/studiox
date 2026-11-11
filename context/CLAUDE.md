@@ -24,6 +24,17 @@ orchestrator adapter (`k9_adapters/crewai/`, `k9_adapters/langgraph/`,
 `k9_adapters/claude_agent_sdk/`), which adds K9-AIF governance at its
 boundary.
 
+## Capability index: read before designing anything
+
+Every ABB, what ships out of the box for it, and the factory that builds it
+(imported below; `k9_aif_abb/tests/test_capability_index.py` keeps it complete).
+Before proposing a new class, mechanism or config DSL, find the concern here
+and build on or extend the ABB that already owns it. Business rules, limits
+and policies are SBB content: the framework provides the adapters
+(`BaseRulesAdapter`: `K9RulesAdapter`, `RestRulesAdapter`), never the rules.
+
+@CAPABILITIES.md
+
 Diagrams default to PlantUML. BPMN swim lanes: horizontal bands top-to-bottom,
 labels left, activities left-to-right within a lane.
 
@@ -176,17 +187,31 @@ and the adapters' `execute_flow()` set while they run. Inside, the caller's
 checks already cover the call; outside (orchestrator, service or script code),
 `llm_invoke()` runs the same `security.shield` checks itself and refuses in
 production without governance. Call models only through `llm_invoke()`.
+**Scope (1.21):** `governance.scope: boundary` (default) means a model call
+*inside* an agent is covered by the agent's input and output checks, not
+checked itself; `per_call` makes `llm_invoke()` check every call (prompt and
+response), so an intermediate reply is refused before the agent acts on it.
+Outgoing tool calls: `@govern_tool_call(governance)` (arguments checked
+before the tool runs). Test: `tests/test_governance_coverage.py`.
 A subclass calling `super().execute()` is governed once (a contextvar guard).
 `BaseValidationLoopAgent` / `BaseCriticActorAgent` set
 `_governs_own_execute = True` (they run pre/post around the loop, on
 `result["output"]`) and get the assertion only. Tests:
 `tests/test_governance_by_construction.py`.
+**1.22 — no silent skips in production:** only the framework's agent ABBs
+(`k9_aif_abb.k9_agents`) may set `_governs_own_execute` (an application class
+or an instance setting it is refused); a call whose payload the wrapper cannot
+find (not the first argument, `payload=` or `request=`) is refused instead of
+running unchecked; `@govern_tool_call` / `@govern_tool_result` with no
+governance refuse before the tool runs. Development/test only warn. Tests:
+`tests/test_governance_gaps_1_22.py`.
 
 **Where governance comes from.** `governance=` if passed; otherwise
 `governance_from_config(config)`: `security.shield.enabled: true` →
 `ShieldGovernance(config)`; `governance.guardian.enabled: true` →
 `GuardianGovernance` (Granite Guardian, `on_unavailable` default
-`fail_closed`); both → `ChainedGovernance(Shield, Guardian)`, Shield first.
+`fail_closed`; `temperature` default 0 from 1.26, so a verdict is repeatable:
+before, Ollama sampled and the same document flipped between runs); both → `ChainedGovernance(Shield, Guardian)`, Shield first.
 One config setting therefore governs every agent of an application.
 Nothing configured → `NoopGovernance` (fine in development/test, refused in
 production).
@@ -238,6 +263,9 @@ treated as FLAG, `False` → treated as BLOCK. Unset, it follows `K9_ENV`
 (1.19.0): `False` (fail closed) in production, `True` in development/test;
 an explicit value wins. Before 1.19.0 it was always `True`, so an input that
 made a check throw passed that check unscreened.
+Shield screens text as well as dicts: an agent's egress is its output text,
+wrapped as `{"output": text}` for the checks (1.20.1; before, dict-only checks
+crashed on text, which blocked every output in production).
 
 **Shield is off in the shipped configuration.** `k9_aif_abb/config/config.yaml`
 sets `security.shield.enabled: false` ("SBBs enable and configure in their
@@ -269,6 +297,10 @@ data-loss/masking → risk scoring) → `TrustDecision`. Lives on
 `False`** — `apply_zero_trust()` returns an unconditional
 `{"allowed": True, "decision": "BYPASSED", ...}` bypass when off, so
 calling it costs nothing when disabled but also protects nothing).
+Enabled but its package fails to import (1.26): production refuses to
+construct the Orchestrator/Router (`RuntimeError`); a flag switched on later
+denies (`UNAVAILABLE_DENY`); development/test keep the logged allow
+(`UNAVAILABLE_BYPASS`). Before 1.26 every environment allowed.
 `DefaultZeroTrustGuard`'s built-in `PromptInjectionGuard` is a **plain
 substring match** against 6 fixed phrases (`k9_security/zero_trust/guards.py`)
 — materially weaker than Shield's regex-based `PromptInjectionCheck`
@@ -409,8 +441,11 @@ then a k-NN quality predictor over similar prompts can overrule them by
 router stored sessions/decisions/affinity but never read them back --
 don't describe older versions as adaptive. Runtime calls record only
 success/latency (circuit breaker), not quality: something must grade.
-A `confidential` request is hard-restricted to confidential-capable models
-(before 1.13 a +3 capability match could beat the +2 confidential score).
+Eligibility comes before scoring (1.21): a model is a candidate only if its
+`capabilities` include every `InferenceRequest.required_capabilities` entry,
+plus `confidential` for a confidential request; none eligible →
+`NoEligibleModelError` (fail closed, not retried). Before 1.13 confidential
+was only +2; 1.13–1.20 fell back to every model when none was cleared.
 
 ## Everything is provisioned through factories
 
@@ -446,8 +481,11 @@ Tests reset with `k9_aif_abb.k9_factories.reset_all()` (autouse in
 Only the **Router** (domain topics) and **Orchestrator** (results /
 downstream topics) touch Kafka directly — this hasn't changed. Agents are
 constructed without a `message_bus` — they share data sequentially through
-the Squad flow, not via A2A messaging. `publish_event()` on an agent reaches
-the logger/monitor only.
+the Squad flow, not via A2A messaging. **Enforced at run time from 1.26:**
+`BaseAgent.__init__` raises `TypeError` when given a `message_bus`.
+`notify_monitor()` on an agent reaches the logger/monitor only; the old name
+`publish_event()` is a deprecated alias of it (warns; removed in 2.0). K9-KAF-001 still flags agent/squad code that publishes
+or imports a Kafka client directly (the one bypass the constructor can't see).
 
 **One narrow, deliberate exception: triggering HIL.** An Agent or Squad may
 raise `RequiresHIL` to signal that a human decision is needed mid-flow (a
@@ -519,10 +557,23 @@ therefore resumes the flow exactly once. Resuming is just re-routing with
 new information now available, reusing the same method that handles any
 other event, not a second mechanism.
 
-**Open (G-18):** the row is marked resolved *before* re-routing, so a crash
-between the two loses that resume. A `resuming` state plus recovery sweep
-is planned; until then the SBB orchestrator's resume branch must be
-idempotent.
+**G-18, closed in 1.23:** the claim is `pending → resuming`
+(`begin_hil_resume()`, which stores the decision), the row becomes `resolved`
+only after `route()` succeeds, a failed `route()` releases the claim and
+raises (the bus delivers the reply again), and a recovery sweep
+(`recover_stalled_hil()`, started by `listen_for_hil_replies()`) re-routes a
+claim whose Router stopped, after `routing.hil.resume_lease_seconds` (300).
+A crash *after* `route()` and before `resolved` can re-route once more, so
+the SBB orchestrator's resume branch must still be idempotent.
+
+**Delivery (1.23).** `K9EventBus.subscribe()` / `subscribe_async()` and
+`KafkaEventFabric` commit an offset only after the event is handled or
+dead-lettered to `<topic>.dlq` (`k9_core/messaging/delivery.py`: retried
+`delivery_attempts` times with backoff; an undecodable or unfetchable event
+at once; a failed dead-letter publish raises and commits nothing). Before
+1.23 offsets were committed on a timer and a failed handler was logged, so a
+HIL reply whose handling failed was skipped for good. Tests:
+`tests/test_delivery_and_resume_1_23.py`.
 
 **Request fields not yet passed:** `BaseHILOrchestrator.execute_flow()`
 builds the request from `title`/`reason`/`priority`/`source_orchestrator`
@@ -570,6 +621,41 @@ or a reply can never find the row it's meant to resolve — nothing enforces
 this automatically today; get it wrong and replies are silently dropped
 (logged as "matches no pending flow", not raised).
 
+## Tool gate (1.25.0, opt-in)
+
+**Property:** a prompt can't change an agent's code, but it can change the values the model
+returns, so no tool call made inside a governed agent call runs on a model-supplied value
+without being checked against facts the model didn't write. **Test:** an agent whose code
+never raises `RequiresHIL` calls an irreversible tool with an account that isn't the
+vendor's; the call is held and the tool never runs (`tests/test_tool_gate_1_25.py`).
+
+- `security.tool_gate.enabled: true` (off in 1.x, the default in 2.0). `BaseConnector.__init_subclass__`
+  wraps every async `call_tool()`; inside a governed agent call it goes to that agent's
+  `BaseToolDispatcher` (`k9_core/tools/`), built by the `BaseAgent` wrapper from config.
+- Dispatcher order: Shield (`screen_tool_call`) → `ToolRegistry` (undeclared = irreversible;
+  `verify:` argument → record field) → record lookup through k9x Origin by the dispatcher
+  itself → the solution's rules (`security.tool_gate.rules`, any `BaseRulesAdapter`) →
+  allow / deny (`ToolCallDenied`) / hil (`ToolCallPendingReview`, a `RequiresHIL`).
+  Rules can only make a call stricter: a mismatch or an unverifiable value never runs
+  without a person; an irreversible call auto-runs only when a **named** rule allows it
+  (`K9RulesAdapter`'s no-match `allow` has no rule name, so it doesn't count).
+- **Kafka ownership holds:** the dispatcher never publishes. It stores the exact call in the
+  audit log and raises; the Orchestrator publishes via `handle_requires_hil()` under the
+  call's `correlation_id`. If agent code catches the review, the `BaseAgent` wrapper raises
+  it again (nested agents too, via `GateSession.parent`).
+- **Resume:** first line of the SBB orchestrator's `execute_flow()`:
+  `resumed = self.resume_tool_call(payload); if resumed is not None: return resumed`. It runs
+  the *stored* call (never a re-proposal), at most once (`pending → executing` claim before
+  the call), only on a valid approval (`ToolCallDecision`: approving action, named actor,
+  before the deadline, matching `result.call_digest` when present). Running after review
+  needs `tools.<name>.connector` (client + params) unless the same process still holds it.
+- Thread bridges copy the caller's context (`contextvars.copy_context().run`, 1.25.0) so the
+  session follows sync agents into worker threads; if it's ever missing while any gate is
+  enabled, `call_tool()` is refused in production.
+- Not covered: agent code opening its own connection or process (Inspector **K9-TOOL-001**
+  flags it), calls outside an agent (orchestrator/script code), `execute_stream()` agents.
+  Every request counts as carrying outside content (`untrusted_input` is always true).
+
 ## Pre-Push Checklist
 
 - Every new `.py` file starts with the two-line header
@@ -584,6 +670,9 @@ this automatically today; get it wrong and replies are silently dropped
   `env-example` template — copy it, never commit the real `.env`
 - No `__pycache__`/`.pyc` — `.gitignore` present before first commit
 - Three-layer decoupling preserved (see above)
+- A new or removed `Base*` ABB, or a new OOB implementation, has its row in
+  `CAPABILITIES.md` in the same commit (`test_capability_index.py` fails on a
+  missing ABB or a class name that doesn't exist)
 - After any `k9_aif_abb/` change: `./generate_pdoc.sh` (the `./` matters —
   without it, pdoc silently documents whatever `k9-aif` is pip-installed in
   `.venv` instead of the local tree) and commit `docs/pydocs/` in the same

@@ -98,7 +98,7 @@ class MyAgent(BaseAgent):
         }
 
         # 5. Publish event for audit trail
-        self.publish_event({"type": "MyAgentCompleted", "agent": "MyAgent"})
+        self.notify_monitor({"type": "MyAgentCompleted", "agent": "MyAgent"})
 
         return result
 ```
@@ -516,11 +516,11 @@ def test_llm_unavailable_propagates():
 
 ## Skill 7 — Event publishing — Router and Orchestrator only
 
-`publish_event()` is defined on `BaseAgent` and will publish to Kafka if a `message_bus` is passed at construction. By convention in K9-AIF solutions, **only the Router and Orchestrator are wired with a message bus** — agents are constructed without one.
+**Only the Router and the Orchestrators publish to Kafka; agents and squads never do.** This is a framework rule, enforced at run time from 1.26 (`BaseAgent.__init__` raises `TypeError` when given a `message_bus`) and by Inspector **K9-KAF-001**, which reports agent or squad code that publishes or imports a Kafka client directly. `BaseAgent.notify_monitor()` reaches only the monitor (`monitor.record_event()`, when the agent has a monitor) and the log, never Kafka. (The old name `publish_event()`, deprecated in 1.24, is an alias of `notify_monitor()` from 1.26 and is removed in 2.0.)
 
 Agents within a Squad share data sequentially through the flow — each agent's output enriches the shared execution context, which is passed as the input to the next agent. The context grows progressively richer as it moves through the flow. There is no need for Agent-to-Agent (A2A) messaging over Kafka. Agents use `self.logger` for observability.
 
-A2A via Kafka is architecturally possible — wire an agent with a `message_bus` at construction and `publish_event()` will publish to a Kafka topic. This is not used in standard K9-AIF solutions but is a valid extension for rare scenarios requiring loosely coupled or async agent handoffs across squads.
+Do not wire an agent with a `message_bus` for agent-to-agent messaging: K9-KAF-001 reports it. An agent that needs a human decision raises `RequiresHIL`; the orchestrator that catches it publishes the HIL task (see the HIL skill).
 
 ### Kafka event topology
 
@@ -544,29 +544,33 @@ app_backend → eoc-events → [IntentAgent] → Router (publishes) → eoc-clai
 
 ### Router — publishing a domain event
 
-`publish_event()` is called on the Router after routing decision is made:
+`K9EventRouter.route(payload)` resolves the topic and publishes the event itself
+(`message_bus.publish_to(topic, payload)`), so a Router built on it publishes nothing by hand.
+A custom Router subclass publishes through its bus:
 
 ```python
-# Inside a Router subclass (extends BaseRouter)
-self.publish_event({
-    "type": "ClaimRouted",
-    "event_type": event.get("event_type"),
-    "topic": resolved_topic,
-    "correlation_id": event.get("correlation_id"),
-})
+# Inside a Router subclass (extends BaseRouter), built with message_bus=
+self.message_bus.publish_to(resolved_topic, event)
 ```
+
+`BaseRouter` has no `notify_monitor()`; calling it raises `AttributeError`.
 
 ### Orchestrator — publishing a result event
 
 ```python
 # Inside an Orchestrator subclass (extends BaseOrchestrator)
-self.publish_event({
-    "type": "FlowCompleted",
+self.publish_status("completed", {
     "squad_id": _SQUAD_ID,
     "correlation_id": payload.get("correlation_id"),
     "result_summary": result.get("status"),
 })
+
+# or, to a specific downstream topic:
+self.message_bus.publish_to("claims.results", {...})
 ```
+
+`publish_status()` publishes on the orchestrator's bus and records the event with its monitor.
+`BaseOrchestrator` has no `notify_monitor()` (that method is `BaseAgent`'s, and reaches no bus).
 
 ---
 
@@ -735,7 +739,7 @@ finalize_on_max_iterations: true   # true → finalize; false → escalate on ti
 
 `loop_started` · `hypothesis_generated` · `validation_tool_invoked` · `observation_evaluated` · `loop_continued` · `loop_finalized` · `loop_escalated` · `loop_failed`
 
-All go through `publish_event()` — wired to monitor + message_bus if configured.
+All go through `notify_monitor()`: the agent's monitor, if it has one, and the log. Never Kafka.
 
 ### OOB implementation — K9ValidationLoopAgent
 
@@ -1046,7 +1050,7 @@ Reference: `4Ds/AI Fluency_ Key Terminology Cheat Sheet.pdf`
 | **Delegation** | Agent scope, HIL boundaries, interaction mode | Agent YAML `delegation:` section, SA design decision |
 | **Description** | Agent prompt engineering — role, goal, instructions, output format | Agent YAML `role:`, `goal:`, `instructions:`, `output_schema:` |
 | **Discernment** | Validation loops, governance checks, quality evaluation | `K9ValidationLoopAgent` config, governance pipeline |
-| **Diligence** | Audit trail, transparency, deployment verification | Governance enforcement, `publish_event()`, record keeping |
+| **Diligence** | Audit trail, transparency, deployment verification | Governance enforcement, `notify_monitor()` / `publish_status()`, record keeping |
 
 ### Delegation — deciding what the agent does vs what stays human
 
@@ -1087,7 +1091,7 @@ These are already first-class in the K9-AIF agent YAML:
 | 4D sub-competency | K9-AIF mechanism |
 |---|---|
 | **Creation Diligence** — model selection rationale | Model catalog capabilities, `K9ModelRouter` scoring |
-| **Transparency Diligence** — disclosing AI role | `publish_event()` audit trail, governance logging |
+| **Transparency Diligence** — disclosing AI role | `notify_monitor()` / `publish_status()` audit trail, governance logging |
 | **Deployment Diligence** — verifying outputs | `enforce_governance()`, HIL escalation via `ValidationDisposition.ESCALATE` |
 
 ### Agent YAML with 4D annotations
@@ -1685,6 +1689,6 @@ Route every governed action through the adapter's inherited `apply_pre_governanc
 
 ### Step 3: Vendor/security-tool adapters — a target shape, not shipped code
 
-The Zero Trust Execution Layer's `VERIFY → EVALUATE → DECIDE → ENFORCE → OBSERVE` pipeline is designed to accept exactly this kind of external adapter at each stage — an identity provider feeding `VERIFY`, a policy engine feeding `EVALUATE`, a SIEM or ITSM tool consuming `OBSERVE`'s audit stream. **As of this writing, none of these are built.** No Zscaler, Okta, ServiceNow, or Microsoft Defender/Purview/Sentinel adapter exists anywhere in this repository — grep `k9_aif_abb/` before assuming otherwise. What exists is the pattern this skill documents, proven twice for external *agent* frameworks, and a target-architecture diagram (`docs/diagrams/k9-aif-consumers-producers.png`) showing where such adapters would sit if an organization builds them.
+The Zero Trust Execution Layer's `VERIFY → EVALUATE → DECIDE → ENFORCE → OBSERVE` pipeline is designed to accept exactly this kind of external adapter at each stage — an identity provider feeding `VERIFY`, a policy engine feeding `EVALUATE`, a SIEM or ITSM tool consuming `OBSERVE`'s audit stream. **What is built (check `CAPABILITIES.md`):** identity providers at `VERIFY` since 1.14 (`OIDCAuthenticator` with `KeycloakAuthenticator`, `EntraIDAuthenticator`, `OktaAuthenticator`, via `AuthenticatorFactory`), secret managers (`VaultSecretAdapter`, `IbmSecretAdapter`, `AwsSecretAdapter`), and rules engines (`K9RulesAdapter`, `RestRulesAdapter` for a decision service). **Not built:** no Zscaler, ServiceNow, or Microsoft Defender/Purview/Sentinel adapter exists anywhere in this repository — grep `k9_aif_abb/` before assuming otherwise. What exists is the pattern this skill documents, proven twice for external *agent* frameworks, and a target-architecture diagram (`docs/diagrams/k9-aif-consumers-producers.png`) showing where such adapters would sit if an organization builds them.
 
 If you are the organization building one: it is a fourth instance of the same three-piece shape above, wrapping whichever stage of the Zero Trust pipeline the vendor tool feeds — not a new pattern. Do not present a vendor name in documentation or diagrams as an implemented capability until an adapter under `k9_aif_abb/k9_adapters/<vendor>/` actually exists and is tested; a target diagram is a floor plan, not a certificate of occupancy.

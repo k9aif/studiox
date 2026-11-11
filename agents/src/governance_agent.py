@@ -23,5 +23,5 @@ class GovernanceAgent(BaseAgent):
             "passed": reason is None,
             "reason": reason,
         }
-        self.publish_event({"type": "GovernanceScreened", "agent": "GovernanceAgent", "passed": result["passed"]})
+        self.notify_monitor({"type": "GovernanceScreened", "agent": "GovernanceAgent", "passed": result["passed"]})
         return result

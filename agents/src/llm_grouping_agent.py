@@ -89,7 +89,7 @@ Every agent name in squads[].agents must have a matching entry in agents[]. Retu
             if "agents" not in suggestion or "squads" not in suggestion:
                 return {"agent": "LLMGroupingAgent", "suggestion": None, "source": None}
 
-            self.publish_event({"type": "LLMGroupingProposed", "agent": "LLMGroupingAgent",
+            self.notify_monitor({"type": "LLMGroupingProposed", "agent": "LLMGroupingAgent",
                                 "agent_count": len(suggestion.get("agents", []))})
             return {"agent": "LLMGroupingAgent", "suggestion": suggestion, "source": "llm"}
         except Exception as exc:

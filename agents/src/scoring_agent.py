@@ -58,7 +58,7 @@ class ScoringAgent(BaseAgent):
         else:
             winner, suggestion, source = "rule_based", rule_suggestion, "spec"
 
-        self.publish_event({"type": "SuggestionScored", "agent": "ScoringAgent", "winner": winner})
+        self.notify_monitor({"type": "SuggestionScored", "agent": "ScoringAgent", "winner": winner})
         return {
             "agent": "ScoringAgent",
             "suggestion": suggestion,

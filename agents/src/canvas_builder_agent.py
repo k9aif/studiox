@@ -25,6 +25,6 @@ class CanvasBuilderAgent(BaseAgent):
         if scored.get("scoring"):
             response["scoring"] = scored["scoring"]
 
-        self.publish_event({"type": "CanvasSuggestionBuilt", "agent": "CanvasBuilderAgent",
+        self.notify_monitor({"type": "CanvasSuggestionBuilt", "agent": "CanvasBuilderAgent",
                             "source": response["source"]})
         return response
