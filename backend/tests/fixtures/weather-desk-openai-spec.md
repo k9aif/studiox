@@ -42,7 +42,8 @@ and its squad-mates are its handoffs. The adapter caps handoffs per run, so a ha
 
 | Role | FrontDeskAgent | WeatherAgent | AttireAdvisorAgent |
 |---|---|---|---|
-| visitor | yes | yes | yes |
+| customer | yes | yes | yes |
+| staff | yes | yes | yes |
 | guest | yes | no | no |
 
 A guest reaches the front desk, but the handoff to WeatherAgent is refused by Zero Trust at that agent's turn.
@@ -101,8 +102,9 @@ other two as handoffs, from the squad order. You edit instructions and tools.
 
 1. Upload this file in K9X Studio, Intake.
 2. Check the Agent Framework card shows OpenAI Agents SDK.
-3. Generate the canvas, then Scaffold. Each squad gets runtimes/&lt;squad&gt;.py returning K9OpenAIAgentsAdapter.
-4. In runtimes/tools.py, replace example_lookup with current_weather from the Weather Assist example (weather_zip/tools.py).
-5. Add `tools: [current_weather]` to WeatherAgent's YAML, set OLLAMA_BASE_URL in .env, and run it.
+3. Generate the canvas, then Generate Scaffold. The squad gets runtimes/weather_desk_intelligence_squad.py, which returns K9OpenAIAgentsAdapter.
+4. In runtimes/tools.py, replace example_lookup with current_weather from the Weather Assist example (weather_zip/tools.py), and add `tools: [current_weather]` to WeatherAgent's YAML.
+5. Add current_weather to `approved_tools` (Shield's ToolAuthorizationCheck) in config/config.yaml. Without it, Shield refuses the tool call.
+6. Set OLLAMA_BASE_URL in .env, pull a tool-calling model (K9_MODEL_TOOLS, default qwen2.5:7b), put your question in config/scenario.json, and run ./run.sh.
 
 Source of the single-agent example: https://github.com/k9aif/examples/tree/main/k9x_openai_bedrock/openai
