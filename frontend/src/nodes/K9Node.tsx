@@ -161,6 +161,15 @@ export function K9Node({ id, data, selected }: NodeProps) {
           </div>
         )}
 
+        {fw.id !== 'native' && ['agent', 'validation_loop', 'critic_actor'].includes(d.componentType) && (
+          <div title={`Built from its YAML by ${fw.adapter} and run on ${fw.label}; K9-AIF governs each of its turns`}
+               style={{ marginTop: 6, display: 'inline-block', fontSize: 9.5, fontWeight: 600, letterSpacing: '0.03em',
+                        color: fw.color, border: `1px solid ${fw.color}66`, background: `${fw.color}14`,
+                        borderRadius: 4, padding: '2px 6px' }}>
+            {`${fw.agentAs} · ${fw.label}`}
+          </div>
+        )}
+
         {(d.componentType === 'squad' || d.componentType === 'intent_squad') && (() => {
           const AGENT_TYPES = new Set(['agent', 'validation_loop', 'critic_actor', 'guard']);
           const agentCount = edges.filter((e) => {

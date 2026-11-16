@@ -122,6 +122,9 @@ interface StudioStore {
   stagedBpmn: { fileName: string; result: any } | null;
   setStagedBpmn: (v: { fileName: string; result: any } | null) => void;
   stagedBlueprint: { fileName: string; result: any } | null;
+  // Bumped by clearProject/clearSession. Studio keys the always-mounted Intake panel on it, so Clear and
+  // logout start Intake fresh while switching tabs keeps what Intake shows (upload ticks, pre-check status).
+  intakeEpoch: number;
   setStagedBlueprint: (v: { fileName: string; result: any } | null) => void;
   // Process Studio's companion eval plan (-evals.md) — staged alongside
   // BPMN/blueprint but not itself an architecture input; never drives
@@ -327,6 +330,7 @@ export const useStore = create<StudioStore>()(
   stagedBpmn: null,
   setStagedBpmn: (v) => set({ stagedBpmn: v }),
   stagedBlueprint: null,
+  intakeEpoch: 0,
   setStagedBlueprint: (v) => set({ stagedBlueprint: v }),
   stagedEvals: null,
   setStagedEvals: (v) => set({ stagedEvals: v }),
@@ -343,7 +347,8 @@ export const useStore = create<StudioStore>()(
   hasGeneratedScaffold: false,
   setHasGeneratedScaffold: (v) => set({ hasGeneratedScaffold: v }),
 
-  clearSession: () => set({
+  clearSession: () => set((s) => ({
+    intakeEpoch: s.intakeEpoch + 1,
     nodes: [], edges: [], selectedNodeId: null,
     history: [], future: [],
     generatedDocs: [], logs: [],
@@ -353,7 +358,7 @@ export const useStore = create<StudioStore>()(
     stagedBpmn: null, stagedBlueprint: null, stagedEvals: null,
     pendingMappingDocument: null, mappingDocumentConfirmed: false, canvasLayer: 'all',
     project: EMPTY_PROJECT, hasGeneratedScaffold: false,
-  }),
+  })),
 
   // See the interface's clearProject comment — same full reset as
   // clearSession's project-clearing fields, minus logs (Clear starts a new
@@ -366,6 +371,7 @@ export const useStore = create<StudioStore>()(
   // one reads as stale/broken, not a feature — reset them too now.
   clearProject: () =>
     set((s) => ({
+      intakeEpoch: s.intakeEpoch + 1,
       history: [...s.history, { nodes: s.nodes, edges: s.edges }].slice(-MAX_HISTORY),
       future: [],
       nodes: [], edges: [], selectedNodeId: null,

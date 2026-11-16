@@ -14,21 +14,22 @@ export interface AgentFrameworkInfo {
   label: string;
   adapter: string;      // the K9-AIF facade the generated runtime returns ('' for native)
   squadAs: string;      // what a squad becomes on this framework
+  agentAs: string;      // what an agent becomes on this framework ('' for native)
   note: string;         // one line for Intake
   color: string;
 }
 
 export const AGENT_FRAMEWORKS: AgentFrameworkInfo[] = [
-  { id: 'native', label: 'K9-AIF native', adapter: '', squadAs: 'Squad',
+  { id: 'native', label: 'K9-AIF native', adapter: '', squadAs: 'Squad', agentAs: '',
     note: 'Squads of K9-AIF agents (BaseAgent). No other agent framework needed.', color: '#0ea5e9' },
-  { id: 'openai_agents', label: 'OpenAI Agents SDK', adapter: 'K9OpenAIAgentsAdapter', squadAs: 'Runner + handoffs',
+  { id: 'openai_agents', label: 'OpenAI Agents SDK', adapter: 'K9OpenAIAgentsAdapter', squadAs: 'Runner + handoffs', agentAs: 'OpenAI agent',
     note: 'Each squad runs as an OpenAI agent with its squad-mates as handoffs. Needs k9-aif 1.27.0 or later.',
     color: '#34d399' },
-  { id: 'crewai', label: 'CrewAI', adapter: 'K9CrewAIAdapter', squadAs: 'Crew',
+  { id: 'crewai', label: 'CrewAI', adapter: 'K9CrewAIAdapter', squadAs: 'Crew', agentAs: 'CrewAI agent',
     note: 'Each squad runs as a sequential Crew; every agent uses the governed K9 model bridge.', color: '#f59e0b' },
-  { id: 'langgraph', label: 'LangGraph', adapter: 'K9LangGraphAdapter', squadAs: 'Graph',
+  { id: 'langgraph', label: 'LangGraph', adapter: 'K9LangGraphAdapter', squadAs: 'Graph', agentAs: 'Graph node',
     note: 'Each squad runs as a StateGraph, one node per agent, each node calling llm_invoke.', color: '#a78bfa' },
-  { id: 'claude_agent_sdk', label: 'Claude Agent SDK', adapter: 'K9ClaudeAgentSDKAdapter', squadAs: 'Session + subagents',
+  { id: 'claude_agent_sdk', label: 'Claude Agent SDK', adapter: 'K9ClaudeAgentSDKAdapter', squadAs: 'Session + subagents', agentAs: 'Claude subagent',
     note: 'Each squad runs as one Claude session with its squad-mates as confined subagents.', color: '#fb923c' },
 ];
 

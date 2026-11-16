@@ -150,7 +150,7 @@ export function Studio() {
     lastTemplateSuggestion, triggerReapply, clearSession, llmConfig, setLlmConfig, llmActive, setLlmActive,
     selectedNodeId, availableModels, setAvailableModels, lastSpecFile, canvasIsRuleBased, addLog, setPendingCanvasSuggestion, setGenerating, genResult,
     setScaffoldFiles, centerTab: storedCenterTab, setCenterTab: setStoredCenterTab, clientId,
-    hasGeneratedScaffold, setHasGeneratedScaffold,
+    hasGeneratedScaffold, setHasGeneratedScaffold, intakeEpoch,
   } = useStore();
 
   const handleLogout = () => {
@@ -733,7 +733,12 @@ export function Studio() {
               </>
             )}
 
-            {centerTab === 'intake' && <IntakePanel onSwitchTab={(t) => setCenterTab(t as any)} />}
+            {/* Always mounted, only hidden: leaving Intake for another tab used to unmount it and drop what it
+                showed (the uploaded file's tick, the pre-check status), so a staged spec looked gone. Keyed on
+                intakeEpoch so Clear and logout still start it fresh. display: contents keeps the layout. */}
+            <div style={{ display: centerTab === 'intake' ? 'contents' : 'none' }}>
+              <IntakePanel key={intakeEpoch} onSwitchTab={(t) => setCenterTab(t as any)} />
+            </div>
 
             {centerTab === 'mapping' && <MappingDocumentPanel onConfirm={() => setCenterTab('canvas')} />}
             {centerTab === 'evals' && <EvalsPanel />}

@@ -14,6 +14,16 @@ from backend.services.spec_parsing_service import (
 _EMPTY_SCORE = {"score": 0, "agent_count": 0, "squad_count": 0, "type_count": 0}
 
 
+def _for_framework(suggestion: Dict[str, Any], framework: str) -> Dict[str, Any]:
+    """On another agent framework (OpenAI Agents SDK, CrewAI, ...) every agent is that framework's agent, built
+    from its YAML by K9-AIF's adapter: the K9-AIF agent patterns (ValidationLoop for AMBER, CriticActor for RED)
+    don't apply, so the agents come in as plain agents instead of being labelled with a pattern they won't run."""
+    if not framework or framework == "native":
+        return suggestion
+    agents = [{**a, "type": "BaseAgent"} for a in suggestion.get("agents", [])]
+    return {**suggestion, "agents": agents}
+
+
 class ScoringAgent(BaseAgent):
 
     layer = "k9x_studio ScoringAgent SBB"
@@ -30,6 +40,12 @@ class ScoringAgent(BaseAgent):
         llm_suggestion = llm_grouping.get("suggestion")
 
         project_name = intake.get("project_name", "Project")
+        framework = intake.get("agent_framework", "")
+        result = self._score(intake, agents_raw, zone_groups, llm_suggestion, project_name)
+        result["suggestion"] = _for_framework(result["suggestion"], framework)
+        return result
+
+    def _score(self, intake, agents_raw, zone_groups, llm_suggestion, project_name) -> Dict[str, Any]:
 
         if not agents_raw:
             return {
