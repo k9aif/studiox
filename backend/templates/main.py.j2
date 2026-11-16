@@ -58,6 +58,33 @@ def render_scenario_banner(scenario: dict, payload: dict) -> str:
     return "\n".join(lines)
 
 
+def _render_framework_run(lines: list, result: dict, run: dict) -> str:
+    """The squad ran on an agent framework (e.g. the OpenAI Agents SDK) through K9-AIF's adapter: show the
+    answer, which agent gave it, and every check K9-AIF made on the way (governance_trace)."""
+    lines.append("")
+    lines.append(f"  Last agent:     {run.get('last_agent', '—')}")
+    lines.append(f"  Model calls:    {run.get('model_calls', '—')}")
+    lines.append("")
+    lines.append("  Answer")
+    answer = str(result.get("output_text") or run.get("output") or "").strip() or "(empty)"
+    for para in answer.splitlines() or [answer]:
+        lines.extend(textwrap.wrap(para, width=_W - 4, initial_indent="    ", subsequent_indent="    ") or [""])
+    trace = run.get("governance_trace") or []
+    if trace:
+        lines.append("")
+        lines.append("─" * _W)
+        lines.append("  What K9-AIF checked")
+        lines.append("")
+        for ev in trace:
+            detail = ", ".join(f"{k}={v}" for k, v in ev.items() if k not in ("type", "agent"))
+            lines.append(f"  {ev.get('type', '?'):<24} {ev.get('agent', ''):<22} {detail}")
+    lines.append("")
+    lines.append("=" * _W)
+    lines.append("  Tip: run with --json to print full result JSON")
+    lines.append("=" * _W)
+    return "\n".join(lines)
+
+
 def render_result_summary(result: dict, app_name: str, orch_name: str, elapsed_s: float, correlation_id: str) -> str:
     lines = []
     status = result.get("status", "unknown").upper()
@@ -73,6 +100,11 @@ def render_result_summary(result: dict, app_name: str, orch_name: str, elapsed_s
     lines.append(f"  Elapsed:        {elapsed_s:.2f}s")
     lines.append(f"  Correlation ID: {correlation_id}")
     lines.append("─" * _W)
+
+    # ── A squad run by another agent framework (runtimes/): its answer and what K9-AIF checked ──
+    run = result.get("result") if isinstance(result.get("result"), dict) else {}
+    if "output_text" in result or run.get("governance_trace"):
+        return _render_framework_run(lines, result, run)
 
     # ── Agent Results table ───────────────────────────────────────────
     skip = {"status", "squad_id"}

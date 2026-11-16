@@ -717,6 +717,20 @@ def test_spec_with_agent_framework_imports_and_scaffolds_an_openai_handoff_squad
     project = {**intake, "author": "Test Author", "agents": sug["agents"], "squads": sug["squads"],
                "orchestrators": [{"name": orch, "squad": "WeatherDeskIntelligenceSquad"}]}
     root = _generate_and_extract(tmp_path, project)
+
+    # What a developer reads must match what runs: agents are OpenAI agents built from YAML (no class/module,
+    # no loop settings), the squad has no K9-AIF flow nobody runs, and a tool-calling model exists for the
+    # agents with tools or handoffs (the adapter routes them only to one).
+    agent_yaml = (root / "agents" / "yaml" / "front_desk_agent.yaml").read_text()
+    assert "module:" not in agent_yaml and "max_iterations: 5" not in agent_yaml and "K9OpenAIAgentsAdapter" in agent_yaml
+    squad_yaml = (root / "squads" / "yaml" / "weather_desk_intelligence_squad.yaml").read_text()
+    assert "\n    flow:" not in squad_yaml and "Entry agent: FrontDeskAgent" in squad_yaml
+    assert not (root / "squads" / "src" / "weather_desk_intelligence_squad.py").exists()
+    cfg = (root / "config" / "config.yaml").read_text()
+    assert "tool_calling" in cfg and "K9_MODEL_TOOLS" in cfg
+    puml = next((root / "docs" / "diagrams").glob("*.puml")).read_text()
+    assert "OpenAIAgentsOrchestratorAdapter" in puml and "FrontDeskAgent ..> WeatherAgent : handoff" in puml
+
     script = (
         "import sys, yaml\n"
         "from pathlib import Path\n"

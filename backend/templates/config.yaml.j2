@@ -54,7 +54,15 @@ inference:
         model: "${K9_MODEL_REASONING:-granite3-dense:2b}"
         temperature: 0.2
         max_tokens: 4096
-
+{% if agent_framework == 'openai_agents' %}
+      # OpenAI Agents SDK: an agent with tools or handoffs makes function calls, so K9-AIF routes it only to a
+      # catalog model marked tool_calling (below). Use a model that really calls tools; a small chat model
+      # writes the call out as text instead.
+      tools:
+        model: "${K9_MODEL_TOOLS:-qwen2.5:7b}"
+        temperature: 0
+        max_tokens: 4096
+{% endif %}
     # ── OpenAI ───────────────────────────────────────────────────────────
     # To enable: comment out the Ollama block above and uncomment this block.
     # Set OPENAI_API_KEY in your .env file.
@@ -117,7 +125,14 @@ inference:
         capabilities: [reasoning, analysis, extraction]
         latency_tier: interactive
         cost_tier: standard
-
+{% if agent_framework == 'openai_agents' %}
+      tools:
+        provider: ollama
+        llm_ref: tools
+        capabilities: [general, reasoning, chat, tool_calling]
+        latency_tier: interactive
+        cost_tier: standard
+{% endif %}
 # Every generated agent's __init__ wires k9x_Shield in by default (see
 # security.shield below). Granite Guardian is standard too: a semantic LLM
 # screen added on top of Shield (additive, never a replacement). It calls
@@ -180,7 +195,14 @@ security:
         - RequestFrequencyCheck
         - PIIRequestCheck
         - OutboundLinkCheck
-
+{% if agent_framework in ('openai_agents', 'claude_agent_sdk') %}
+    check_config:
+      # ToolAuthorizationCheck refuses any tool not listed here, before it runs. Add the name of every tool
+      # you register in runtimes/tools.py (ToolCapability.name); an unlisted tool is refused and the agent
+      # is told so, never given the tool's result.
+      ToolAuthorizationCheck:
+        approved_tools: [example_lookup]
+{% endif %}
 monitoring:
   console: true
   log_level: INFO

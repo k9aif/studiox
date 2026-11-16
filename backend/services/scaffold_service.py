@@ -27,6 +27,39 @@ from backend.services.bpmn_service import (
 )
 from backend.services.agent_framework_runtimes import AGENT_FRAMEWORKS, framework_of, runtime_files
 
+# What one agent becomes on each agent framework (agent YAML header; matches agentFrameworks.ts agentAs)
+_FW_AGENT_AS = {"openai_agents": "an OpenAI agent", "crewai": "a CrewAI agent", "langgraph": "a LangGraph node",
+                "claude_agent_sdk": "a Claude subagent"}
+
+# Class-diagram view of each agent framework: K9-AIF's orchestrator adapter for it, the framework classes it
+# runs, and what one agent is there.
+_FW_DIAGRAM = {
+    "openai_agents": {"orch_adapter": "OpenAIAgentsOrchestratorAdapter", "classes": ["Runner", "Agent"],
+                      "runs": "Runner", "agent": "Agent", "stereotype": "OpenAI Agent", "agents_as": "OpenAI agents"},
+    "crewai": {"orch_adapter": "CrewAIOrchestratorAdapter", "classes": ["Crew", "Agent"], "runs": "Crew",
+               "agent": "Agent", "stereotype": "CrewAI Agent", "agents_as": "CrewAI agents"},
+    "langgraph": {"orch_adapter": "LangGraphOrchestratorAdapter", "classes": ["StateGraph"],
+                  "runs": "StateGraph", "agent": "", "stereotype": "LangGraph node",
+                  "agents_as": "LangGraph nodes"},
+    "claude_agent_sdk": {"orch_adapter": "ClaudeAgentSDKOrchestratorAdapter",
+                         "classes": ["ClaudeSDKClient", "AgentDefinition"], "runs": "ClaudeSDKClient",
+                         "agent": "AgentDefinition", "stereotype": "Claude subagent",
+                         "agents_as": "Claude subagents"},
+}
+
+
+def _framework_squad_note(framework: str, squad: dict, to_snake) -> str:
+    """Squad YAML body for a squad that runs on another agent framework: what runs it and how, instead of a
+    K9-AIF flow that nothing would run."""
+    fw = AGENT_FRAMEWORKS[framework]
+    agents = squad.get("agents") or []
+    lines = [f"    # Runs on {fw['label']} as {fw['squad_as']}, built by runtimes/{to_snake(squad['name'])}.py",
+             f"    # and wrapped by K9-AIF's {fw['adapter']}. The agents above are listed in squad order."]
+    if framework == "openai_agents" and agents:
+        lines.append(f"    # Entry agent: {agents[0]}. Handoffs: {', '.join(agents[1:]) or 'none'}.")
+    lines.append("    # No flow: the framework decides each step; K9-AIF governs every one of them.")
+    return "\n".join(lines) + "\n"
+
 # All scaffold templates are studiox's own, in STUDIO_TEMPLATES_DIR. (Until
 # 2026-09-25 the BaseAgent template came from k9-aif-framework's
 # generator/templates, found via a sibling checkout or
@@ -153,7 +186,12 @@ def generate_class_diagram_puml(project: dict, app_name: str, app_folder: str, t
     squads = project.get("squads", [])
     orchestrators = project.get("orchestrators", [])
 
+    framework = framework_of(project)
+    fw_diagram = _FW_DIAGRAM.get(framework)
+
     def agent_base(agent_def: dict) -> str:
+        if fw_diagram:                  # the framework's own agent class, built from the YAML by the adapter
+            return fw_diagram["agent"] or "BaseAgent"
         t = agent_def.get("type", "BaseAgent")
         return t if t in _KNOWN_AGENT_BASE_TYPES else "BaseAgent"
 
@@ -179,9 +217,10 @@ def generate_class_diagram_puml(project: dict, app_name: str, app_folder: str, t
 
     # ── K9-AIF framework base classes (ABB / OOB) ───────────────────────
     lines.append('package "K9-AIF Framework (ABB / OOB)" #E8F5E9 {')
-    lines.append("  abstract class BaseAgent {")
-    lines.append("    + {abstract} execute(payload: dict) : dict")
-    lines.append("  }")
+    if not fw_diagram or not fw_diagram["agent"]:    # on a framework, agents are the framework's own agents
+        lines.append("  abstract class BaseAgent {")
+        lines.append("    + {abstract} execute(payload: dict) : dict")
+        lines.append("  }")
 
     if has_validation:
         lines.append("  abstract class BaseValidationLoopAgent {")
@@ -209,30 +248,55 @@ def generate_class_diagram_puml(project: dict, app_name: str, app_folder: str, t
         lines.append("  BaseAgent <|-- BaseCriticActorAgent")
         lines.append("  BaseCriticActorAgent <|-- K9CriticActorAgent")
 
-    if squads:
+    if squads and not fw_diagram:
         lines.append("  class BaseSquad {")
         lines.append("    + execute(payload: dict) : dict")
         lines.append("  }")
 
-    if orchestrators:
+    if orchestrators or fw_diagram:
         lines.append("  abstract class BaseOrchestrator {")
         lines.append("    + {abstract} execute_flow(payload: dict) : dict")
         lines.append("  }")
 
+    if fw_diagram:
+        fw = AGENT_FRAMEWORKS[framework]
+        lines.append("  abstract class BaseAdapter")
+        lines.append(f"  class {fw_diagram['orch_adapter']} {{")
+        lines.append("    + execute_flow(payload: dict) : dict")
+        lines.append("  }")
+        lines.append(f"  class {fw['adapter']} {{")
+        lines.append("    + execute(payload: dict) : dict")
+        lines.append("  }")
+        lines.append(f"  BaseOrchestrator <|-- {fw_diagram['orch_adapter']}")
+        lines.append(f"  BaseAdapter <|-- {fw_diagram['orch_adapter']}")
+        lines.append(f"  {fw['adapter']} *-- {fw_diagram['orch_adapter']}")
+
     lines.append("}")
     lines.append("")
+
+    if fw_diagram:
+        fw = AGENT_FRAMEWORKS[framework]
+        lines.append(f'package "{fw["label"]}" #E3F2FD {{')
+        for cls in fw_diagram["classes"]:
+            lines.append(f"  class {cls}")
+        lines.append("}")
+        lines.append(f"{fw_diagram['orch_adapter']} ..> {fw_diagram['runs']} : runs, governed")
+        lines.append("")
 
     # ── agents, grouped by squad ─────────────────────────────────────────
     if agents:
         squad_agent_names = {a for sq in squads for a in sq.get("agents", [])}
         unassigned = [a for a in agents if a["name"] not in squad_agent_names]
 
-        lines.append(f'package "{app_name} Agents" {{')
+        agents_title = f"{app_name} Agents" + (f" ({fw_diagram['agents_as']}, built from agents/yaml)"
+                                                if fw_diagram else "")
+        lines.append(f'package "{agents_title}" {{')
         for sq in squads:
             lines.append(f'  package "{sq["name"]}" {{')
             for agent_name in sq.get("agents", []):
-                lines.append(f"    class {agent_name}")
-            lines.append(f"    class {sq['name']}")
+                lines.append(f"    class {agent_name}" + (f" <<{fw_diagram['stereotype']}>>" if fw_diagram else ""))
+            if not fw_diagram:
+                lines.append(f"    class {sq['name']}")
             lines.append("  }")
         if unassigned:
             if squads:
@@ -248,14 +312,29 @@ def generate_class_diagram_puml(project: dict, app_name: str, app_folder: str, t
 
         # agent → base class
         for a in agents:
-            lines.append(f"{agent_base(a)} <|-- {a['name']}")
+            if fw_diagram and not fw_diagram["agent"]:          # LangGraph: each agent is a node of the graph
+                lines.append(f"{fw_diagram['runs']} o-- {a['name']} : node")
+            else:
+                lines.append(f"{agent_base(a)} <|-- {a['name']}")
         lines.append("")
 
-        # squad → BaseSquad, squad *-- agents
+        # squad → BaseSquad, squad *-- agents. On another framework the squad is its runtime module, whose
+        # build() returns K9-AIF's adapter for the framework's own construct.
         for sq in squads:
-            lines.append(f"BaseSquad <|-- {sq['name']}")
+            if fw_diagram:
+                fw = AGENT_FRAMEWORKS[framework]
+                lines.append(f'class {sq["name"]} <<runtimes/{to_snake(sq["name"])}.py>> {{')
+                lines.append("  + build(config, governance)")
+                lines.append("}")
+                lines.append(f"{sq['name']} ..> {fw['adapter']} : build() returns")
+            else:
+                lines.append(f"BaseSquad <|-- {sq['name']}")
             for agent_name in sq.get("agents", []):
                 lines.append(f"{sq['name']} *-- {agent_name}")
+            members = sq.get("agents", [])
+            if framework == "openai_agents" and len(members) > 1:
+                for target in members[1:]:                  # first agent is the entry; the rest its handoffs
+                    lines.append(f"{members[0]} ..> {target} : handoff")
         if squads:
             lines.append("")
 
@@ -2683,10 +2762,15 @@ def generate_scaffold(project: dict) -> io.BytesIO:
             if framework != "openai_agents":
                 add(f"{app_folder}/agents/src/{snake}.py", py_code)
 
+            # On another agent framework the agent is that framework's agent, built from this YAML by the
+            # adapter: no K9-AIF agent class, so no class/module and no ValidationLoop/CriticActor settings.
+            fw = AGENT_FRAMEWORKS[framework]
             yaml_code = _render("agent.yaml.j2", {
-                "agent": agent_def,
+                "agent": agent_def if framework == "native" else {**agent_def, "type": "BaseAgent"},
                 "domain": domain,
                 "timestamp": timestamp,
+                "fw_adapter": fw["adapter"],
+                "fw_agent_as": _FW_AGENT_AS.get(framework, "an agent"),
             })
             add(f"{app_folder}/agents/yaml/{snake}.yaml", yaml_code)
 
@@ -2735,7 +2819,7 @@ def sample_payload():
         for squad in squads:
             squad_yaml = f"# SPDX-License-Identifier: Apache-2.0\n# Generated by k9x_studio on {timestamp}\n\nsquads:\n"
             squad_yaml += f"  {squad['name']}:\n"
-            squad_yaml += f"    description: \"{squad['name']} agent pipeline — {domain}\"\n"
+            squad_yaml += f"    description: \"{squad['name']} agent pipeline{' — ' + domain if domain else ''}\"\n"
             squad_yaml += "    agents:\n"
             for a in squad["agents"]:
                 squad_yaml += f"      - {a}\n"
@@ -2743,13 +2827,19 @@ def sample_payload():
             # digest of upstream results from the framework's OOB
             # K9ContextSynthesizerAgent once they exceed max_context_chars.
             # Below that, behaviour is unchanged. No generated synthesizer class.
-            if len(squad["agents"]) > 1:
-                squad_yaml += "    synthesis: auto\n"
-            squad_yaml += "    flow:\n"
-            for a in squad["agents"]:
-                squad_yaml += f"      - agent: {a}\n"
-                squad_yaml += f"        result_key: {to_snake(a)}\n"
+            if framework != "native":
+                # Runs on the chosen agent framework through runtimes/<squad>.py, not as a K9-AIF flow
+                squad_yaml += _framework_squad_note(framework, squad, to_snake)
+            else:
+                if len(squad["agents"]) > 1:
+                    squad_yaml += "    synthesis: auto\n"
+                squad_yaml += "    flow:\n"
+                for a in squad["agents"]:
+                    squad_yaml += f"      - agent: {a}\n"
+                    squad_yaml += f"        result_key: {to_snake(a)}\n"
             add(f"{app_folder}/squads/yaml/{to_snake(squad['name'])}.yaml", squad_yaml)
+            if framework != "native":
+                continue      # no BaseSquad class: the framework runs this squad (runtimes/)
 
             # Squad src stub — extend BaseSquad only if custom behaviour needed
             squad_src = f'''# SPDX-License-Identifier: Apache-2.0
@@ -2770,16 +2860,19 @@ class {squad['name']}(BaseSquad):
         all_squads_yaml = f"# SPDX-License-Identifier: Apache-2.0\n# Generated by k9x_studio on {timestamp}\n\nsquads:\n"
         for squad in squads:
             all_squads_yaml += f"  {squad['name']}:\n"
-            all_squads_yaml += f"    description: \"{squad['name']} agent pipeline — {domain}\"\n"
+            all_squads_yaml += f"    description: \"{squad['name']} agent pipeline{' — ' + domain if domain else ''}\"\n"
             all_squads_yaml += "    agents:\n"
             for a in squad["agents"]:
                 all_squads_yaml += f"      - {a}\n"
-            if len(squad["agents"]) > 1:
-                all_squads_yaml += "    synthesis: auto\n"
-            all_squads_yaml += "    flow:\n"
-            for a in squad["agents"]:
-                all_squads_yaml += f"      - agent: {a}\n"
-                all_squads_yaml += f"        result_key: {to_snake(a)}\n"
+            if framework != "native":
+                all_squads_yaml += _framework_squad_note(framework, squad, to_snake)
+            else:
+                if len(squad["agents"]) > 1:
+                    all_squads_yaml += "    synthesis: auto\n"
+                all_squads_yaml += "    flow:\n"
+                for a in squad["agents"]:
+                    all_squads_yaml += f"      - agent: {a}\n"
+                    all_squads_yaml += f"        result_key: {to_snake(a)}\n"
             all_squads_yaml += "\n"
         add(f"{app_folder}/config/squads.yaml", all_squads_yaml)
 
@@ -2940,6 +3033,8 @@ class AgentLoader:
             "# Intelligent Model Router — model tags (see .env.example)",
             'K9_MODEL_GENERAL="llama3.2:1b"',
             'K9_MODEL_REASONING="granite3-dense:2b"',
+            *(['K9_MODEL_TOOLS="qwen2.5:7b"       # agents with tools or handoffs (OpenAI Agents SDK)']
+              if framework == "openai_agents" else []),
             "",
             "# Granite Guardian — standard, on by default",
             'K9_GUARDIAN_ENABLED="true"',
@@ -2997,6 +3092,8 @@ class AgentLoader:
             "# them on each switch (check `ollama ps`; OLLAMA_MAX_LOADED_MODELS).",
             'K9_MODEL_GENERAL=qwen3.8:27b',
             'K9_MODEL_REASONING=gemma4:31b',
+            *(["# OpenAI Agents SDK: agents with tools or handoffs go to a tool-calling model",
+               "K9_MODEL_TOOLS=qwen2.5:7b"] if framework == "openai_agents" else []),
             "",
             "# ── Granite Guardian (standard) ──────────────────────────",
             "# Semantic LLM screen on every agent call, on top of k9x_Shield.",
@@ -3240,6 +3337,9 @@ architecture docs, either:
         # Studio/Framework/Patterns Guide moved to a References section
         # near the end (see below), keeping this top table to facts
         # specific to this generation.
+        _tools_pull = ("  ollama pull qwen2.5:7b               # \"tools\" model (K9_MODEL_TOOLS): agents with tools or\n"
+                       "                                        # handoffs on the OpenAI Agents SDK\n"
+                       if framework == "openai_agents" else "")
         readme = f"""# {app_name}
 
 | | |
@@ -3292,7 +3392,7 @@ this folder — no sibling framework checkout, no project-nesting layout.
   ollama pull llama3.2:1b              # "general" model (K9_MODEL_GENERAL) — BaseAgent steps
   ollama pull granite3-dense:2b        # "reasoning" model (K9_MODEL_REASONING) — validation-loop
                                         # and critic-actor steps
-  ollama pull granite4.1-guardian:8b   # Granite Guardian (K9_GUARDIAN_MODEL) — on by default
+{_tools_pull}  ollama pull granite4.1-guardian:8b   # Granite Guardian (K9_GUARDIAN_MODEL) — on by default
   ```
 
   These are the small defaults. Set larger models in `.env` (see `.env.example`),
