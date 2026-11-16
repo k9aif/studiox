@@ -88,6 +88,25 @@ def parse_table(table_text: str, col_name: int, col_desc: int, col_zone: int) ->
     return agents
 
 
+# "**Agent Framework:** <label>" in a spec sets the project's agent framework (ids as in
+# agent_framework_runtimes.AGENT_FRAMEWORKS). Most specific names first: "OpenAI Agents SDK" before "native".
+_FRAMEWORK_NAMES: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"openai", re.I), "openai_agents"),
+    (re.compile(r"crew\s*ai", re.I), "crewai"),
+    (re.compile(r"lang\s*graph", re.I), "langgraph"),
+    (re.compile(r"claude", re.I), "claude_agent_sdk"),
+    (re.compile(r"native|k9-?aif", re.I), "native"),
+]
+
+
+def agent_framework_id(label: str) -> str:
+    """The framework id for a spec's "Agent Framework" value, or '' when it names none Studio supports."""
+    for pattern, fw_id in _FRAMEWORK_NAMES:
+        if pattern.search(label or ""):
+            return fw_id
+    return ""
+
+
 def extract_intake(content: str) -> dict:
     """Extract project intake fields (name, description, vision, goals, domain) via regex."""
     intake: dict = {}
@@ -100,6 +119,12 @@ def extract_intake(content: str) -> dict:
     if outcome:
         intake['description'] = outcome.group(1).strip()
         intake['vision'] = outcome.group(1).strip()
+
+    framework = re.search(r'\*\*Agent Framework:\*\*\s*(.+?)(?:\n|$)', content)
+    if framework:
+        fw_id = agent_framework_id(framework.group(1))
+        if fw_id:
+            intake['agent_framework'] = fw_id
 
     kpi_matches = re.findall(r'(\d+[-–]\d+%[^;,\n]{0,60})', content)
     if kpi_matches:

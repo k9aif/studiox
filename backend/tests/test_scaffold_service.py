@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -692,3 +693,46 @@ def test_openai_scaffold_requires_the_release_with_the_adapter(monkeypatch):
     assert ss._k9aif_requirement({"agent_framework": "openai_agents"}).endswith(">=1.27.0")
     monkeypatch.setattr(ss, "k9aif_version", lambda: "1.27.0")
     assert ss._k9aif_requirement({"agent_framework": "openai_agents"}).endswith("==1.27.0")
+
+
+def test_spec_with_agent_framework_imports_and_scaffolds_an_openai_handoff_squad(tmp_path):
+    """Property: a spec that says "**Agent Framework:** OpenAI Agents SDK" sets the project's framework on
+    import, its AMBER agents land in one squad in register order, and the scaffold builds that squad as an
+    OpenAI entry agent whose squad-mates are its handoffs. The fixture is the project_spec.md offered for
+    download on openai.k9x.ai (Multi-agent tab), so this keeps that download importable."""
+    pytest.importorskip("agents")
+    from studio_core.router.router_factory import route_event
+
+    spec = (Path(__file__).parent / "fixtures" / "weather-desk-openai-spec.md").read_text()
+    result = route_event("spec_import", {"content": spec, "filename": "project_spec.md",
+                                         "llm_config": None, "force_llm": None})
+    assert result["source"] == "spec"
+    intake, sug = result["intake"], result["suggestion"]
+    assert intake["agent_framework"] == "openai_agents"
+    assert [s["name"] for s in sug["squads"]] == ["WeatherDeskIntelligenceSquad"]
+    assert sug["squads"][0]["agents"] == ["FrontDeskAgent", "WeatherAgent", "AttireAdvisorAgent"]
+
+    # what Intake + the canvas hand the scaffold: intake fields, the suggestion, the orchestrator wired to its squad
+    orch = sug["orchestrators"][0]["name"]
+    project = {**intake, "author": "Test Author", "agents": sug["agents"], "squads": sug["squads"],
+               "orchestrators": [{"name": orch, "squad": "WeatherDeskIntelligenceSquad"}]}
+    root = _generate_and_extract(tmp_path, project)
+    script = (
+        "import sys, yaml\n"
+        "from pathlib import Path\n"
+        "root = Path(sys.argv[1]); sys.path.insert(0, str(root))\n"
+        "config = yaml.safe_load(open(root / 'config' / 'config.yaml'))\n"
+        "from orchestrators.weather_desk_intelligence_orchestrator import WeatherDeskIntelligenceOrchestrator\n"
+        "facade = WeatherDeskIntelligenceOrchestrator(config=config)._runtime('WeatherDeskIntelligenceSquad')\n"
+        "assert type(facade).__name__ == 'K9OpenAIAgentsAdapter', type(facade).__name__\n"
+        "import runtimes.weather_desk_intelligence_squad as rt\n"
+        "assert rt.AGENTS == ['FrontDeskAgent', 'WeatherAgent', 'AttireAdvisorAgent'], rt.AGENTS\n"
+        "print('built entry', rt.AGENTS[0], 'handoffs', rt.AGENTS[1:])\n"
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(root), env.get("PYTHONPATH", "")]))
+    env["K9_ENV"] = "development"
+    run = subprocess.run([sys.executable, "-c", script, str(root)], cwd=str(root), env=env,
+                         capture_output=True, text=True, timeout=180)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "built entry FrontDeskAgent" in run.stdout
