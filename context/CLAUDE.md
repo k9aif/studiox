@@ -21,7 +21,7 @@ Sentinel and HIL depend on nothing else). Never add CrewAI, LangGraph or
 similar to a new project by default. If an application already has a
 CrewAI crew or LangGraph graph, keep it unchanged and wrap it with the
 orchestrator adapter (`k9_adapters/crewai/`, `k9_adapters/langgraph/`,
-`k9_adapters/claude_agent_sdk/`), which adds K9-AIF governance at its
+`k9_adapters/claude_agent_sdk/`, `k9_adapters/openai_agents/`), which adds K9-AIF governance at its
 boundary.
 
 ## Capability index: read before designing anything
@@ -210,15 +210,19 @@ governance refuse before the tool runs. Development/test only warn. Tests:
 `governance_from_config(config)`: `security.shield.enabled: true` →
 `ShieldGovernance(config)`; `governance.guardian.enabled: true` →
 `GuardianGovernance` (Granite Guardian, `on_unavailable` default
-`fail_closed`; `temperature` default 0 from 1.26, so a verdict is repeatable:
-before, Ollama sampled and the same document flipped between runs); both → `ChainedGovernance(Shield, Guardian)`, Shield first.
+`fail_closed`; `temperature` default 0 from 1.26, removing most run-to-run variation:
+before, Ollama sampled and the same document flipped between runs; GPU
+inference is not bit-exact, so a borderline verdict can still change); both → `ChainedGovernance(Shield, Guardian)`, Shield first.
 One config setting therefore governs every agent of an application.
 Nothing configured → `NoopGovernance` (fine in development/test, refused in
 production).
 
-**Adapters.** The CrewAI, LangGraph and Claude SDK orchestrator adapters
+**Adapters.** The CrewAI, LangGraph, Claude SDK and OpenAI Agents SDK orchestrator adapters
 run pre/post at their boundary and call `assert_governed()` at the top of
-`execute_flow()`.
+`execute_flow()`. The OpenAI adapter (1.27.0) also checks every tool call, tool result and
+model reply, applies Zero Trust to each agent that takes a turn, and lets the K9 Model Router
+pick every model (`llm_route()`, the one router access outside `llm_invoke()`); see
+`k9_adapters/openai_agents/CLAUDE.md`.
 
 **Not wrapped:** orchestrator/router logic outside agents (call
 `apply_shield()` / `apply_zero_trust()` / `apply_pre_governance()` there), and

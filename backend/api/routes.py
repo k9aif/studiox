@@ -677,6 +677,8 @@ class ProjectDef(BaseModel):
     project_folder: str = ""
     framework_path: str = ""
     platforms: List[str] = Field(default_factory=list)
+    # The agent framework the squads run on (scaffold_service.AGENT_FRAMEWORKS); one per project.
+    agent_framework: str = "native"
     messaging_list: List[str] = Field(default_factory=list)
     database_list: List[str] = Field(default_factory=list)
     object_storage_list: List[str] = Field(default_factory=list)

@@ -78,6 +78,8 @@ export interface ProjectMeta {
   project_folder: string;
   framework_path: string;
   platforms: string[];
+  // The agent framework the squads run on (see agentFrameworks.ts); undefined = native for older projects
+  agent_framework?: import('./agentFrameworks').AgentFramework;
   messaging_list?: string[];
   database_list?: string[];
   object_storage_list?: string[];

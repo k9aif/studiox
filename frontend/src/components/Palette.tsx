@@ -5,6 +5,7 @@ import { VALID_TARGETS, VALID_NEXT_LABEL } from '../rules';
 import { PROJECT_TEMPLATES } from '../templates';
 import type { ProjectTemplate } from '../templates';
 import { openImportedRecord, SHARED_CHANGED_EVENT } from '../importedProject';
+import { AGENT_FRAMEWORKS, frameworkOf, withFramework } from '../agentFrameworks';
 
 const COMPONENT_COLORS: Record<string, string> = {
   intent_squad: '#06b6d4',
@@ -661,15 +662,12 @@ export function Palette({ onDragStart, onSwitchToCanvas }: PaletteProps) {
             </button>
             {expandedSections['frameworks'] && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, paddingLeft: 4 }}>
-                {([
-                  { id: 'crewai',    label: 'CrewAI'    },
-                  { id: 'langchain', label: 'LangChain' },
-                ] as const).map((p) => {
-                  const active = project.platforms.includes(p.id);
+                {AGENT_FRAMEWORKS.map((f) => {
+                  const active = frameworkOf(project) === f.id;
                   return (
-                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: active ? '#8892a4' : '#64748b' }}>
-                      <input type="checkbox" checked={active} onChange={() => setProject({ ...project, platforms: active ? project.platforms.filter((x) => x !== p.id) : [...project.platforms, p.id] })} style={{ accentColor: '#1cc88a', cursor: 'pointer' }} />
-                      {p.label}
+                    <label key={f.id} title={f.adapter ? `Generates ${f.adapter}` : 'Native K9-AIF squads'} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: active ? '#cbd5e1' : '#64748b' }}>
+                      <input type="radio" name="agent-framework" checked={active} onChange={() => setProject(withFramework(project, f.id))} style={{ accentColor: f.color, cursor: 'pointer' }} />
+                      {f.label}
                     </label>
                   );
                 })}

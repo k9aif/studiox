@@ -257,7 +257,7 @@ function getOrCreateClientId(): string {
 // button and clearSession's own reset drifted apart in the first place.
 const EMPTY_PROJECT: ProjectMeta = {
   project_name: '', app_name: '', author: '', domain: '', description: '',
-  project_folder: '', framework_path: '', platforms: [],
+  project_folder: '', framework_path: '', platforms: [], agent_framework: 'native',
   messaging_list: [], database_list: [], deployment_list: [],
 };
 

@@ -626,4 +626,69 @@ def test_k9aif_pin_never_goes_backwards_when_pypi_is_down(monkeypatch):
     monkeypatch.setattr(time, "monotonic", lambda: clock["t"])
     monkeypatch.setattr(ss, "_K9AIF_LATEST", {"v": "1.20.0", "at": 0.0})
     clock["t"] += ss.K9AIF_LOOKUP_TTL_SECONDS + 1
-    assert ss.k9aif_version() == "1.20.0"
+    # never older than the last known release; a newer installed k9-aif may legitimately win
+    assert ss._vkey(ss.k9aif_version()) >= ss._vkey("1.20.0")
+
+
+# ── Agent framework choice (Intake): each squad runs on the chosen framework through K9-AIF's adapter ─────
+
+FRAMEWORK_ADAPTERS = {
+    "openai_agents": ("agents", "K9OpenAIAgentsAdapter"),     # (SDK module to import-check, facade class)
+    "crewai": ("crewai", "K9CrewAIAdapter"),
+    "langgraph": ("langgraph", "K9LangGraphAdapter"),
+    "claude_agent_sdk": ("claude_agent_sdk", "K9ClaudeAgentSDKAdapter"),
+}
+
+
+@pytest.mark.parametrize("framework", sorted(FRAMEWORK_ADAPTERS))
+def test_agent_framework_scaffold_builds_each_squad_runtime(tmp_path, framework):
+    """Property: choosing an agent framework generates a runtime per squad that builds that framework's own
+    construct and returns K9-AIF's adapter for it, and the orchestrator still knows only squads. Built in a
+    fresh process from the generated files (no model call): import the orchestrator, build each squad's runtime,
+    check the facade type."""
+    sdk, facade = FRAMEWORK_ADAPTERS[framework]
+    pytest.importorskip(sdk)
+    project = {**SAMPLE_PROJECT, "agent_framework": framework}
+    root = _generate_and_extract(tmp_path, project)
+
+    assert (root / "runtimes" / "triage_squad.py").exists()
+    orch_src = (root / "orchestrators" / "triage_orchestrator.py").read_text()
+    assert "runtimes.triage_squad" in orch_src and "IntakeAgent" not in orch_src     # knows only squads
+    cfg_text = (root / "config" / "config.yaml").read_text()
+    assert f"agent_framework: {framework}" in cfg_text
+    req = (root / "requirements.txt").read_text()
+    assert FRAMEWORK_ADAPTERS and ("openai-agents" if framework == "openai_agents" else framework.replace("_", "-")) in req
+
+    script = (
+        "import sys, yaml\n"
+        "from pathlib import Path\n"
+        "root = Path(sys.argv[1]); sys.path.insert(0, str(root))\n"
+        "config = yaml.safe_load(open(root / 'config' / 'config.yaml'))\n"
+        "from orchestrators.triage_orchestrator import TriageOrchestrator\n"
+        "orch = TriageOrchestrator(config=config)\n"
+        "facade = orch._runtime('TriageSquad')\n"
+        f"assert type(facade).__name__ == {facade!r}, type(facade).__name__\n"
+        "assert callable(getattr(facade, 'execute'))\n"
+        "print('built', type(facade).__name__)\n"
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(root), env.get("PYTHONPATH", "")]))
+    env["K9_ENV"] = "development"
+    result = subprocess.run([sys.executable, "-c", script, str(root)], cwd=str(root), env=env,
+                            capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert f"built {facade}" in result.stdout
+
+
+def test_native_scaffold_has_no_runtimes(tmp_path):
+    root = _generate_and_extract(tmp_path, {**SAMPLE_PROJECT, "agent_framework": "native"})
+    assert not (root / "runtimes").exists()
+    assert "agent_framework: native" in (root / "config" / "config.yaml").read_text()
+
+
+def test_openai_scaffold_requires_the_release_with_the_adapter(monkeypatch):
+    import backend.services.scaffold_service as ss
+    monkeypatch.setattr(ss, "k9aif_version", lambda: "1.26.1")
+    assert ss._k9aif_requirement({"agent_framework": "openai_agents"}).endswith(">=1.27.0")
+    monkeypatch.setattr(ss, "k9aif_version", lambda: "1.27.0")
+    assert ss._k9aif_requirement({"agent_framework": "openai_agents"}).endswith("==1.27.0")

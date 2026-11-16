@@ -2,6 +2,7 @@ import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import { useStore } from '../store';
 import type { NodeData, ProjectMeta } from '../types';
+import { frameworkInfo, frameworkOf } from '../agentFrameworks';
 
 type Tab = 'log' | 'config' | 'flows' | 'governance' | 'orchestrators' | 'squads';
 
@@ -14,8 +15,6 @@ const PLATFORM_NOTES: Record<string, string> = {
   'watsonx-orchestrate': 'IBM watsonx Orchestrate — enterprise orchestration; maps to K9-AIF Orchestrator tier',
   'watsonx-governance':  'IBM watsonx Governance — AI Factsheets + model risk management; attach to ModelRouter',
   'watsonx-data':        'IBM watsonx.data — governed data lakehouse; use as retrieval/RAG data source',
-  'crewai':              'CrewAI — agent execution via k9_aif.adapters.crewai.CrewAIAgentAdapter',
-  'langchain':           'LangChain — chain/tool integration via k9_aif.adapters.langchain.LangChainAdapter',
 };
 
 function genConfig(project: ProjectMeta): string {
@@ -29,20 +28,20 @@ function genConfig(project: ProjectMeta): string {
   lines.push(`  domain: "${project.domain}"`);
   lines.push('');
 
-  if (project.platforms && project.platforms.length > 0) {
-    const watsonx = project.platforms.filter((p) => p.startsWith('watsonx-'));
-    const frameworks = project.platforms.filter((p) => !p.startsWith('watsonx-'));
+  const fw = frameworkInfo(frameworkOf(project));
+  lines.push(`agent_framework: ${fw.id}${fw.adapter ? `          # each squad runs as: ${fw.squadAs}, wrapped by ${fw.adapter}` : '          # native K9-AIF squads'}`);
+  lines.push('');
+
+  const watsonxOnly = (project.platforms ?? []).filter((p) => p.startsWith('watsonx-'));
+  if (watsonxOnly.length > 0) {
+    const watsonx = watsonxOnly;
     lines.push('platforms:');
     if (watsonx.length) {
       lines.push('  ibm_watsonx:');
       watsonx.forEach((p) => lines.push(`    - ${p.replace('watsonx-', '')}`));
     }
-    if (frameworks.length) {
-      lines.push('  agent_frameworks:');
-      frameworks.forEach((p) => lines.push(`    - ${p}`));
-    }
     lines.push('  notes:');
-    project.platforms.forEach((p) => {
+    watsonx.forEach((p) => {
       if (PLATFORM_NOTES[p]) lines.push(`    - "${PLATFORM_NOTES[p]}"`);
     });
     lines.push('');

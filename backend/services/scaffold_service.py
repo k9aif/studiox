@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover — optional dependency, see _render_doc
 from backend.services.bpmn_service import (
     build_mapping_document, _GOVERNANCE_SHORT, _ZERO_TRUST_SHORT, _GOVERNANCE_NOTE, _ZERO_TRUST_NOTE,
 )
+from backend.services.agent_framework_runtimes import AGENT_FRAMEWORKS, framework_of, runtime_files
 
 # All scaffold templates are studiox's own, in STUDIO_TEMPLATES_DIR. (Until
 # 2026-09-25 the BaseAgent template came from k9-aif-framework's
@@ -484,7 +485,15 @@ def _k9aif_requirement(project: dict) -> str:
         extras.append("ibm-cos")
     elif storage:
         extras.append("s3")
-    return f"k9-aif[{','.join(extras)}]=={k9aif_version()}"
+    fw = AGENT_FRAMEWORKS[framework_of(project)]
+    if fw["extra"]:
+        extras.append(fw["extra"])
+    version = k9aif_version()
+    if fw["min_k9aif"] and _vkey(version) < _vkey(fw["min_k9aif"]):
+        # The adapter ships in a release newer than what PyPI has today: require it rather than pin an older
+        # k9-aif that lacks it. Until it is on PyPI, install k9-aif from a framework checkout (pip install -e).
+        return f"k9-aif[{','.join(extras)}]>={fw['min_k9aif']}"
+    return f"k9-aif[{','.join(extras)}]=={version}"
 
 
 def _gen_mcp_tool_files(project: dict, app_name: str, timestamp: str) -> dict[str, str]:
@@ -979,7 +988,7 @@ def _categorize_platforms(project: dict) -> dict:
     """
     platforms = project.get("platforms", [])
     return {
-        "agent_frameworks": [p for p in platforms if not p.startswith("watsonx-")],
+        "agent_frameworks": [] if framework_of(project) == "native" else [framework_of(project)],
         "ibm_watsonx": [p for p in platforms if p.startswith("watsonx-")],
         "messaging": [m for m in project.get("messaging_list", []) if m and m != "None"],
         "databases": [d for d in project.get("database_list", []) if d and d != "None"],
@@ -2039,6 +2048,52 @@ def _gen_eval_mapping_md(project: dict, timestamp: str) -> Optional[str]:
     return "\n".join(lines)
 
 
+def _agent_framework_section(project: dict) -> list[str]:
+    """What the scaffold generated for the project's agent framework (agent_framework_runtimes.py)."""
+    fw_id = framework_of(project)
+    fw = AGENT_FRAMEWORKS[fw_id]
+    if fw_id == "native":
+        return [
+            "This project's squads are native K9-AIF squads: agents extend `BaseAgent` (or the loop ABBs) and the",
+            "squad layer runs them in the order of each squad's YAML. No other agent framework is needed.",
+            "",
+            "To run squads on the OpenAI Agents SDK, CrewAI, LangGraph or the Claude Agent SDK instead, choose it",
+            "under **Agent Framework** in Studio's Intake and generate again: each squad then gets a runtime",
+            "module wrapped by K9-AIF's adapter for that framework, under the same governance.",
+        ]
+    lines = [
+        f"This project's squads run on **{fw['label']}**. Each squad runs as {fw['squad_as']}, built by",
+        f"`runtimes/<squad>.py` from the agents' YAML and wrapped by K9-AIF's `{fw['adapter']}`.",
+        "The orchestrators still know only squads (K9-DEC-002): each checks Zero Trust and k9x Shield at the",
+        "entry, then calls the squad's runtime. Governance is the same as for native squads.",
+        "",
+        f"- Install: `pip install -r requirements.txt` (k9-aif with the `{fw['extra']}` extra).",
+    ]
+    if fw["min_k9aif"]:
+        lines.append(f"- Needs k9-aif {fw['min_k9aif']} or later, which ships the {fw['label']} adapter.")
+    if fw_id in ("openai_agents", "claude_agent_sdk"):
+        lines.append("- Tools: `runtimes/tools.py` (one example `ToolCapability`); name a tool in an agent's YAML "
+                     "`tools:` to give it to that agent.")
+    if fw_id == "claude_agent_sdk":
+        lines.append("- Needs `ANTHROPIC_API_KEY` or a logged-in Claude CLI; model calls go to Claude directly "
+                     "(K9-AIF governs the session's actions, not which model thinks).")
+    if fw_id == "openai_agents":
+        lines.append("- Every model call goes through the K9 Model Router (`model_routing: k9`); SDK traces stay "
+                     "local unless `openai_agents.export_traces: true`.")
+    if fw_id == "crewai":
+        lines.append("- Every agent's model calls go through the K9 Model Router (`K9XLiteLLMBridgeAdapter`). "
+                     "CrewAI and the OpenAI Agents SDK can't share an environment (openai version conflict).")
+    if fw_id == "langgraph":
+        lines.append("- Each node calls the model through `llm_invoke` (the K9 Model Router).")
+    if fw_id == "openai_agents":
+        lines.append("- No agent classes: the adapter builds each OpenAI agent from `agents/yaml/`. `agents/` is "
+                     "deliberately not a Python package, because the OpenAI Agents SDK's own package is named `agents`.")
+    else:
+        lines.append("- The agent classes in `agents/src/` are the native fallback; this framework's runtime builds "
+                     "its agents from `agents/yaml/` instead.")
+    return lines
+
+
 def _gen_implementation_plan_md(project: dict, app_name: str, timestamp: str) -> str:
     """
     The implementation plan: Process -> Implementation Traceability
@@ -2215,25 +2270,9 @@ def _gen_implementation_plan_md(project: dict, app_name: str, timestamp: str) ->
         "",
         "---",
         "",
-        "## Framework & Agent SDK Interoperability",
+        "## Agent Framework",
         "",
-        "K9-AIF agents are plain Python classes (`BaseAgent`, `K9ValidationLoopAgent`,",
-        "`K9CriticActorAgent`) with no framework lock-in — this is a standard, always-available",
-        "capability of every scaffold this Studio generates, not something specific to this",
-        "project's selections above. Supported integration points:",
-        "",
-        "- **CrewAI** — wrap a K9-AIF agent's `execute()` as a CrewAI `Tool`, or call it from a",
-        "  custom CrewAI `Agent`; the K9-AIF Router/Orchestrator/Squad hierarchy can sit above or",
-        "  alongside a CrewAI crew rather than replacing it.",
-        "- **Claude Agent SDK** — a given agent's LLM call can run through the Claude Agent SDK's",
-        "  managed sandbox / tool-runner loop instead of (or in addition to) `K9ModelRouter`'s own",
-        "  model selection, without changing that agent's Governance/k9x_Shield wiring.",
-        "- **Any MCP-compatible tool server** — k9x_Shield's Tool Authorization and Tool Argument",
-        "  checks apply uniformly to tool calls regardless of which framework issued them.",
-        "",
-        "As with the rest of this document, none of this is pre-wired into working integration",
-        "code — it's a documented extension point. Implementing a specific integration is an SA",
-        "task; see <https://k9x.ai/developer_guide> for interop examples.",
+    ] + _agent_framework_section(project) + [
         "",
         "---",
         "",
@@ -2615,6 +2654,13 @@ def generate_scaffold(project: dict) -> io.BytesIO:
         for path, code in _gen_adapter_files(project, app_name, timestamp).items():
             add(f"{app_folder}/{path}", code)
 
+        # ── agent framework runtimes — one module per squad when the project's squads run on another agent
+        # framework (OpenAI Agents SDK, CrewAI, LangGraph, Claude Agent SDK); each returns K9-AIF's adapter for
+        # that framework. Native projects get nothing here. See agent_framework_runtimes.py.
+        framework = framework_of(project)
+        for path, code in runtime_files(project, timestamp, to_snake).items():
+            add(f"{app_folder}/{path}", code)
+
         # ── MCP tools — one stub per §3.4 MCP Tool Engineering Plan entry.
         for path, code in _gen_mcp_tool_files(project, app_name, timestamp).items():
             add(f"{app_folder}/{path}", code)
@@ -2631,7 +2677,11 @@ def generate_scaffold(project: dict) -> io.BytesIO:
                 "app_name": app_name,
                 "timestamp": timestamp,
             })
-            add(f"{app_folder}/agents/src/{snake}.py", py_code)
+            # OpenAI Agents SDK projects build their agents from agents/yaml and need no agent classes. They
+            # must not have an importable `agents` package either: the SDK's own top-level package is called
+            # `agents`, and only one of the two can be imported in a process.
+            if framework != "openai_agents":
+                add(f"{app_folder}/agents/src/{snake}.py", py_code)
 
             yaml_code = _render("agent.yaml.j2", {
                 "agent": agent_def,
@@ -2641,7 +2691,14 @@ def generate_scaffold(project: dict) -> io.BytesIO:
             add(f"{app_folder}/agents/yaml/{snake}.yaml", yaml_code)
 
         # ── __init__.py stubs ─────────────────────────────────────────
-        for subdir in ("", "agents/src", "agents/yaml", "adapters/src", "orchestrators", "orchestrators/yaml", "config", "utils", "tests", "squads/src", "squads/yaml"):
+        # agents/, adapters/ and squads/ get their own __init__.py too: without one, Python treats the folder
+        # as a namespace package, which loses to any installed package of the same name. The OpenAI Agents
+        # SDK installs a top-level package called `agents`, so `agents.src` failed to import next to it.
+        package_dirs = ["", "agents", "agents/src", "agents/yaml", "adapters", "adapters/src", "orchestrators",
+                        "orchestrators/yaml", "config", "utils", "tests", "squads", "squads/src", "squads/yaml"]
+        if framework == "openai_agents":       # agents/ stays plain data (YAML only): see the agents loop above
+            package_dirs = [d for d in package_dirs if not d.startswith("agents")]
+        for subdir in package_dirs:
             init_path = f"{app_folder}/{subdir}/__init__.py" if subdir else f"{app_folder}/__init__.py"
             add(init_path, f"# {app_name} — generated by k9x_studio\n")
 
@@ -2744,7 +2801,9 @@ class {squad['name']}(BaseSquad):
             # No agent list here: the orchestrator knows only its squads; the
             # squad layer builds each squad's agents from its YAML (K9-DEC-002).
 
-            orch_code = _render("orchestrator.py.j2", {
+            orch_code = _render("orchestrator.py.j2" if framework == "native" else "orchestrator_runtime.py.j2", {
+                "framework_label": AGENT_FRAMEWORKS[framework]["label"],
+                "adapter": AGENT_FRAMEWORKS[framework]["adapter"],
                 "app_name": app_name,
                 "app_folder": app_folder,
                 "orchestrator_name": orch_name,
@@ -2795,6 +2854,7 @@ class {squad['name']}(BaseSquad):
             "domain": domain,
             "timestamp": timestamp,
             "agent_frameworks": cat["agent_frameworks"],
+            "agent_framework": framework_of(project),
             "ibm_watsonx": cat["ibm_watsonx"],
             "messaging": cat["messaging"],
             "databases": cat["databases"],

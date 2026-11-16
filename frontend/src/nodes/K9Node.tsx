@@ -2,6 +2,7 @@ import type { NodeProps } from '@xyflow/react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeData } from '../types';
 import { useStore } from '../store';
+import { frameworkInfo, frameworkOf } from '../agentFrameworks';
 
 const ICONS: Record<string, string> = {
   intent_squad: '⊕',
@@ -47,7 +48,10 @@ const handleStyle = (color: string) => ({
 
 export function K9Node({ id, data, selected }: NodeProps) {
   const d = data as NodeData;
-  const { edges, nodes, toggleSquadCollapse } = useStore();
+  const { edges, nodes, toggleSquadCollapse, project } = useStore();
+  // The project's agent framework: orchestrators show the K9-AIF adapter they wrap it with,
+  // squads show what they run as (Crew, Graph, Runner + handoffs, ...). Native shows nothing extra.
+  const fw = frameworkInfo(frameworkOf(project));
   const icon = ICONS[d.componentType] ?? '◉';
 
   if (d.system) {
@@ -145,6 +149,17 @@ export function K9Node({ id, data, selected }: NodeProps) {
         }}>
           {d.abbClass}
         </div>
+
+        {fw.id !== 'native' && (d.componentType === 'orchestrator' || d.componentType === 'squad') && (
+          <div title={d.componentType === 'orchestrator'
+                 ? `Runs its squads on ${fw.label}, each wrapped by ${fw.adapter}`
+                 : `Runs on ${fw.label} as: ${fw.squadAs}`}
+               style={{ marginTop: 6, display: 'inline-block', fontSize: 9.5, fontWeight: 600, letterSpacing: '0.03em',
+                        color: fw.color, border: `1px solid ${fw.color}66`, background: `${fw.color}14`,
+                        borderRadius: 4, padding: '2px 6px' }}>
+            {d.componentType === 'orchestrator' ? `${fw.adapter}` : `${fw.squadAs} · ${fw.label}`}
+          </div>
+        )}
 
         {(d.componentType === 'squad' || d.componentType === 'intent_squad') && (() => {
           const AGENT_TYPES = new Set(['agent', 'validation_loop', 'critic_actor', 'guard']);

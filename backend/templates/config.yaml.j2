@@ -7,6 +7,15 @@ app:
   author: "{{ author }}"
   domain: "{{ domain }}"
 
+# ── Agent framework ────────────────────────────────────────────────────────
+# What the squads run on (chosen in Studio's Intake). Anything but "native" means each squad runs through
+# runtimes/<squad>.py, wrapped by K9-AIF's adapter for that framework.
+agent_framework: {{ agent_framework | default('native') }}
+{% if agent_framework == 'openai_agents' %}
+openai_agents:
+  export_traces: false     # keep OpenAI Agents SDK traces local (the SDK exports to OpenAI by default)
+{% endif %}
+
 # ── Selected platforms & infrastructure ────────────────────────────────────
 # Mirrors the checkboxes selected in k9x_studio's left pane (Platforms &
 # Frameworks). This is declarative only — nothing here is wired up yet.
