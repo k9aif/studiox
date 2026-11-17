@@ -126,6 +126,12 @@ def extract_intake(content: str) -> dict:
         if fw_id:
             intake['agent_framework'] = fw_id
 
+    # "**Agent Routing:** handoffs" lets the model pick the next OpenAI agent; anything else (or nothing) keeps
+    # the K9-AIF default, a squad that runs its agents in flow order.
+    routing = re.search(r'\*\*Agent Routing:\*\*\s*(.+?)(?:\n|$)', content)
+    if routing:
+        intake['agent_routing'] = "handoffs" if re.search(r"hand\s*-?offs?", routing.group(1), re.I) else "sequence"
+
     kpi_matches = re.findall(r'(\d+[-–]\d+%[^;,\n]{0,60})', content)
     if kpi_matches:
         intake['target_goals'] = '; '.join(kpi_matches[:4])

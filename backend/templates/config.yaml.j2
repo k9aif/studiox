@@ -8,10 +8,11 @@ app:
   domain: "{{ domain }}"
 
 # ── Agent framework ────────────────────────────────────────────────────────
-# What the squads run on (chosen in Studio's Intake). Anything but "native" means each squad runs through
-# runtimes/<squad>.py, wrapped by K9-AIF's adapter for that framework.
+# What the squads run on (chosen in Studio's Intake). "native" and "openai_squad" (OpenAI agents run by the
+# squad, in flow order) use K9-AIF's squad layer; the others run each squad through runtimes/<squad>.py,
+# wrapped by K9-AIF's adapter for that framework ("openai_agents" = handoffs, the model picks the agent).
 agent_framework: {{ agent_framework | default('native') }}
-{% if agent_framework == 'openai_agents' %}
+{% if agent_framework in ('openai_agents', 'openai_squad') %}
 openai_agents:
   export_traces: false     # keep OpenAI Agents SDK traces local (the SDK exports to OpenAI by default)
 {% endif %}
@@ -54,7 +55,7 @@ inference:
         model: "${K9_MODEL_REASONING:-granite3-dense:2b}"
         temperature: 0.2
         max_tokens: 4096
-{% if agent_framework == 'openai_agents' %}
+{% if agent_framework in ('openai_agents', 'openai_squad') %}
       # OpenAI Agents SDK: an agent with tools or handoffs makes function calls, so K9-AIF routes it only to a
       # catalog model marked tool_calling (below). Use a model that really calls tools; a small chat model
       # writes the call out as text instead.
@@ -125,7 +126,7 @@ inference:
         capabilities: [reasoning, analysis, extraction]
         latency_tier: interactive
         cost_tier: standard
-{% if agent_framework == 'openai_agents' %}
+{% if agent_framework in ('openai_agents', 'openai_squad') %}
       tools:
         provider: ollama
         llm_ref: tools
@@ -195,7 +196,7 @@ security:
         - RequestFrequencyCheck
         - PIIRequestCheck
         - OutboundLinkCheck
-{% if agent_framework in ('openai_agents', 'claude_agent_sdk') %}
+{% if agent_framework in ('openai_agents', 'openai_squad', 'claude_agent_sdk') %}
     check_config:
       # ToolAuthorizationCheck refuses any tool not listed here, before it runs. Add the name of every tool
       # you register in runtimes/tools.py (ToolCapability.name); an unlisted tool is refused and the agent

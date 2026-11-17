@@ -649,7 +649,9 @@ def test_agent_framework_scaffold_builds_each_squad_runtime(tmp_path, framework)
     check the facade type."""
     sdk, facade = FRAMEWORK_ADAPTERS[framework]
     pytest.importorskip(sdk)
-    project = {**SAMPLE_PROJECT, "agent_framework": framework}
+    # OpenAI's runtime is the handoff group, generated only when the design spec asks for handoffs
+    routing = {"agent_routing": "handoffs"} if framework == "openai_agents" else {}
+    project = {**SAMPLE_PROJECT, "agent_framework": framework, **routing}
     root = _generate_and_extract(tmp_path, project)
 
     assert (root / "runtimes" / "triage_squad.py").exists()
@@ -688,27 +690,88 @@ def test_native_scaffold_has_no_runtimes(tmp_path):
 
 
 def test_openai_scaffold_requires_the_release_with_the_adapter(monkeypatch):
+    """Sequence (default) needs K9OpenAIAgent (1.28.0); handoffs need the orchestrator adapter (1.27.0)."""
     import backend.services.scaffold_service as ss
-    monkeypatch.setattr(ss, "k9aif_version", lambda: "1.26.1")
-    assert ss._k9aif_requirement({"agent_framework": "openai_agents"}).endswith(">=1.27.0")
+    seq, hand = {"agent_framework": "openai_agents"}, {"agent_framework": "openai_agents", "agent_routing": "handoffs"}
     monkeypatch.setattr(ss, "k9aif_version", lambda: "1.27.0")
-    assert ss._k9aif_requirement({"agent_framework": "openai_agents"}).endswith("==1.27.0")
+    assert ss._k9aif_requirement(seq).endswith(">=1.28.0")
+    assert ss._k9aif_requirement(hand).endswith("==1.27.0")
+    monkeypatch.setattr(ss, "k9aif_version", lambda: "1.26.1")
+    assert ss._k9aif_requirement(hand).endswith(">=1.27.0")
+    monkeypatch.setattr(ss, "k9aif_version", lambda: "1.28.0")
+    assert ss._k9aif_requirement(seq).endswith("==1.28.0")
 
 
-def test_spec_with_agent_framework_imports_and_scaffolds_an_openai_handoff_squad(tmp_path):
-    """Property: a spec that says "**Agent Framework:** OpenAI Agents SDK" sets the project's framework on
-    import, its AMBER agents land in one squad in register order, and the scaffold builds that squad as an
-    OpenAI entry agent whose squad-mates are its handoffs. The fixture is the project_spec.md offered for
-    download on openai.k9x.ai (Multi-agent tab), so this keeps that download importable."""
-    pytest.importorskip("agents")
+def _import_spec(spec: str):
     from studio_core.router.router_factory import route_event
-
-    spec = (Path(__file__).parent / "fixtures" / "weather-desk-openai-spec.md").read_text()
-    result = route_event("spec_import", {"content": spec, "filename": "project_spec.md",
+    result = route_event("spec_import", {"content": spec, "filename": "design_spec.md",
                                          "llm_config": None, "force_llm": None})
     assert result["source"] == "spec"
-    intake, sug = result["intake"], result["suggestion"]
-    assert intake["agent_framework"] == "openai_agents"
+    return result["intake"], result["suggestion"]
+
+
+def _run_in(root: Path, script: str) -> str:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(root), env.get("PYTHONPATH", "")]))
+    env["K9_ENV"] = "development"
+    run = subprocess.run([sys.executable, "-c", script, str(root)], cwd=str(root), env=env,
+                         capture_output=True, text=True, timeout=180)
+    assert run.returncode == 0, run.stdout + run.stderr
+    return run.stdout
+
+
+SPEC_FIXTURE = Path(__file__).parent / "fixtures" / "weather-desk-openai-spec.md"
+
+
+def test_openai_spec_by_default_scaffolds_a_squad_that_runs_its_agents_in_flow_order(tmp_path):
+    """Property: on the OpenAI Agents SDK the squad decides which agent runs next, not the model, unless the
+    design spec asks for handoffs. The default scaffold makes each agent a K9OpenAIAgent class run by a K9-AIF
+    squad in flow order with synthesis, offers no agent a handoff, and gives the agents their tools through the
+    squad layer. The fixture is the design_spec.md offered on openai.k9x.ai (Multi-agent tab)."""
+    pytest.importorskip("agents")
+    intake, sug = _import_spec(SPEC_FIXTURE.read_text())
+    assert intake["agent_framework"] == "openai_agents" and intake.get("agent_routing", "sequence") == "sequence"
+    orch = sug["orchestrators"][0]["name"]
+    project = {**intake, "author": "Test Author", "agents": sug["agents"], "squads": sug["squads"],
+               "orchestrators": [{"name": orch, "squad": "WeatherDeskIntelligenceSquad"}]}
+    root = _generate_and_extract(tmp_path, project)
+
+    assert not (root / "runtimes" / "weather_desk_intelligence_squad.py").exists()      # no handoff runtime
+    assert (root / "squad_agents" / "front_desk_agent.py").exists() and not (root / "agents" / "src").exists()
+    agent_yaml = (root / "agents" / "yaml" / "front_desk_agent.yaml").read_text()
+    assert "module: squad_agents.front_desk_agent" in agent_yaml and "handoffs: []" in agent_yaml
+    squad_yaml = (root / "squads" / "yaml" / "weather_desk_intelligence_squad.yaml").read_text()
+    assert "\n    flow:" in squad_yaml and "synthesis: auto" in squad_yaml
+    assert squad_yaml.index("agent: FrontDeskAgent") < squad_yaml.index("agent: WeatherAgent") \
+        < squad_yaml.index("agent: AttireAdvisorAgent")
+    assert "agent_kwargs={\"capabilities\": CAPABILITIES}" in (root / "main.py").read_text()
+    assert "k9-aif[" in (root / "requirements.txt").read_text() and "openai-agents" in (root / "requirements.txt").read_text()
+    puml = next((root / "docs" / "diagrams").glob("*.puml")).read_text()
+    assert "K9OpenAIAgent <|-- FrontDeskAgent" in puml and "handoff" not in puml
+
+    out = _run_in(root, (
+        "import sys, yaml\n"
+        "from pathlib import Path\n"
+        "root = Path(sys.argv[1]); sys.path.insert(0, str(root))\n"
+        "config = yaml.safe_load(open(root / 'config' / 'config.yaml'))\n"
+        "from k9_aif_abb.k9_squad.squad_loader import SquadLoader\n"
+        "from k9_aif_abb.k9_adapters.openai_agents import K9OpenAIAgent\n"
+        "from runtimes.tools import CAPABILITIES\n"
+        "loader = SquadLoader.from_agents(root / 'agents' / 'yaml', config=config, agent_kwargs={'capabilities': CAPABILITIES})\n"
+        "squad = loader.load_one(root / 'squads' / 'yaml' / 'weather_desk_intelligence_squad.yaml', 'WeatherDeskIntelligenceSquad')\n"
+        "assert all(isinstance(a, K9OpenAIAgent) for a in squad.agents), squad.agents\n"
+        "assert all(not a._agent.handoffs for a in squad.agents)\n"
+        "print('flow', [s['agent'] for s in squad.flow])\n"
+    ))
+    assert "flow ['FrontDeskAgent', 'WeatherAgent', 'AttireAdvisorAgent']" in out
+
+
+def test_spec_with_agent_routing_handoffs_scaffolds_an_openai_handoff_squad(tmp_path):
+    """Property: "**Agent Routing:** handoffs" in the design spec is the explicit opt-in for model routing: the
+    scaffold builds the squad as an OpenAI entry agent whose squad-mates are its handoffs."""
+    pytest.importorskip("agents")
+    intake, sug = _import_spec(SPEC_FIXTURE.read_text() + "\n**Agent Routing:** handoffs\n")
+    assert intake["agent_framework"] == "openai_agents" and intake["agent_routing"] == "handoffs"
     assert [s["name"] for s in sug["squads"]] == ["WeatherDeskIntelligenceSquad"]
     assert sug["squads"][0]["agents"] == ["FrontDeskAgent", "WeatherAgent", "AttireAdvisorAgent"]
 

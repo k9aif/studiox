@@ -218,7 +218,15 @@ def main():
 
     # The squad layer, built once: orchestrators load squads by YAML file and id
     # through it; it builds the agents each squad's YAML names (Squad Layer pattern).
+{% if openai_squad %}
+    # Each agent is an OpenAI agent (K9OpenAIAgent, squad_agents/); the tools they may call come from
+    # runtimes/tools.py. The squads run the agents in flow order: the squad decides, never the model.
+    from runtimes.tools import CAPABILITIES
+    squads = SquadLoader.from_agents(Path(__file__).resolve().parent / "agents" / "yaml", config=config,
+                                     agent_kwargs={"capabilities": CAPABILITIES})
+{% else %}
     squads = SquadLoader.from_agents(Path(__file__).resolve().parent / "agents" / "yaml", config=config)
+{% endif %}
 
 {% for orch in orchestrators %}
     orch_{{ loop.index }} = {{ orch.name }}(config=config, squads=squads)

@@ -223,6 +223,10 @@ run pre/post at their boundary and call `assert_governed()` at the top of
 model reply, applies Zero Trust to each agent that takes a turn, and lets the K9 Model Router
 pick every model (`llm_route()`, the one router access outside `llm_invoke()`); see
 `k9_adapters/openai_agents/CLAUDE.md`.
+**Several OpenAI agents (1.28.0): the squad decides, not the model.** `K9OpenAIAgent` makes each
+OpenAI agent an individual agent (one small subclass per agent) that `BaseSquad` runs in its `flow:` order,
+with `synthesis:`; no handoff is offered to the model. Use the orchestrator adapter's handoffs only where
+letting the model pick the specialist is the point. Test: `tests/test_openai_agent_squad.py`.
 
 **Not wrapped:** orchestrator/router logic outside agents (call
 `apply_shield()` / `apply_zero_trust()` / `apply_pre_governance()` there), and

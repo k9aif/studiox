@@ -22,8 +22,10 @@ export interface AgentFrameworkInfo {
 export const AGENT_FRAMEWORKS: AgentFrameworkInfo[] = [
   { id: 'native', label: 'K9-AIF native', adapter: '', squadAs: 'Squad', agentAs: '',
     note: 'Squads of K9-AIF agents (BaseAgent). No other agent framework needed.', color: '#0ea5e9' },
-  { id: 'openai_agents', label: 'OpenAI Agents SDK', adapter: 'K9OpenAIAgentsAdapter', squadAs: 'Runner + handoffs', agentAs: 'OpenAI agent',
-    note: 'Each squad runs as an OpenAI agent with its squad-mates as handoffs. Needs k9-aif 1.27.0 or later.',
+  { id: 'openai_agents', label: 'OpenAI Agents SDK', adapter: 'K9OpenAIAgent', squadAs: 'Squad of OpenAI agents', agentAs: 'OpenAI agent',
+    note: 'Each agent is an OpenAI agent, and the squad runs them in flow order with synthesis: the squad decides, '
+        + 'not the model. Handoffs (the model picks the agent) only when the design spec sets Agent Routing: handoffs. '
+        + 'Needs k9-aif 1.28.0 or later.',
     color: '#34d399' },
   { id: 'crewai', label: 'CrewAI', adapter: 'K9CrewAIAdapter', squadAs: 'Crew', agentAs: 'CrewAI agent',
     note: 'Each squad runs as a sequential Crew; every agent uses the governed K9 model bridge.', color: '#f59e0b' },
@@ -32,6 +34,11 @@ export const AGENT_FRAMEWORKS: AgentFrameworkInfo[] = [
   { id: 'claude_agent_sdk', label: 'Claude Agent SDK', adapter: 'K9ClaudeAgentSDKAdapter', squadAs: 'Session + subagents', agentAs: 'Claude subagent',
     note: 'Each squad runs as one Claude session with its squad-mates as confined subagents.', color: '#fb923c' },
 ];
+
+/** For the OpenAI Agents SDK: who picks the next agent. 'sequence' unless the design spec asked for handoffs. */
+export function routingOf(project: Partial<ProjectMeta>): 'sequence' | 'handoffs' {
+  return project.agent_routing === 'handoffs' ? 'handoffs' : 'sequence';
+}
 
 export function frameworkInfo(id: AgentFramework): AgentFrameworkInfo {
   return AGENT_FRAMEWORKS.find((f) => f.id === id) ?? AGENT_FRAMEWORKS[0];

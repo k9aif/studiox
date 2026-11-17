@@ -80,6 +80,9 @@ export interface ProjectMeta {
   platforms: string[];
   // The agent framework the squads run on (see agentFrameworks.ts); undefined = native for older projects
   agent_framework?: import('./agentFrameworks').AgentFramework;
+  // OpenAI Agents SDK only: 'sequence' (default: the squad runs its agents in flow order) or 'handoffs'
+  // (the model picks the next agent). Set by the design spec's "Agent Routing".
+  agent_routing?: 'sequence' | 'handoffs';
   messaging_list?: string[];
   database_list?: string[];
   object_storage_list?: string[];

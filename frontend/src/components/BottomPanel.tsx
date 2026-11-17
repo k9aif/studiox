@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import { useStore } from '../store';
 import type { NodeData, ProjectMeta } from '../types';
-import { frameworkInfo, frameworkOf } from '../agentFrameworks';
+import { frameworkInfo, frameworkOf, routingOf } from '../agentFrameworks';
 
 type Tab = 'log' | 'config' | 'flows' | 'governance' | 'orchestrators' | 'squads';
 
@@ -30,6 +30,9 @@ function genConfig(project: ProjectMeta): string {
 
   const fw = frameworkInfo(frameworkOf(project));
   lines.push(`agent_framework: ${fw.id}${fw.adapter ? `          # each squad runs as: ${fw.squadAs}, wrapped by ${fw.adapter}` : '          # native K9-AIF squads'}`);
+  if (fw.id === 'openai_agents') {
+    lines.push(`agent_routing: ${routingOf(project)}${routingOf(project) === 'handoffs' ? '          # the model picks the next agent (design spec)' : '          # the squad runs its agents in flow order'}`);
+  }
   lines.push('');
 
   const watsonxOnly = (project.platforms ?? []).filter((p) => p.startsWith('watsonx-'));

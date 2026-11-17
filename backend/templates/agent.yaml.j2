@@ -4,10 +4,16 @@
 {% if fw_adapter %}
 # Built as {{ fw_agent_as }} by K9-AIF's {{ fw_adapter }} from this file (see runtimes/). There is no Python
 # agent class: edit role, goal, instructions and tools here. K9-AIF governs every turn, tool call and reply.
+{% elif step_agent %}
+# An OpenAI agent, run by its squad as one step (K9OpenAIAgent, squad_agents/{{ agent.name | to_snake }}.py). The squad's
+# flow sets the order; this agent never chooses what runs next. Edit role, goal, instructions and tools here.
 {% endif %}
 
 name: {{ agent.name }}
-{% if not fw_adapter %}
+{% if step_agent %}
+class: {{ agent.name }}
+module: squad_agents.{{ agent.name | to_snake }}
+{% elif not fw_adapter %}
 class: {{ agent.name }}
 module: agents.src.{{ agent.name | to_snake }}
 {% endif %}
@@ -25,14 +31,15 @@ role: >
 goal: >
   Execute {{ agent.name | lower | replace('agent', '') | trim }} accurately and return a structured result.
 
-{% if fw_adapter %}
+{% if fw_adapter or step_agent %}
 instructions:
   - Do only the part of the request this agent is responsible for
   - Use only what your tools return; never guess a value
   - Answer in plain, short sentences
 
 tools: []                      # names of ToolCapability entries in runtimes/tools.py
-{% else %}
+{% if step_agent %}handoffs: []                   # always empty: the squad's flow decides what runs next
+{% endif %}{% else %}
 instructions:
   - Analyse the input payload carefully
   - Always include a confidence score in your output
@@ -50,7 +57,7 @@ confidence_threshold: 0.8
 finalize_on_max_iterations: true
 {% endif %}
 
-{% if not fw_adapter %}
+{% if not fw_adapter and not step_agent %}
 governance:
   pre_process: false
   post_process: false

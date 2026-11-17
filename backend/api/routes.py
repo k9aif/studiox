@@ -679,6 +679,9 @@ class ProjectDef(BaseModel):
     platforms: List[str] = Field(default_factory=list)
     # The agent framework the squads run on (scaffold_service.AGENT_FRAMEWORKS); one per project.
     agent_framework: str = "native"
+    # OpenAI Agents SDK only: "sequence" (default, the squad runs its agents in flow order) or "handoffs"
+    # (the model picks the next agent), from the design spec's "Agent Routing".
+    agent_routing: str = "sequence"
     messaging_list: List[str] = Field(default_factory=list)
     database_list: List[str] = Field(default_factory=list)
     object_storage_list: List[str] = Field(default_factory=list)

@@ -20,7 +20,13 @@ from __future__ import annotations
 
 AGENT_FRAMEWORKS = {
     "native": {"label": "K9-AIF native", "adapter": "", "extra": "", "squad_as": "Squad", "min_k9aif": ""},
-    "openai_agents": {"label": "OpenAI Agents SDK", "adapter": "K9OpenAIAgentsAdapter", "extra": "openai-agents",
+    # OpenAI Agents SDK, the default: a K9-AIF squad whose steps are OpenAI agents (K9OpenAIAgent), run in the
+    # order of the squad's flow, with synthesis. The squad decides which agent runs next, never the model.
+    "openai_squad": {"label": "OpenAI Agents SDK", "adapter": "K9OpenAIAgent", "extra": "openai-agents",
+                     "squad_as": "a K9-AIF squad of OpenAI agents, one per step, in flow order", "min_k9aif": "1.28.0"},
+    # OpenAI Agents SDK with "Agent Routing: handoffs" in the design spec: the model picks the specialist.
+    "openai_agents": {"label": "OpenAI Agents SDK (handoffs)", "adapter": "K9OpenAIAgentsAdapter",
+                      "extra": "openai-agents",
                       "squad_as": "an OpenAI agent with its squad-mates as handoffs", "min_k9aif": "1.27.0"},
     "crewai": {"label": "CrewAI", "adapter": "K9CrewAIAdapter", "extra": "crewai",
                "squad_as": "a sequential Crew", "min_k9aif": ""},
@@ -32,10 +38,20 @@ AGENT_FRAMEWORKS = {
 }
 
 
+def agent_routing(project: dict) -> str:
+    """'handoffs' only when the project (its design spec) asks for it on the OpenAI Agents SDK; else 'sequence'."""
+    return "handoffs" if (project.get("agent_routing") or "").strip().lower() == "handoffs" else "sequence"
+
+
 def framework_of(project: dict) -> str:
-    """The project's agent framework id; unknown values and older projects fall back to native
-    (a project saved with the old 'crewai' palette tag opens as CrewAI)."""
+    """The generation mode for the project's agent framework; unknown values and older projects fall back to
+    native (a project saved with the old 'crewai' palette tag opens as CrewAI).
+
+    The OpenAI Agents SDK has two modes: 'openai_squad' (default: the squad runs the OpenAI agents in flow
+    order) and 'openai_agents' (handoffs, only with agent_routing 'handoffs')."""
     fw = (project.get("agent_framework") or "").strip()
+    if fw in ("openai_agents", "openai_squad"):
+        return "openai_agents" if agent_routing(project) == "handoffs" else "openai_squad"
     if fw in AGENT_FRAMEWORKS:
         return fw
     return "crewai" if "crewai" in (project.get("platforms") or []) else "native"
@@ -77,7 +93,7 @@ def instructions_of(spec: Dict[str, Any]) -> str:
 '''
 
 _TOOLS = {
-    "openai_agents": '''"""Tools the squads' OpenAI agents may call. The adapter turns each ToolCapability into a governed
+    "openai_agents": '''"""Tools the squads' OpenAI agents may call. K9-AIF turns each ToolCapability into a governed
 function tool (k9x Shield on every call and every result). Name a tool in an agent's YAML (tools: [name]) to
 give it to that agent. Hosted OpenAI tools can't be given to an agent: nothing on our side sees them run."""
 from typing import Any, Dict
@@ -253,12 +269,42 @@ def build(config, governance):
 }
 
 
+def runs_as_k9_squad(project: dict) -> bool:
+    """True when K9-AIF's own squad layer runs the squads (native, or OpenAI agents as squad steps)."""
+    return framework_of(project) in ("native", "openai_squad")
+
+
+_STEP_AGENT = '''"""{agent}: an OpenAI agent, run by its squad as one step (K9OpenAIAgent, k9-aif 1.28.0).
+
+Everything it does is in agents/yaml/{snake}.yaml: role, goal, instructions, model and tools. The squad runs the
+agents in the order of its flow; this agent never chooses what runs next. K9-AIF governs it like any agent:
+k9x Shield on its input and output, K9 guardrails on every tool call and result, the K9 Model Router for its model.
+(This package is squad_agents/, not agents/: the OpenAI Agents SDK's own package is named `agents`.)
+"""
+from k9_aif_abb.k9_adapters.openai_agents import K9OpenAIAgent
+
+
+class {agent}(K9OpenAIAgent):
+    pass
+'''
+
+
 def runtime_files(project: dict, timestamp: str, to_snake) -> dict[str, str]:
     """runtimes/* for the project's framework; empty for native."""
     fw = framework_of(project)
     if fw == "native":
         return {}
     header = _HEADER.format(timestamp=timestamp)
+    if fw == "openai_squad":         # the squad layer runs the squads; each agent is a small K9OpenAIAgent class
+        files = {
+            "runtimes/__init__.py": header + '"""Tools for this project\'s OpenAI agents."""\n',
+            "runtimes/tools.py": header + _TOOLS["openai_agents"],
+            "squad_agents/__init__.py": header + '"""One K9OpenAIAgent class per agent; the squads run them in flow order."""\n',
+        }
+        for agent in project.get("agents", []):
+            snake = to_snake(agent["name"])
+            files[f"squad_agents/{snake}.py"] = header + _STEP_AGENT.format(agent=agent["name"], snake=snake)
+        return files
     files = {
         "runtimes/__init__.py": header + f'"""Squad runtimes on {AGENT_FRAMEWORKS[fw]["label"]}, wrapped by K9-AIF adapters."""\n',
         "runtimes/_agent_specs.py": header + _SPECS,

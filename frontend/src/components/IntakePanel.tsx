@@ -4,7 +4,7 @@ import { K9Meter, useClimbingProgress } from './K9Meter';
 import { Icon } from './Icons';
 import { openImportedRecord, SHARED_CHANGED_EVENT } from '../importedProject';
 
-import { AGENT_FRAMEWORKS, frameworkInfo, frameworkOf, withFramework } from '../agentFrameworks';
+import { AGENT_FRAMEWORKS, frameworkInfo, frameworkOf, routingOf, withFramework } from '../agentFrameworks';
 
 function Section({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -770,6 +770,11 @@ ${s('Business Vision', (project as any).vision ?? '')}${s('Current State', (proj
           </div>
           <div style={{ fontSize: 11.5, color: '#8892a4', marginTop: 8, lineHeight: 1.5 }}>
             {frameworkInfo(frameworkOf(project)).note}
+            {frameworkOf(project) === 'openai_agents' && (
+              <div style={{ marginTop: 4 }}>Agent routing: <b>{routingOf(project) === 'handoffs'
+                ? 'handoffs (from the design spec): the model picks the next agent'
+                : 'sequence: the squad runs the agents in flow order'}</b></div>
+            )}
             {frameworkInfo(frameworkOf(project)).adapter && (
               <> Generated adapter: <code style={{ color: frameworkInfo(frameworkOf(project)).color }}>{frameworkInfo(frameworkOf(project)).adapter}</code>.</>
             )}
