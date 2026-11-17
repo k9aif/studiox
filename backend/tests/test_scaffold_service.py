@@ -770,7 +770,7 @@ def test_spec_with_agent_routing_handoffs_scaffolds_an_openai_handoff_squad(tmp_
     """Property: "**Agent Routing:** handoffs" in the design spec is the explicit opt-in for model routing: the
     scaffold builds the squad as an OpenAI entry agent whose squad-mates are its handoffs."""
     pytest.importorskip("agents")
-    intake, sug = _import_spec(SPEC_FIXTURE.read_text() + "\n**Agent Routing:** handoffs\n")
+    intake, sug = _import_spec(SPEC_FIXTURE.read_text().replace("**Agent Routing:** sequence", "**Agent Routing:** handoffs"))
     assert intake["agent_framework"] == "openai_agents" and intake["agent_routing"] == "handoffs"
     assert [s["name"] for s in sug["squads"]] == ["WeatherDeskIntelligenceSquad"]
     assert sug["squads"][0]["agents"] == ["FrontDeskAgent", "WeatherAgent", "AttireAdvisorAgent"]
