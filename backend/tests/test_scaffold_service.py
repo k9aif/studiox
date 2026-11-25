@@ -599,7 +599,7 @@ def test_k9aif_pin_follows_new_releases(monkeypatch):
     import io, json, time
     import backend.services.scaffold_service as ss
 
-    latest = {"v": "1.19.0"}
+    latest = {"v": "9.19.0"}   # above the K9AIF_VERSION floor
     def fake_urlopen(url, timeout=0):
         return io.BytesIO(json.dumps({"info": {"version": latest["v"]}}).encode())
     clock = {"t": 1000.0}
@@ -608,12 +608,12 @@ def test_k9aif_pin_follows_new_releases(monkeypatch):
     monkeypatch.delenv("K9X_STUDIO_OFFLINE", raising=False)
     monkeypatch.setattr(ss, "_K9AIF_LATEST", {})
 
-    assert ss.k9aif_version() == "1.19.0"
-    latest["v"] = "1.20.0"
+    assert ss.k9aif_version() == "9.19.0"
+    latest["v"] = "9.20.0"
     clock["t"] += 60
-    assert ss.k9aif_version() == "1.19.0"          # within the TTL: cached
+    assert ss.k9aif_version() == "9.19.0"          # within the TTL: cached
     clock["t"] += ss.K9AIF_LOOKUP_TTL_SECONDS
-    assert ss.k9aif_version() == "1.20.0"          # after it: the new release
+    assert ss.k9aif_version() == "9.20.0"          # after it: the new release
 
 
 def test_k9aif_pin_never_goes_backwards_when_pypi_is_down(monkeypatch):

@@ -85,6 +85,15 @@ own `AgentLoader` docstring and the EOC taught registering agents inside the
 orchestrator; registering by name (1.15) removed the imports but kept the
 coupling — don't copy that pattern from older code.
 
+**Agents may be sync or async (1.31.0).** `BaseSquad` runs an `async def
+execute()` to completion (in or outside a running event loop) and hands the
+next step its real result; before 1.31.0 it stored the coroutine and reported
+`completed`. Code that calls an agent directly must `await` it, or from sync
+code use `k9_aif_abb.k9_utils.async_bridge.run_sync(agent.execute(p))`.
+k9_inspect **K9-ASY-001** flags an async agent called without either. An
+async orchestrator that runs a squad: `await asyncio.to_thread(squad.execute,
+payload)` keeps the event loop free. Test: `tests/test_async_agents_in_squads.py`.
+
 Cardinality: Router 1→N Orchestrators, Orchestrator 1→N Squads
 (`execute_squads(..., parallel=True/False)`), Squad 1→N Agents (sequential
 `flow`).
@@ -95,7 +104,11 @@ the step sets `context_keys` (scoping) or the squad sets `synthesis:`
 digest (`squad_digest`) from `K9ContextSynthesizerAgent` (a governed
 `BaseAgent`) instead of the upstream outputs; full outputs stay in the
 squad's results, each digest is logged in `squad_synthesis`. Recipe: `SKILLS.md`
-Skill 4. Tests: `tests/test_squad_synthesis.py`.
+Skill 4. Tests: `tests/test_squad_synthesis.py`. **1.35.0:** a `when:` or a rule can test a field of a step's structured output
+(JSON text), such as `churn.output.is_churn_risk`, via `k9_utils/step_outputs.py`; before, the path stopped at the
+text and the condition never held. `SquadLoader` passes each agent only the `agent_kwargs` its constructor
+takes, so a `K9RulesAgent` step needs no subclass in an OpenAI squad. Test:
+`tests/test_structured_output_conditions.py`.
 
 ## LLM calls — one path only
 
@@ -210,7 +223,10 @@ governance refuse before the tool runs. Development/test only warn. Tests:
 `governance_from_config(config)`: `security.shield.enabled: true` →
 `ShieldGovernance(config)`; `governance.guardian.enabled: true` →
 `GuardianGovernance` (Granite Guardian, `on_unavailable` default
-`fail_closed`; `temperature` default 0 from 1.26, removing most run-to-run variation:
+`fail_closed`; 1.34.0: reads every string in the payload, all of it, in 2000-character chunks, any unsafe chunk
+blocks, over `max_chars` refused under fail_closed; before, only the first 4000 characters of one key;
+`required: true` (config file, not .env) refuses start-up with Guardian off outside dev/test; `points` limits where
+the model check is spent (callers name `ctx["checkpoint"]`; Shield runs everywhere); switch: `K9_GUARDIAN_ENABLED`; `temperature` default 0 from 1.26, removing most run-to-run variation:
 before, Ollama sampled and the same document flipped between runs; GPU
 inference is not bit-exact, so a borderline verdict can still change); both → `ChainedGovernance(Shield, Guardian)`, Shield first.
 One config setting therefore governs every agent of an application.
@@ -222,7 +238,9 @@ run pre/post at their boundary and call `assert_governed()` at the top of
 `execute_flow()`. The OpenAI adapter (1.27.0) also checks every tool call, tool result and
 model reply, applies Zero Trust to each agent that takes a turn, and lets the K9 Model Router
 pick every model (`llm_route()`, the one router access outside `llm_invoke()`); see
-`k9_adapters/openai_agents/CLAUDE.md`.
+`k9_adapters/openai_agents/CLAUDE.md`. 1.35.0: the developer's own SDK agent guardrails
+(`input_guardrails:` / `output_guardrails:` in agent YAML) run beside K9's checks; a tripwire becomes
+`PermissionError` (block) or `RequiresHIL` (`on_trip: hil`); that file has a coverage table of every SDK feature.
 **Several OpenAI agents (1.28.0): the squad decides, not the model.** `K9OpenAIAgent` makes each
 OpenAI agent an individual agent (one small subclass per agent) that `BaseSquad` runs in its `flow:` order,
 with `synthesis:`; no handoff is offered to the model. Use the orchestrator adapter's handoffs only where
@@ -234,8 +252,10 @@ letting the model pick the specialist is the point. Test: `tests/test_openai_age
 (it is the same assertion) and is harmless to call.
 
 **The governance hooks on Orchestrator/Router are `async`.** From sync
-code use `_run_coro_sync(self.apply_pre_governance(payload))`, never
-`asyncio.run()` (fails inside a running event loop). Orchestrators also have
+code use `run_sync(self.apply_pre_governance(payload))` (`k9_utils/async_bridge.py`,
+the framework's one sync-over-async bridge since 1.31.0; `_run_coro_sync` is
+its old name), never `asyncio.run()` (fails inside a running event loop).
+Never add another private copy of the bridge. Orchestrators also have
 a sync ingress wrapper, `apply_shield(payload)` → `{"allowed", "reason",
 "payload"}`. (BaseAgent's automatic wrapper calls the governance backend
 directly and resolves an awaitable result safely.)
@@ -583,14 +603,27 @@ at once; a failed dead-letter publish raises and commits nothing). Before
 HIL reply whose handling failed was skipped for good. Tests:
 `tests/test_delivery_and_resume_1_23.py`.
 
-**Request fields not yet passed:** `BaseHILOrchestrator.execute_flow()`
-builds the request from `title`/`reason`/`priority`/`source_orchestrator`
-plus `payload` (the `RequiresHIL` context). It does not pass per-task TTL,
-PII field lists, required role, or `artifacts` — the list of object-storage
-links (`s3://bucket/key`, S3/MinIO) that k9x-hil reads to fetch the review
-document directly. k9x-hil falls back to queue defaults for the first
-three; a solution that needs documents shown to the reviewer must add
-`artifacts` itself.
+**Agent frameworks' own approval pauses (1.29.0).** `BaseHILAdapter` maps a framework's pause (first:
+`OpenAIHILAdapter`, the OpenAI Agents SDK's `needs_approval`) to `RequiresHIL` and the K9X HIL reply back. The
+paused run waits in `PausedRunStore` (PostgreSQL schema or SQLite); only its key travels, in
+`RequiresHIL.resume_state` → the resume payload's `_k9_resume`. `BaseSquad` then resumes at the paused step
+instead of rerunning the flow. Test: `tests/test_openai_agent_hil.py`.
+
+**K9X HIL owns the task structure (1.30.0).** Every HIL request
+`BaseHILOrchestrator` publishes conforms to HIL's contract `k9x.hil.task/v1`
+(JSON Schema served by HIL at `GET /api/contract/task`; HIL dead-letters a
+message that names the contract and doesn't conform). `RequiresHIL` carries
+the contract's fields: `title`, `task_type`, `artifacts` (any number of
+`HILArtifact(uri, title, media_type, role, pii)`: `s3://bucket/key`, which HIL
+fetches itself from S3/MinIO, or `https://` links), `required_role`,
+`decision_authority`, `require_comment`, `ttl_hours`/`ttl_action`, `pii`/
+`pii_fields`. Values HIL would refuse raise `ValueError` at the raise site.
+An orchestrator that catches a framework's own pause (an OpenAI agent's
+`needs_approval`) fills them in with `exc.set_task_fields(...)` before
+`handle_requires_hil()`. Builder: `k9_core/orchestration/hil_task.py`.
+Test: `tests/test_hil_task_contract.py` (checks the published messages
+against a copy of HIL's schema). Before 1.30.0 only title, reason,
+priority, source and payload were sent.
 
 **Not every HIL-consumer action is a decision worth publishing.** The
 reference reply-side implementation, `k9x-hil`
@@ -664,6 +697,56 @@ vendor's; the call is held and the tool never runs (`tests/test_tool_gate_1_25.p
   flags it), calls outside an agent (orchestrator/script code), `execute_stream()` agents.
   Every request counts as carrying outside content (`untrusted_input` is always true).
 
+## Acting for the caller (1.36.0, opt-in)
+
+**Property:** a connector that acts for the caller reaches its server only with a token addressed to that server
+that names the verified caller, and never with a shared key. **Test:** the same request from an AP clerk and a
+controller reaches the MCP server as each of them; a forged payload (`principal_id`, `roles`) with no signed
+stamp makes the call raise before it runs (`tests/test_on_behalf_of_1_36.py`).
+
+- Config: `security.identity.mode: signed` + `security.on_behalf_of` (`enabled`, `broker: token_exchange`,
+  `token_endpoint`, `client_id`, `client_secret_env`, `token_store: {provider: in_memory | redis}`). Connector:
+  `on_behalf_of: {audience: <server's client id>}` (in `kwargs` or top level). Built by `CredentialBrokerFactory`
+  (one configuration per process; `BaseRouter.admit()` and `BaseOrchestrator.__init__` configure it).
+- Path: `admit()` stores the bearer token (`SubjectTokenStore`) and signs a `token_ref` into the stamp →
+  `execute_squads()` resolves the stamp and sets `ACTIVE_CALLER` (copied into parallel squads and thread bridges)
+  → the `BaseAgent` wrapper sets `ACTIVE_AGENT` → `BaseConnector.on_behalf_of_headers()` →
+  `BaseCredentialBroker.headers_for(audience, caller)` → OOB `TokenExchangeCredentialBroker` (RFC 8693).
+- One identity-provider client for the whole application: the token says "this application, acting for John";
+  which agent made the call is in the `OnBehalfOf` log line and trace event, not the token.
+- Fail closed (`CredentialUnavailableError`, a `PermissionError`): no verified caller, no bearer token (API-key
+  callers), token expired from the store, exchange refused or unreachable, or the process not configured.
+- Not covered: `HttpApiAdapter`, `SqlDataAdapter`; `list_tools()` outside a flow on a connector that acts for the
+  caller (refused: no caller); a tool call resumed after HIL (no caller; refused). Design:
+  `docs/roadmap/on-behalf-of-design.md`.
+
+## K9X Filters (1.32.0, opt-in)
+
+**Property:** governance decides, filters transform. A filter changes what flows through an agent
+(removes, labels, normalises, attaches) and never blocks; governance never changes a passing payload
+and always screens the final form. **Test:** an injection hidden with a zero-width character passes
+Shield alone and is blocked with `text_normalize` on (`tests/test_filters_1_32.py`).
+
+- `filters.enabled: true` + `filters.chain: [...]` (run order). Contract `BaseFilter`
+  (`k9_core/filters/`: `filter_in` / `filter_out` → `FilterResult(value, record, result_fields)`),
+  OOB in `k9_filters/`, built by `FilterFactory` (OOB names, `register()`, or `class:` + `module:`).
+  Agent YAML: one reserved key, `agent_filters:` (`use: [...]` narrows the chain, `[]` = none; one
+  section per filter: `attention:`, `json_output:`). Agent YAML only: `AgentLoader` merges key by key,
+  so an agent YAML must never have `filters:`. `FilterFactory.register()` refuses a taken name (OOB
+  included) unless `replace=True`. A bad entry fails when the agent is built.
+- **Where:** the `BaseAgent` wrapper: filters in → governance pre → `execute()` → filters out →
+  governance post. In sees the payload before the agent's code runs (still a dict of named parts);
+  out sees `result["output"]` and may add result fields (`sources`), which governance post screens
+  too. The loop ABBs call the same points around their loop. `execute_stream()`: in only.
+- **Not covered:** the orchestrator adapters' own model calls; the model-call point inside
+  `llm_invoke()` is a later version (it needs labelled prompt parts on `InferenceRequest`).
+- A filter that raises `PermissionError` becomes `FilterError` (a block belongs in a Shield check);
+  any other error propagates like an agent failure. Every record → `FilterApplied` trace event.
+- OOB: `text_normalize` (in), `attention` (in), `json_output` (out), `provenance` (in + out).
+  Not filters: PII masking (Zero Trust), blocking (Shield), squad digests (`synthesis:`), rendering a
+  deliverable (a formatter agent; a planned `deliver` filter will call one).
+- Design: `docs/roadmap/k9x-filters-design.md`. Recipe: `SKILLS.md` Skill 17.
+
 ## Pre-Push Checklist
 
 - Every new `.py` file starts with the two-line header
@@ -674,6 +757,8 @@ vendor's; the call is held and the tool never runs (`tests/test_tool_gate_1_25.p
 - No hardcoded IPs (`192.168.x.x` etc.) — env vars with localhost defaults:
   `"${POSTGRES_HOST:-localhost}"`, `"${OLLAMA_BASE_URL:-http://localhost:11434}"`
 - No credentials in `config.yaml` — secrets in `.env` (gitignored) only
+- No key twice in one YAML mapping — the loader keeps the last and drops the
+  first silently (k9_inspect K9-CFG-005)
 - `.env` never staged; example apps and generated projects ship an
   `env-example` template — copy it, never commit the real `.env`
 - No `__pycache__`/`.pyc` — `.gitignore` present before first commit
@@ -725,8 +810,8 @@ sudo podman logs eoc-app-backend
 ## Known gotchas (not obvious from the code alone)
 
 - `K9ModelRouter.invoke()` bridges sync `BaseAgent.execute()` to async
-  `BaseLLM.generate()` via `_run_coro_sync()` — never call `asyncio.run()`
-  directly there. Inside an already-running event loop (FastAPI etc.),
+  `BaseLLM.generate()` via the shared `async_bridge.run_sync()` — never call
+  `asyncio.run()` directly there. Inside an already-running event loop (FastAPI etc.),
   `asyncio.run()` raises, and a broad `except Exception` upstream will
   silently swallow it and fall back to stub output.
 - Any new `BaseLLM.generate()` implementation must accept

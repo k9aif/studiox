@@ -204,6 +204,22 @@ security:
       ToolAuthorizationCheck:
         approved_tools: [example_lookup]
 {% endif %}
+  # ── Acting for the caller (k9-aif 1.36.0) — OFF by default ───────────────
+  # When on, the router keeps the signed-in person's token server side, and each
+  # MCP connector that sets `on_behalf_of: {audience: <server's client id>}`
+  # exchanges it per call (OAuth 2.0 token exchange, RFC 8693) for a short-lived
+  # token addressed to that server and naming the person. The MCP server decides
+  # with the person's own rights. Needs identity mode `signed`. Turn on in .env
+  # (K9_ON_BEHALF_OF_ENABLED, K9_IDENTITY_MODE; see .env.example for the steps).
+  identity:
+    mode: "${K9_IDENTITY_MODE:-payload}"          # payload (1.x default) | signed
+  on_behalf_of:
+    enabled: "${K9_ON_BEHALF_OF_ENABLED:-false}"
+    broker: token_exchange
+    token_endpoint: "${KEYCLOAK_URL:-http://localhost:8113}/realms/${KEYCLOAK_REALM:-k9x}/protocol/openid-connect/token"
+    client_id: "${K9_OBO_CLIENT_ID:-}"
+    client_secret_env: K9_OBO_CLIENT_SECRET
+    token_store: {provider: in_memory}           # redis when router and orchestrator run as separate processes
 monitoring:
   console: true
   log_level: INFO

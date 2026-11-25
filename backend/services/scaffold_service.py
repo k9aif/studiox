@@ -571,10 +571,12 @@ def _mcp_tool_display_name(text: str) -> str:
 # SquadLoader.from_agents, so generated orchestrators know only squads -- plus
 # squad coordinator synthesis, governance by construction, Shield and Guardian
 # from config, and the 31 conformance rules `k9aif inspect` runs on COMPLIANCE.md).
+# Raised to 1.36.0 (2026-11-25): config.yaml carries security.on_behalf_of (off by
+# default); an older k9-aif would silently ignore it if someone turned it on.
 # A scaffold pins the LATEST release (k9aif_version()), never older than this,
 # so a new framework release needs no Studio edit. Never pin 1.12.3 (broken on
 # MCP SDK 2.x).
-K9AIF_VERSION = "1.18.7"
+K9AIF_VERSION = "1.36.0"
 
 _K9AIF_LATEST: dict = {}
 # How long a looked-up version is reused. A hosted Studio runs for weeks: looked up once per process,
@@ -3132,6 +3134,15 @@ class AgentLoader:
             'K9_GUARDIAN_MODEL="granite4.1-guardian:8b"',
             'K9_GUARDIAN_ON_UNAVAILABLE="fail_closed"',
             "",
+            "# Acting for the caller (k9-aif 1.36.0) — OFF by default (see .env.example)",
+            'K9_ON_BEHALF_OF_ENABLED="false"',
+            'K9_IDENTITY_MODE="payload"',
+            '# K9_IDENTITY_SECRET=""',
+            '# KEYCLOAK_URL="http://localhost:8113"',
+            '# KEYCLOAK_REALM=""',
+            '# K9_OBO_CLIENT_ID=""',
+            '# K9_OBO_CLIENT_SECRET=""',
+            "",
             "# LLM — OpenAI (uncomment if using OpenAI backend in config.yaml)",
             '# OPENAI_API_KEY="sk-..."',
             "",
@@ -3194,6 +3205,27 @@ class AgentLoader:
             'K9_GUARDIAN_ENABLED=true',
             'K9_GUARDIAN_MODEL=granite4.1-guardian:8b',
             'K9_GUARDIAN_ON_UNAVAILABLE=fail_closed',
+            "",
+            "# ── Acting for the caller (k9-aif 1.36.0, OFF by default) ─",
+            "# Each MCP call carries a short-lived token naming the signed-in person,",
+            "# exchanged at the identity provider (OAuth 2.0 token exchange, RFC 8693),",
+            "# so the MCP server decides with that person's rights. To turn it on:",
+            "#   1. K9_IDENTITY_MODE=signed and K9_IDENTITY_SECRET (same value in every",
+            "#      router and orchestrator process)",
+            "#   2. K9_ON_BEHALF_OF_ENABLED=true, KEYCLOAK_URL, KEYCLOAK_REALM, and the",
+            "#      application's own client (token exchange enabled) in K9_OBO_CLIENT_ID /",
+            "#      K9_OBO_CLIENT_SECRET",
+            "#   3. in config.yaml, on each MCP connector that should act for the person:",
+            "#        on_behalf_of: {audience: <the MCP server's client id>}",
+            "#   4. requests enter through router.admit(payload, credentials={\"authorization\": ...})",
+            "# Unverified caller or refused exchange: the call does not run (never a shared key).",
+            'K9_ON_BEHALF_OF_ENABLED=false',
+            'K9_IDENTITY_MODE=payload',
+            'K9_IDENTITY_SECRET=',
+            'KEYCLOAK_URL=http://localhost:8113',
+            'KEYCLOAK_REALM=',
+            'K9_OBO_CLIENT_ID=',
+            'K9_OBO_CLIENT_SECRET=',
             "",
             "# ── LLM — OpenAI ─────────────────────────────────────────",
             "# Set backend: openai and api_key_env: OPENAI_API_KEY in config.yaml",
